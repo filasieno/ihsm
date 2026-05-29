@@ -89,9 +89,9 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 	set ctx(ctx: Context){
 		this._instance.ctx = ctx;
 	}
-	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+	 
 	get eventName(): string { return this._currentEventName!; }
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any,@typescript-eslint/no-non-null-assertion
+	 
 	get eventPayload(): any[] { return this._currentEventPayload!; }
 	get currentStateName(): string { return Object.getPrototypeOf(this._instance).constructor.name; }
 	get currentState(): HsmStateClass<Context, Protocol> { return Object.getPrototypeOf(this._instance).constructor; }
@@ -143,7 +143,7 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 			return;
 		}
 		const task = this._jobs.shift();
-		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		 
 		this.exec(task!);
 	}
 

@@ -48,7 +48,7 @@ export enum HsmTraceLevel {
  * @category Factory
  */
 export interface HsmTraceWriter {
-	write<Context, Protocol>(hsm: HsmProperties<Context, Protocol>, msg: any): void;
+	write<Context, Protocol extends {} | undefined>(hsm: HsmProperties<Context, Protocol>, msg: any): void;
 }
 
 /**
@@ -101,13 +101,12 @@ export interface Hsm<Context = HsmAny, Protocol extends {} | undefined = undefin
  * @category Event handler
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type HsmEventHandlerName<Protocol extends {} | undefined, EventName extends keyof Protocol> = Protocol extends undefined ? string : EventName extends keyof HsmState<any, any> ? never : EventName;
 
 /**
  * @category Event handler
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 export type HsmEventHandlerPayload<Protocol extends {} | undefined, EventName extends keyof Protocol> = Protocol extends undefined ? any[] : Protocol[EventName] extends (...payload: infer Payload) => Promise<void> | void ? (Payload extends any[] ? Payload : never) : never;
 
 /**
@@ -135,7 +134,7 @@ export type HsmServiceName<Protocol, EventName> = Protocol extends undefined ? s
  * todo
  * @category State machine
  */
-export interface HsmStateMachineEvents<Context, Protocol> {
+export interface HsmStateMachineEvents<Context, Protocol extends {} | undefined> {
 	onExit(): Promise<void> | void;
 	onEntry(): Promise<void> | void;
 	onError<EventName extends keyof Protocol>(error: HsmRuntimeError<Context, Protocol, EventName>): Promise<void> | void;
@@ -188,7 +187,7 @@ export abstract class HsmTopState<Context = HsmAny, Protocol extends {} | undefi
 	set traceWriter(value) {
 		this.hsm.traceWriter = value;
 	}
-	// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
+
 	get dispatchErrorCallback() {
 		return this.hsm.dispatchErrorCallback;
 	}
@@ -210,9 +209,9 @@ export abstract class HsmTopState<Context = HsmAny, Protocol extends {} | undefi
 	deferredPost<EventName extends keyof Protocol>(millis: number, eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void {
 		this.hsm.deferredPost(millis, eventName, ...eventPayload);
 	}
-	// eslint-disable-next-line @typescript-eslint/no-empty-function
+
 	onExit(): Promise<void> | void {}
-	// eslint-disable-next-line @typescript-eslint/no-empty-function
+
 	onEntry(): Promise<void> | void {}
 
 	onError<EventName extends keyof Protocol>(error: HsmRuntimeError<Context, Protocol, EventName>): Promise<void> | void {
@@ -262,7 +261,14 @@ export abstract class HsmRuntimeError<Context, Protocol extends {} | undefined, 
  * @category Error
  */
 export class HsmTransitionError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol> extends HsmRuntimeError<Context, Protocol, EventName> {
-	constructor(hsm: HsmState<Context, Protocol>, cause: Error, public failedStateName: string, public failedCallback: 'onExit' | 'onEntry', public fromStateName: string, public toStateName: string) {
+	constructor(
+		hsm: HsmState<Context, Protocol>,
+		cause: Error,
+		public failedStateName: string,
+		public failedCallback: 'onExit' | 'onEntry',
+		public fromStateName: string,
+		public toStateName: string
+	) {
 		super('HsmTransitionError', hsm, `${failedStateName}.${failedCallback}() has failed while executing a transition from ${fromStateName} to ${toStateName}`, cause);
 	}
 }
@@ -311,7 +317,11 @@ export class HsmFatalError<Context, Protocol extends {} | undefined, EventName e
  * @category Error
  */
 export class HsmInitializationError<Context, Protocol extends {} | undefined> extends HsmError<Context, Protocol> {
-	constructor(hsm: HsmState<Context, Protocol>, public failedState: HsmStateClass<Context, Protocol>, cause: Error) {
+	constructor(
+		hsm: HsmState<Context, Protocol>,
+		public failedState: HsmStateClass<Context, Protocol>,
+		cause: Error
+	) {
 		super('HsmInitializationError', hsm, `state ${failedState.name} has thrown ${quoteError(cause)} during initialization`, cause);
 	}
 }
@@ -374,11 +384,17 @@ export class HsmFactory<Context, Protocol extends undefined | {}> {
 	private static defaultTraceWriter = new ConsoleTraceWriter();
 	private static defaultTraceLevel = HsmTraceLevel.DEBUG;
 	private static defaultInitialize = true;
-	constructor(public topState: HsmStateClass<Context, Protocol>, public initialize = HsmFactory.defaultInitialize, public traceLevel = HsmFactory.defaultTraceLevel, public traceWriter = HsmFactory.defaultTraceWriter, public dispatchErrorCallback = HsmFactory.defaultDispatchErrorCallback) {}
+	constructor(
+		public topState: HsmStateClass<Context, Protocol>,
+		public initialize = HsmFactory.defaultInitialize,
+		public traceLevel = HsmFactory.defaultTraceLevel,
+		public traceWriter = HsmFactory.defaultTraceWriter,
+		public dispatchErrorCallback = HsmFactory.defaultDispatchErrorCallback
+	) {}
 
 	create(ctx: Context, initialize: boolean = this.initialize, traceLevel = this.traceLevel, traceWriter = this.traceWriter, dispatchErrorCallback = this.dispatchErrorCallback): Hsm<Context, Protocol> {
 		const instance: Instance<Context, Protocol> = {
-			hsm: (undefined as unknown) as HsmWithTracing<Context, Protocol>,
+			hsm: undefined as unknown as HsmWithTracing<Context, Protocol>,
 			ctx: ctx,
 		};
 		Object.setPrototypeOf(instance, this.topState.prototype);
