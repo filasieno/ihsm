@@ -1,0 +1,48 @@
+--- payment actor ---
+PaymentTop: begin initialization
+initialize|PaymentTop: started initialization from PaymentTop
+initialize|PaymentTop: skip PaymentTop.onEntry(): default empty implementation
+initialize|PaymentTop: PaymentTop initial state is PaymentPending
+initialize|PaymentTop: skip PaymentPending.onEntry(): default empty implementation
+initialize|PaymentTop: PaymentPending has no initial state; final state is PaymentPending
+initialize|PaymentTop: done: final state is PaymentPending
+PaymentPending: end initialization
+PaymentPending: begin event dispatch of #markPaid
+#markPaid|PaymentPending: started event dispatch
+#markPaid|lookup|PaymentPending: started lookup of #markPaid event handler
+#markPaid|lookup|PaymentPending: not found in state PaymentPending
+#markPaid|lookup|PaymentPending: done: #markPaid found in state PaymentTop
+#markPaid|execute|PaymentPending: started event handler execution
+#markPaid|execute|PaymentPending: done: event handler execution successful
+#markPaid|PaymentPending: requested transition from PaymentPending to PaymentDone 
+#markPaid|PaymentPending: transition cache miss for PaymentPending to PaymentDone 
+#markPaid|transition from PaymentPending to PaymentDone|PaymentPending: started transition from PaymentPending to PaymentDone 
+#markPaid|transition from PaymentPending to PaymentDone|PaymentPending: PaymentPending.onExit() skipped: default empty implementation
+#markPaid|transition from PaymentPending to PaymentDone|PaymentPending: PaymentDone.onEntry() skipped: default empty implementation
+#markPaid|transition from PaymentPending to PaymentDone|PaymentPending: done: final state is PaymentDone
+#markPaid|PaymentDone: done: event dispatch successful
+PaymentDone: end event dispatch
+--- shipping actor ---
+ShippingTop: begin initialization
+initialize|ShippingTop: started initialization from ShippingTop
+initialize|ShippingTop: skip ShippingTop.onEntry(): default empty implementation
+initialize|ShippingTop: ShippingTop initial state is ShippingWaiting
+initialize|ShippingTop: skip ShippingWaiting.onEntry(): default empty implementation
+initialize|ShippingTop: ShippingWaiting has no initial state; final state is ShippingWaiting
+initialize|ShippingTop: done: final state is ShippingWaiting
+ShippingWaiting: end initialization
+ShippingWaiting: begin event dispatch of #markShipped
+#markShipped|ShippingWaiting: started event dispatch
+#markShipped|lookup|ShippingWaiting: started lookup of #markShipped event handler
+#markShipped|lookup|ShippingWaiting: not found in state ShippingWaiting
+#markShipped|lookup|ShippingWaiting: done: #markShipped found in state ShippingTop
+#markShipped|execute|ShippingWaiting: started event handler execution
+#markShipped|execute|ShippingWaiting: done: event handler execution successful
+#markShipped|ShippingWaiting: requested transition from ShippingWaiting to ShippingDone 
+#markShipped|ShippingWaiting: transition cache miss for ShippingWaiting to ShippingDone 
+#markShipped|transition from ShippingWaiting to ShippingDone|ShippingWaiting: started transition from ShippingWaiting to ShippingDone 
+#markShipped|transition from ShippingWaiting to ShippingDone|ShippingWaiting: ShippingWaiting.onExit() skipped: default empty implementation
+#markShipped|transition from ShippingWaiting to ShippingDone|ShippingWaiting: ShippingDone.onEntry() skipped: default empty implementation
+#markShipped|transition from ShippingWaiting to ShippingDone|ShippingWaiting: done: final state is ShippingDone
+#markShipped|ShippingDone: done: event dispatch successful
+ShippingDone: end event dispatch

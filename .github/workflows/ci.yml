@@ -33,6 +33,9 @@ jobs:
       - name: Run unit tests with coverage
         run: npm test
 
+      - name: Run tutorials
+        run: npm run test:tutorials
+
       - name: Upload coverage to Coveralls
         if: matrix.node-version == 22 && github.event_name == 'push'
         uses: coverallsapp/github-action@v2
@@ -62,6 +65,9 @@ jobs:
       - name: ESLint
         run: npm run lint
 
+      - name: Typecheck tutorial machines
+        run: npm run typecheck:tutorials
+
   docs:
     name: Documentation build
     runs-on: ubuntu-latest
@@ -69,17 +75,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
+      - name: Build site
+        uses: ./.github/actions/build-docs
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate API docs
-        run: npm run doc
-
-      - name: Verify output
-        run: test -f docs/api/index.html
+      - name: Verify site output
+        run: bash scripts/verify-docs-site.sh

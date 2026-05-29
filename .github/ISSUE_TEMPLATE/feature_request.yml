@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Describe the problem you are trying to solve. ihsm favors **class-based,
-        minimal-runtime** design — see [CONTRIBUTING.md](https://github.com/filasieno/ihsm/blob/master/CONTRIBUTING.md).
+        minimal-runtime** design — see the [README](https://github.com/filasieno/ihsm).
 
   - type: textarea
     id: problem

@@ -1,0 +1,48 @@
+QueueTop: begin initialization
+initialize|QueueTop: started initialization from QueueTop
+initialize|QueueTop: skip QueueTop.onEntry(): default empty implementation
+initialize|QueueTop: QueueTop initial state is Idle
+initialize|QueueTop: skip Idle.onEntry(): default empty implementation
+initialize|QueueTop: Idle has no initial state; final state is Idle
+initialize|QueueTop: done: final state is Idle
+Idle: end initialization
+Idle: begin event dispatch of #start
+#start|Idle: started event dispatch
+#start|lookup|Idle: started lookup of #start event handler
+#start|lookup|Idle: not found in state Idle
+#start|lookup|Idle: done: #start found in state QueueTop
+#start|execute|Idle: started event handler execution
+#start|execute|Idle: done: event handler execution successful
+#start|Idle: no transition requested
+#start|Idle: done: event dispatch successful
+Idle: end event dispatch
+Idle: begin event dispatch of #tick
+#tick|Idle: started event dispatch
+#tick|lookup|Idle: started lookup of #tick event handler
+#tick|lookup|Idle: not found in state Idle
+#tick|lookup|Idle: done: #tick found in state QueueTop
+#tick|execute|Idle: started event handler execution
+#tick|execute|Idle: done: event handler execution successful
+#tick|Idle: no transition requested
+#tick|Idle: done: event dispatch successful
+Idle: end event dispatch
+Idle: begin event dispatch of #tick
+#tick|Idle: started event dispatch
+#tick|lookup|Idle: started lookup of #tick event handler
+#tick|lookup|Idle: not found in state Idle
+#tick|lookup|Idle: done: #tick found in state QueueTop
+#tick|execute|Idle: started event handler execution
+#tick|execute|Idle: done: event handler execution successful
+#tick|Idle: no transition requested
+#tick|Idle: done: event dispatch successful
+Idle: end event dispatch
+Idle: begin event dispatch of #done
+#done|Idle: started event dispatch
+#done|lookup|Idle: started lookup of #done event handler
+#done|lookup|Idle: not found in state Idle
+#done|lookup|Idle: done: #done found in state QueueTop
+#done|execute|Idle: started event handler execution
+#done|execute|Idle: done: event handler execution successful
+#done|Idle: no transition requested
+#done|Idle: done: event dispatch successful
+Idle: end event dispatch

@@ -1,0 +1,90 @@
+# Tutorial 12: Error Recovery
+
+## Problem
+
+Handlers throw; events arrive in the wrong state. Uncaught errors leave the actor in an undefined condition.
+
+## Solution
+
+Override **`onError`** (handler threw) and **`onUnhandled`** (no handler). Recover by logging, updating ctx, or transitioning.
+
+## UML statechart
+
+```plantuml
+@startuml
+left to right direction
+state WorkerTop {
+  [*] --> Working
+  Working : risky / throw → onError → stay
+  Working : unknown / unhandled → onUnhandled → stay
+}
+@enduml
+```
+
+Recovery keeps the machine in `Working` when hooks swallow the failure.
+
+## Walkthrough
+
+`risky` simulates a fault; `unknown` triggers unhandled:
+
+```typescript
+export class WorkerTop extends HsmTopState<WorkerCtx, WorkerProtocol> implements WorkerProtocol {
+	risky(): void {
+		throw new Error('simulated failure');
+	}
+	unknown(): void {
+		this.unhandled(); // ← routes to onUnhandled
+	}
+}
+```
+
+`Working` recovers without leaving:
+
+```typescript
+@HsmInitialState
+export class Working extends WorkerTop {
+	onError<EventName extends keyof WorkerProtocol>(
+		_error: HsmEventHandlerError<WorkerCtx, WorkerProtocol, EventName>
+	): void {
+		this.ctx.recovered += 1; // ← swallow, stay in Working
+		this.ctx.failures += 1;
+	}
+
+	onUnhandled<EventName extends keyof WorkerProtocol>(
+		_error: HsmUnhandledEventError<WorkerCtx, WorkerProtocol, EventName>
+	): void {
+		this.ctx.failures += 1;
+	}
+}
+```
+
+```typescript
+worker.post('risky');
+await worker.sync();
+// still Working, recovered === 1
+```
+
+## Reading the trace
+
+ihsm logs every dispatch step when `HsmTraceLevel.VERBOSE_DEBUG` is set and a custom `HsmTraceWriter` collects lines. Setup: [Tutorial 02 — Tracing](../02-tracing/README.md).
+
+Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
+
+```trace
+{{TRACE}}
+```
+
+**What to notice:** `#risky` throws → `error recovery` domain → `onError` → machine stays in `Working` when recovery succeeds.
+
+## Run the test
+
+```shell
+npm run test:tutorials -- --grep 'Tutorial 12'
+```
+
+## What you learned
+
+- Typed errors carry `eventName`, `eventPayload`, `hsmContext`.
+- Failed recovery lands in `HsmFatalErrorState`.
+
+Next: [Tutorial 13 — Async handlers](../13-async-handlers/README.md)

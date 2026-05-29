@@ -17,7 +17,7 @@
 - [ ] No new production `dependencies` added
 - [ ] ESLint and Prettier pass (`npm run lint`)
 - [ ] Public API changes include JSDoc updates
-- [ ] README / CONTRIBUTING updated if needed
+- [ ] README updated if needed
 - [ ] I have read and agree to the [Code of Conduct](../CODE_OF_CONDUCT.md)
 
 ## How to test

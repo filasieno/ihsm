@@ -46,12 +46,14 @@ Coverage is enforced via `nyc` over all runtime sources under `src/` (excluding 
 
 | Resource | Link |
 |----------|------|
-| API reference (TypeDoc) | [filasieno.github.io/ihsm](https://filasieno.github.io/ihsm/) |
+| **Documentation site** | [filasieno.github.io/ihsm](https://filasieno.github.io/ihsm/) |
+| **Reference manual** | [docs/REFERENCE.md](./docs/REFERENCE.md) · [published](https://filasieno.github.io/ihsm/reference/) |
+| **Tutorials** | [tutorials/](./tutorials/) · [in the docs site](https://filasieno.github.io/ihsm/reference/tutorials/) |
+| **API reference** | [TypeDoc on the site](https://filasieno.github.io/ihsm/api/) |
 | Examples | [`src/spec/`](./src/spec/) |
-| Contributing | [CONTRIBUTING.md](./CONTRIBUTING.md) |
 | Code of conduct | [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) |
 
-API docs are rebuilt on every push to `master` (`.github/workflows/docs.yml`).
+The full site (reference, tutorials, API) is rebuilt on every push to `master` / `main` (`.github/workflows/docs.yml`).
 
 ## Install
 
@@ -63,25 +65,62 @@ Requires **Node.js 20+**.
 
 ## Development
 
+**Prerequisites:** Node.js 20+, npm, Git. **Java 21+** is required only to build the documentation site (PlantUML statecharts).
+
 ```shell
 git clone https://github.com/filasieno/ihsm.git
 cd ihsm
 npm ci
-npm test          # unit tests + 100% coverage report
-npm run build     # compile to lib/
-npm run doc       # generate docs/api/
-npm run benchmark # ihsm vs XState (dev dependency)
 ```
 
-See **[CONTRIBUTING.md](./CONTRIBUTING.md)** for coding standards, PR checklist, and quality gates.
+### Build commands
+
+| Command | Purpose |
+| ------- | ------- |
+| `npm test` | Unit tests + **100%** coverage (`nyc mocha`) |
+| `npm run test:tutorials` | Hands-on tutorial specs |
+| `npm run test:all` | Both test suites |
+| `npm run lint` | ESLint + Prettier |
+| `npm run build` | Compile TypeScript → `lib/` |
+| `npm run typecheck:tutorials` | Typecheck tutorial `machine.ts` files |
+| `npm run check:plantuml` | Validate UML diagrams in READMEs |
+| `npm run doc` | Full docs site → `docs/.vitepress/dist/` |
+| `npm run doc:preview` | Dev server → http://localhost:5173/ihsm/ |
+| `npm run verify:doc` | Assert production site output (same as CI) |
+| `npm run benchmark` | ihsm vs XState comparison (dev dependency) |
+
+Typical check before a PR:
+
+```shell
+npm run test:all
+npm run lint
+npm run check:plantuml
+npm run doc && npm run verify:doc
+```
+
+### Documentation site
+
+Sources of truth: `docs/REFERENCE.md`, `tutorials/*/README.md`, JSDoc in `src/index.ts`. Generated paths (`docs/reference/`, `docs/public/`, `docs/.vitepress/dist/`) are gitignored — edit sources only.
+
+```shell
+npm run doc:preview      # edit + hot reload (runs doc:prepare first)
+npm run doc              # production build (PlantUML → SVG, TypeDoc, VitePress)
+npm run verify:doc       # CI output checks
+```
+
+Preview the production build: `npm run doc` then `npx vitepress preview docs` → http://localhost:4173/ihsm/
+
+Finer-grained scripts: `npm run doc:prepare` (sync markdown + diagrams + API only), `npm run doc:api` (TypeDoc only), `npm run doc:site` (VitePress only), `npm run traces:generate` (refresh tutorial trace samples).
 
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request.
+Contributions are welcome — bug reports, docs, and code.
 
 - Bug reports → [issue template](https://github.com/filasieno/ihsm/issues/new?template=bug_report.yml)
 - Features → [issue template](https://github.com/filasieno/ihsm/issues/new?template=feature_request.yml)
-- Security → [GitHub Security Advisories](https://github.com/filasieno/ihsm/security/advisories/new)
+- Security → [GitHub Security Advisories](https://github.com/filasieno/ihsm/security/advisories/new) (not public issues)
+
+Please follow [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md). New behavior needs tests in `src/spec/`; tutorial changes need matching specs under `tutorials/`.
 
 ## License
 

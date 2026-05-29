@@ -1,0 +1,22 @@
+CheckoutTop: begin initialization
+initialize|CheckoutTop: started initialization from CheckoutTop
+initialize|CheckoutTop: skip CheckoutTop.onEntry(): default empty implementation
+initialize|CheckoutTop: CheckoutTop initial state is Draft
+initialize|CheckoutTop: skip Draft.onEntry(): default empty implementation
+initialize|CheckoutTop: Draft has no initial state; final state is Draft
+initialize|CheckoutTop: done: final state is Draft
+Draft: end initialization
+Draft: begin event dispatch of #submit
+#submit|Draft: started event dispatch
+#submit|lookup|Draft: started lookup of #submit event handler
+#submit|lookup|Draft: done: #submit found in state Draft
+#submit|execute|Draft: started event handler execution
+#submit|execute|Draft: done: event handler execution successful
+#submit|Draft: requested transition from Draft to Approved 
+#submit|Draft: transition cache miss for Draft to Approved 
+#submit|transition from Draft to Approved|Draft: started transition from Draft to Approved 
+#submit|transition from Draft to Approved|Draft: Draft.onExit() skipped: default empty implementation
+#submit|transition from Draft to Approved|Draft: Approved.onEntry() skipped: default empty implementation
+#submit|transition from Draft to Approved|Draft: done: final state is Approved
+#submit|Approved: done: event dispatch successful
+Approved: end event dispatch

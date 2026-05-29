@@ -1,0 +1,24 @@
+DeepTop: begin initialization
+initialize|DeepTop: started initialization from DeepTop
+initialize|DeepTop: DeepTop.onEntry() done
+initialize|DeepTop: DeepTop initial state is BranchSouth
+initialize|DeepTop: BranchSouth.onEntry() done
+initialize|DeepTop: BranchSouth initial state is MidSouth
+initialize|DeepTop: MidSouth.onEntry() done
+initialize|DeepTop: MidSouth initial state is LeafSouthA
+initialize|DeepTop: LeafSouthA.onEntry() done
+initialize|DeepTop: LeafSouthA has no initial state; final state is LeafSouthA
+initialize|DeepTop: done: final state is LeafSouthA
+LeafSouthA: end initialization
+LeafSouthA: begin event dispatch of #tick
+#tick|LeafSouthA: started event dispatch
+#tick|lookup|LeafSouthA: started lookup of #tick event handler
+#tick|lookup|LeafSouthA: not found in state LeafSouthA
+#tick|lookup|LeafSouthA: not found in state MidSouth
+#tick|lookup|LeafSouthA: not found in state BranchSouth
+#tick|lookup|LeafSouthA: done: #tick found in state DeepTop
+#tick|execute|LeafSouthA: started event handler execution
+#tick|execute|LeafSouthA: done: event handler execution successful
+#tick|LeafSouthA: no transition requested
+#tick|LeafSouthA: done: event dispatch successful
+LeafSouthA: end event dispatch

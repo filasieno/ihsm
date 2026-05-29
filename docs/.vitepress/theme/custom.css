@@ -1,0 +1,111 @@
+/* ihsm trace output — colored in VitePress docs */
+.vp-doc .ihsm-trace {
+	font-family: var(--vp-font-family-mono);
+	font-size: 0.82rem;
+	line-height: 1.55;
+	margin: 1rem 0;
+	padding: 0.75rem 1rem;
+	border: 1px solid var(--vp-c-divider);
+	border-radius: 8px;
+	background: var(--vp-c-bg-soft);
+	overflow-x: auto;
+}
+
+.vp-doc .ihsm-trace .trace-line {
+	white-space: pre-wrap;
+	word-break: break-word;
+	padding: 0.05rem 0;
+}
+
+.vp-doc .ihsm-trace .trace-domain {
+	color: var(--vp-c-brand-1);
+	opacity: 0.95;
+}
+
+.vp-doc .ihsm-trace .trace-state {
+	color: var(--vp-c-text-1);
+	font-weight: 600;
+}
+
+.vp-doc .ihsm-trace .trace-sep {
+	color: var(--vp-c-text-3);
+}
+
+.vp-doc .ihsm-trace .trace-phase {
+	color: #0891b2;
+}
+
+.vp-doc .ihsm-trace .trace-start {
+	color: #16a34a;
+}
+
+.vp-doc .ihsm-trace .trace-done {
+	color: #15803d;
+	font-weight: 600;
+}
+
+.vp-doc .ihsm-trace .trace-transition {
+	color: #ea580c;
+}
+
+.vp-doc .ihsm-trace .trace-lifecycle {
+	color: #ca8a04;
+}
+
+.vp-doc .ihsm-trace .trace-recovery {
+	color: #9333ea;
+}
+
+.vp-doc .ihsm-trace .trace-err {
+	color: #dc2626;
+	font-weight: 600;
+}
+
+.vp-doc .ihsm-trace .trace-msg {
+	color: var(--vp-c-text-2);
+}
+
+.dark .vp-doc .ihsm-trace .trace-phase {
+	color: #22d3ee;
+}
+
+.dark .vp-doc .ihsm-trace .trace-start {
+	color: #4ade80;
+}
+
+.dark .vp-doc .ihsm-trace .trace-done {
+	color: #86efac;
+}
+
+.dark .vp-doc .ihsm-trace .trace-transition {
+	color: #fb923c;
+}
+
+.dark .vp-doc .ihsm-trace .trace-lifecycle {
+	color: #facc15;
+}
+
+.dark .vp-doc .ihsm-trace .trace-recovery {
+	color: #c084fc;
+}
+
+.dark .vp-doc .ihsm-trace .trace-err {
+	color: #f87171;
+}
+
+/* PlantUML statecharts: white canvas on light and dark docs theme */
+.vp-doc .plantuml-diagram {
+	max-width: 100%;
+	margin: 1rem auto;
+	padding: 0.5rem;
+	border: 1px solid var(--vp-c-divider);
+	border-radius: 8px;
+	background: #ffffff;
+	text-align: center;
+}
+
+.vp-doc .plantuml-diagram img {
+	max-width: 100%;
+	height: auto;
+	display: inline-block;
+}
