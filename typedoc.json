@@ -1,11 +1,13 @@
 {
-    "mode": "file",
-    "exclude": ["./src/**/*.d.ts", "./src/spec"],
-    "out": "lib/doc/api",
-    "tsconfig": "tsconfig.json",
-    "excludePrivate": true,
-    "excludeNotExported": true,
-    "stripInternal": true,
-    "categorizeByGroup": true
+	"$schema": "https://typedoc.org/schema.json",
+	"entryPoints": ["src/index.ts"],
+	"exclude": ["src/spec/**"],
+	"out": "docs/api",
+	"tsconfig": "tsconfig.typedoc.json",
+	"name": "ihsm API Reference",
+	"skipErrorChecking": true,
+	"excludePrivate": true,
+	"excludeInternal": true,
+	"categorizeByGroup": true,
+	"readme": "README.md"
 }
-

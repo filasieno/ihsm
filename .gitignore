@@ -106,6 +106,9 @@ dist
 # Idea IDE
 .idea
 
+# Generated API docs (published via GitHub Actions → Pages)
+/docs/api
+
 # Build dirs
 /lib
 /build
