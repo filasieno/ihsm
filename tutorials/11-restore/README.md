@@ -1,0 +1,136 @@
+# Tutorial 11: Restore
+
+## Problem
+
+After restart or loading from a database, you must resume at a specific mode with specific data — without replaying every event.
+
+## Solution
+
+1. **Suspend** — read `currentState` + `ctx`, serialize to JSON (DB row or file).
+2. **Resume** — `factory.create(..., false)` on a **new** instance, then `restore(stateClass, ctx)`.
+
+`restore` sets active state and context **without** running `onEntry` or `onExit`.
+
+## UML statechart
+
+```plantuml
+@startuml
+left to right direction
+skinparam ranksep 25
+state SessionTop {
+  [*] --> Anonymous
+  Anonymous --> Authenticated : login (normal transition)
+  Authenticated : navigate(page) / lastPage := page
+}
+note right of Authenticated
+  suspend → JSON { stateName, ctx }
+  resume → restore(Authenticated, ctx)
+end note
+@enduml
+```
+
+`suspend` / `resume` are **meta-operations** (not Protocol events) — persistence boundaries.
+
+## Walkthrough
+
+States and a name registry (classes cannot be JSON-serialized):
+
+```typescript
+export const SESSION_STATES = {
+	Anonymous,
+	Authenticated,
+} as const;
+
+export type SessionStateName = keyof typeof SESSION_STATES;
+
+export interface PersistedSession {
+	stateName: SessionStateName;
+	ctx: SessionCtx;
+}
+```
+
+### 1. Run a live session
+
+```typescript
+const live = createSession('user-42');
+await live.sync(); // onEntry: Anonymous
+
+live.restore(Authenticated, {
+	userId: 'user-42',
+	lastPage: 'settings',
+	entryLog: live.ctx.entryLog,
+});
+live.post('navigate', 'billing');
+await live.sync();
+```
+
+### 2. Suspend to disk / DB
+
+Serialize **state name + ctx** — not the class reference:
+
+```typescript
+export function suspendSession(sm: Hsm<SessionCtx, SessionProtocol>): string {
+	return JSON.stringify({
+		stateName: stateNameOf(sm), // 'Authenticated'
+		ctx: { ...sm.ctx },
+	} satisfies PersistedSession);
+}
+
+// DB column or file write
+sessionDb.set(sessionId, suspendSession(live));
+```
+
+### 3. New process — instantiate and restore
+
+Skip initialization (`initialize: false`), then jump to the saved leaf:
+
+```typescript
+export function resumeSession(json: string) {
+	const { stateName, ctx } = JSON.parse(json) as PersistedSession;
+	const sm = sessionFactory.create(
+		{ userId: '', lastPage: '', entryLog: [] },
+		false // ← no onEntry descent
+	);
+	sm.restore(SESSION_STATES[stateName], ctx);
+	return sm;
+}
+
+const afterRestart = resumeSessionFromDb('sess-7');
+await afterRestart.sync();
+// Authenticated, lastPage === 'dashboard', no fresh onEntry
+```
+
+### 4. Continue from the snapshot
+
+```typescript
+afterRestart.post('navigate', 'profile');
+await afterRestart.sync();
+```
+
+`entryLog` shows the difference: init recorded `Anonymous` once; restore did **not** append `Authenticated`.
+
+## Reading the trace
+
+ihsm logs every dispatch step when `HsmTraceLevel.VERBOSE_DEBUG` is set and a custom `HsmTraceWriter` collects lines. Setup: [Tutorial 02 — Tracing](../02-tracing/README.md).
+
+Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
+
+```trace
+{{TRACE}}
+```
+
+**What to notice:** `restore()` does **not** emit trace — it is a meta-operation. After rehydration, `#navigate` behaves like any normal event dispatch.
+
+## Run the test
+
+```shell
+npm run test:tutorials -- --grep 'Tutorial 11'
+```
+
+## What you learned
+
+- Persist `{ stateName, ctx }` — map names back to state classes on load.
+- `restore` is immediate — no entry/exit.
+- `create(..., false)` + `restore` = cold start from a snapshot.
+
+Next: [Tutorial 12 — Error recovery](../12-error-recovery/README.md)

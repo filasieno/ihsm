@@ -1,0 +1,18 @@
+ThermostatTop: begin initialization
+initialize|ThermostatTop: started initialization from ThermostatTop
+initialize|ThermostatTop: skip ThermostatTop.onEntry(): default empty implementation
+initialize|ThermostatTop: ThermostatTop initial state is Idle
+initialize|ThermostatTop: skip Idle.onEntry(): default empty implementation
+initialize|ThermostatTop: Idle has no initial state; final state is Idle
+initialize|ThermostatTop: done: final state is Idle
+Idle: end initialization
+Idle: begin event dispatch of #setTarget
+#setTarget|Idle: started event dispatch
+#setTarget|lookup|Idle: started lookup of #setTarget event handler
+#setTarget|lookup|Idle: not found in state Idle
+#setTarget|lookup|Idle: done: #setTarget found in state ThermostatTop
+#setTarget|execute|Idle: started event handler execution
+#setTarget|execute|Idle: done: event handler execution successful
+#setTarget|Idle: no transition requested
+#setTarget|Idle: done: event dispatch successful
+Idle: end event dispatch

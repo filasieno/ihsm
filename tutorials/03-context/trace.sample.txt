@@ -1,0 +1,18 @@
+CounterTop: begin initialization
+initialize|CounterTop: started initialization from CounterTop
+initialize|CounterTop: skip CounterTop.onEntry(): default empty implementation
+initialize|CounterTop: CounterTop initial state is Running
+initialize|CounterTop: skip Running.onEntry(): default empty implementation
+initialize|CounterTop: Running has no initial state; final state is Running
+initialize|CounterTop: done: final state is Running
+Running: end initialization
+Running: begin event dispatch of #increment
+#increment|Running: started event dispatch
+#increment|lookup|Running: started lookup of #increment event handler
+#increment|lookup|Running: not found in state Running
+#increment|lookup|Running: done: #increment found in state CounterTop
+#increment|execute|Running: started event handler execution
+#increment|execute|Running: done: event handler execution successful
+#increment|Running: no transition requested
+#increment|Running: done: event dispatch successful
+Running: end event dispatch

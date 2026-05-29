@@ -1,0 +1,19 @@
+PingTop: begin initialization
+initialize|PingTop: started initialization from PingTop
+initialize|PingTop: skip PingTop.onEntry(): default empty implementation
+initialize|PingTop: PingTop initial state is Ready
+initialize|PingTop: skip Ready.onEntry(): default empty implementation
+initialize|PingTop: Ready has no initial state; final state is Ready
+initialize|PingTop: done: final state is Ready
+Ready: end initialization
+Ready: begin event dispatch of #ping
+#ping|Ready: started event dispatch
+#ping|lookup|Ready: started lookup of #ping event handler
+#ping|lookup|Ready: not found in state Ready
+#ping|lookup|Ready: done: #ping found in state PingTop
+#ping|execute|Ready: started event handler execution
+#ping|execute|Ready: ping count is now 1
+#ping|execute|Ready: done: event handler execution successful
+#ping|Ready: no transition requested
+#ping|Ready: done: event dispatch successful
+Ready: end event dispatch

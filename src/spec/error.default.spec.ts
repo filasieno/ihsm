@@ -31,7 +31,7 @@ class TopState extends HsmTopState<HsmAny, Protocol> implements Protocol {
 class A extends TopState {}
 
 for (const traceLevel of TRACE_LEVELS) {
-	describe(`Error dispatch (traceLevel = ${traceLevel})`, function(): void {
+	describe(`Error dispatch (traceLevel = ${traceLevel})`, function (): void {
 		let sm: Hsm<HsmAny, Protocol>;
 		const factory = new HsmFactory(TopState);
 		let flag = false;

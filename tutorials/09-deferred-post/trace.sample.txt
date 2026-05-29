@@ -1,0 +1,28 @@
+ReminderTop: begin initialization
+initialize|ReminderTop: started initialization from ReminderTop
+initialize|ReminderTop: skip ReminderTop.onEntry(): default empty implementation
+initialize|ReminderTop: ReminderTop initial state is Waiting
+initialize|ReminderTop: skip Waiting.onEntry(): default empty implementation
+initialize|ReminderTop: Waiting has no initial state; final state is Waiting
+initialize|ReminderTop: done: final state is Waiting
+Waiting: end initialization
+Waiting: begin event dispatch of #scheduleReminder
+#scheduleReminder|Waiting: started event dispatch
+#scheduleReminder|lookup|Waiting: started lookup of #scheduleReminder event handler
+#scheduleReminder|lookup|Waiting: not found in state Waiting
+#scheduleReminder|lookup|Waiting: done: #scheduleReminder found in state ReminderTop
+#scheduleReminder|execute|Waiting: started event handler execution
+#scheduleReminder|execute|Waiting: done: event handler execution successful
+#scheduleReminder|Waiting: no transition requested
+#scheduleReminder|Waiting: done: event dispatch successful
+Waiting: end event dispatch
+Waiting: begin event dispatch of #deliver
+#deliver|Waiting: started event dispatch
+#deliver|lookup|Waiting: started lookup of #deliver event handler
+#deliver|lookup|Waiting: not found in state Waiting
+#deliver|lookup|Waiting: done: #deliver found in state ReminderTop
+#deliver|execute|Waiting: started event handler execution
+#deliver|execute|Waiting: done: event handler execution successful
+#deliver|Waiting: no transition requested
+#deliver|Waiting: done: event dispatch successful
+Waiting: end event dispatch

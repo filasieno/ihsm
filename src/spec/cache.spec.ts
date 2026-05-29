@@ -14,7 +14,6 @@ interface Protocol {
 class TopState extends HsmTopState<Report, Protocol> {}
 
 @HsmInitialState
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 class A extends TopState {
 	onEntry(): void {
 		this.ctx.stateTrace.push('A');

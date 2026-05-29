@@ -1,0 +1,35 @@
+name: Build documentation site
+description: Install dependencies, validate PlantUML diagrams, and build the VitePress site.
+
+inputs:
+  node-version:
+    description: Node.js version
+    required: false
+    default: '22'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+
+    - name: Setup Java (PlantUML)
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: 21
+
+    - name: Install dependencies
+      run: npm ci
+      shell: bash
+
+    - name: Check PlantUML statecharts
+      run: npm run check:plantuml
+      shell: bash
+
+    - name: Build VitePress site (reference + tutorials + API)
+      run: npm run doc
+      shell: bash

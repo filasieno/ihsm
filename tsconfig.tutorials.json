@@ -1,0 +1,10 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"rootDir": ".",
+		"types": ["mocha", "node"]
+	},
+	"include": ["tutorials/**/machine.ts", "tutorials/_shared/**/*.ts", "scripts/generate-tutorial-traces.ts"],
+	"exclude": ["./lib", "node_modules", "benchmark", "src/spec"]
+}

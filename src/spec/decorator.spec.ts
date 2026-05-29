@@ -3,7 +3,7 @@ import 'mocha';
 import { HsmTopState, HsmInitialState } from '../index';
 import { clearLastError } from './spec.utils';
 
-describe('@HsmInitialState decorator', function() {
+describe('@HsmInitialState decorator', function () {
 	it('sets HsmTopState._isInitialState and HsmTopState._initialState on HsmTopState constructor', async (): Promise<void> => {
 		clearLastError();
 

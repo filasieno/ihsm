@@ -90,6 +90,8 @@ dist
 
 # vuepress build output
 .vuepress/dist
+**/.vitepress/dist
+**/.vitepress/cache
 
 # Serverless directories
 .serverless/
@@ -105,6 +107,18 @@ dist
 
 # Idea IDE
 .idea
+
+# Generated documentation site (VitePress + TypeDoc)
+/docs/.vitepress/dist
+/docs/.vitepress/cache
+/docs/reference/
+/docs/tutorials/
+/.typedoc-out/
+/docs/public/
+
+# Legacy TypeDoc output path
+/docs/api
+/docs/public/api
 
 # Build dirs
 /lib

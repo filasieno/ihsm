@@ -77,7 +77,7 @@ class D extends Recovery {
 }
 
 for (const traceLevel of TRACE_LEVELS) {
-	describe(`Error event (traceLevel = ${traceLevel})`, function(): void {
+	describe(`Error event (traceLevel = ${traceLevel})`, function (): void {
 		let sm: Hsm;
 		const factory = new HsmFactory(TopState);
 

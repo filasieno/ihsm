@@ -1,0 +1,18 @@
+LampTop: begin initialization
+initialize|LampTop: started initialization from LampTop
+initialize|LampTop: LampTop.onEntry() done
+initialize|LampTop: LampTop initial state is On
+initialize|LampTop: skip On.onEntry(): default empty implementation
+initialize|LampTop: On has no initial state; final state is On
+initialize|LampTop: done: final state is On
+On: end initialization
+On: begin event dispatch of #dim
+#dim|On: started event dispatch
+#dim|lookup|On: started lookup of #dim event handler
+#dim|lookup|On: not found in state On
+#dim|lookup|On: done: #dim found in state LampTop
+#dim|execute|On: started event handler execution
+#dim|execute|On: done: event handler execution successful
+#dim|On: no transition requested
+#dim|On: done: event dispatch successful
+On: end event dispatch

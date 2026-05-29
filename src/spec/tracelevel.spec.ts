@@ -43,7 +43,7 @@ class E extends D {}
 @HsmInitialState
 class F extends E {}
 
-describe(`Switch TraceLevel`, function(): void {
+describe(`Switch TraceLevel`, function (): void {
 	let sm: Hsm<HsmAny, Protocol>;
 	const factory = new HsmFactory(TopState);
 

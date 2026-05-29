@@ -31,7 +31,7 @@ class C extends TopState {
 }
 
 for (const traceLevel of TRACE_LEVELS) {
-	describe(`A transition that throws an error (traceLevel = ${traceLevel})`, function(): void {
+	describe(`A transition that throws an error (traceLevel = ${traceLevel})`, function (): void {
 		let sm: Hsm<HsmAny, Protocol>;
 		const factory = new HsmFactory(TopState);
 

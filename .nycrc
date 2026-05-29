@@ -2,7 +2,7 @@
 	"extends": "@istanbuljs/nyc-config-typescript",
 	"extension": [".ts"],
 	"require": [
-		 "ts-node/register"
+		 "ts-node/register/transpile-only"
 	],
 	"include": [
 		"src/"

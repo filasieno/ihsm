@@ -26,7 +26,7 @@ async function sleep(millis: number): Promise<void> {
 }
 
 for (const traceLevel of TRACE_LEVELS) {
-	describe(`Deferred post (traceLevel = ${traceLevel})`, function(): void {
+	describe(`Deferred post (traceLevel = ${traceLevel})`, function (): void {
 		let sm: Hsm<HsmAny, Protocol>;
 		const factory = new HsmFactory(TopState);
 
