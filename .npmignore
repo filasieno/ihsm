@@ -1,10 +1,10 @@
 # Logs
 logs
 *.traceWriter
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
+npm-DEBUG.traceWriter*
+yarn-DEBUG.traceWriter*
+yarn-error.traceWriter*
+lerna-DEBUG.traceWriter*
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
@@ -107,9 +107,12 @@ dist
 .idea
 
 # Build dirs
-/lib
-/build
-/types
+./dump
+./src
+./build
+./html
+.map
+.types
 **.map
 
 # Typescript incremental file
@@ -120,8 +123,9 @@ dist
 /.vscode/
 *.code-workspace
 
-# Generated files
-**.js
-**.d.ts
 
-
+# Project files
+tsconfig.browser.json
+tsconfig.node.json
+typedoc.json
+.eslintrc.json

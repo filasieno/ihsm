@@ -1,0 +1,11 @@
+{
+    "mode": "file",
+    "exclude": ["./src/**/*.d.ts", "./src/spec"],
+    "out": "lib/doc/api",
+    "tsconfig": "tsconfig.json",
+    "excludePrivate": true,
+    "excludeNotExported": true,
+    "stripInternal": true,
+    "categorizeByGroup": true
+}
+

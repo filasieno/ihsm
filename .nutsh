@@ -1,0 +1,7 @@
+#!/bin/bash
+# nutshell (see https://github.com/rboati/nutshell)
+
+_V="lts"
+mynode install "${_V}" > /dev/null 2>&1
+export PATH="$PWD/node_modules/.bin:$(mynode resolve "${_V}")/bin:$PATH"
+unset '_V'
