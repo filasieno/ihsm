@@ -1,0 +1,74 @@
+name: Bug report
+description: Report incorrect behavior, crashes, or regressions in ihsm
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please search [existing issues](https://github.com/filasieno/ihsm/issues) first.
+
+        **Do not use this form for security vulnerabilities** — use [GitHub Security Advisories](https://github.com/filasieno/ihsm/security/advisories/new) instead.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+      placeholder: When I call transition() inside an async handler, ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal code or test case that shows the problem.
+      placeholder: |
+        1. Create HsmFactory with ...
+        2. post('event')
+        3. await sync()
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: ihsm version
+      placeholder: e.g. 0.0.17 or git commit SHA
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version
+      placeholder: node -v output
+    validations:
+      required: true
+
+  - type: dropdown
+    id: trace-level
+    attributes:
+      label: Trace level
+      options:
+        - PRODUCTION
+        - DEBUG
+        - VERBOSE_DEBUG
+        - Unknown / not set
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or stack trace
+      render: shell
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of conduct
+      options:
+        - label: I agree to follow the project's Code of Conduct
+          required: true

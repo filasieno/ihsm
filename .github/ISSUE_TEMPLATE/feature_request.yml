@@ -1,0 +1,53 @@
+name: Feature request
+description: Suggest an enhancement or new capability for ihsm
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem you are trying to solve. ihsm favors **class-based,
+        minimal-runtime** design — see [CONTRIBUTING.md](https://github.com/filasieno/ihsm/blob/master/CONTRIBUTING.md).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What limitation or pain point does this address?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How would you expect the API to look? Code sketches welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other libraries, patterns, or workarounds you evaluated (e.g. XState, nested machines).
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - Runtime API change
+        - Documentation only
+        - Tooling / CI
+        - Benchmark / comparison
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of conduct
+      options:
+        - label: I agree to follow the project's Code of Conduct
+          required: true
