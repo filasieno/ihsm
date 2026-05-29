@@ -15,7 +15,6 @@ interface Protocol {
 }
 
 class TopState extends HsmTopState<Report, Protocol> {
-	// eslint-disable-next-line @typescript-eslint/no-empty-function
 	async next(): Promise<void> {}
 }
 
@@ -26,7 +25,6 @@ async function sleep(millis: number): Promise<void> {
 }
 
 @HsmInitialState
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 class A extends TopState {
 	async start(): Promise<void> {
 		this.deferredPost(500, 'next');

@@ -14,7 +14,7 @@ class TestTraceWriter implements ihsm.HsmTraceWriter {
 	}
 }
 
-describe(`changeTraceLevelTest`, function() {
+describe(`changeTraceLevelTest`, function () {
 	beforeEach(async () => {
 		clearLastError();
 		expect(true);

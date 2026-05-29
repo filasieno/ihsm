@@ -20,7 +20,7 @@ class TopState extends HsmTopState<HsmAny, Protocol> implements Protocol {
 @HsmInitialState
 class A extends TopState {}
 
-describe(`call`, function(): void {
+describe(`call`, function (): void {
 	let sm: Hsm<HsmAny, Protocol>;
 	const factory = new HsmFactory(TopState);
 

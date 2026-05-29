@@ -84,7 +84,7 @@ class B extends TopState {}
 class EmptyTopState extends HsmTopState {}
 
 for (const traceLevel of TRACE_LEVELS) {
-	describe(`An unhandled event (traceLevel = ${traceLevel})`, function(): void {
+	describe(`An unhandled event (traceLevel = ${traceLevel})`, function (): void {
 		let sm: Hsm<HsmAny, Protocol>;
 		const factory = new HsmFactory(TopState);
 

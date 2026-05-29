@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { quoteError } from '../internal/utils';
+import { asError, quoteError, quoteUnknown } from '../internal/utils';
 
 describe(`quote error`, () => {
 	it(`with no error message`, async () => {
@@ -9,5 +9,10 @@ describe(`quote error`, () => {
 
 	it(`with error message`, async () => {
 		expect(quoteError(new Error('error message'))).equals('Error: error message');
+	});
+
+	it(`quoteUnknown wraps non-Error values`, async () => {
+		expect(quoteUnknown('boom')).equals('Error: boom');
+		expect(asError('plain')).instanceOf(Error);
 	});
 });

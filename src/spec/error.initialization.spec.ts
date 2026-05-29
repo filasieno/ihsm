@@ -16,7 +16,7 @@ class B extends A {
 }
 
 for (const traceLevel of TRACE_LEVELS) {
-	describe(`Initialization failure (traceLevel = ${traceLevel})`, function(): void {
+	describe(`Initialization failure (traceLevel = ${traceLevel})`, function (): void {
 		let sm: Hsm;
 		const factory = new HsmFactory(TopState);
 

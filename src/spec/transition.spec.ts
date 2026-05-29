@@ -173,7 +173,7 @@ class C1111 extends C111 {
 }
 
 for (const traceLevel of TRACE_LEVELS) {
-	describe(`Transition (traceLevel = ${traceLevel})`, function() {
+	describe(`Transition (traceLevel = ${traceLevel})`, function () {
 		let ctx: TransitionTrace;
 		let sm: Hsm<TransitionTrace, Protocol>;
 		const factory = new HsmFactory(TopState);
