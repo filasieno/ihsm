@@ -19,7 +19,7 @@
 
       # Regenerate when package-lock.json changes:
       #   nix run nixpkgs#prefetch-npm-deps -- package-lock.json
-      npmDepsHash = "sha256-V0LI3SQBYBc15rZINGTgJIY6KgBDFEIlvg6oB7p7R0g=";
+      npmDepsHash = "sha256-bd6XVVZStFrrGsU6kKkz2hfLfXFX2D4bp+CBaAxRhCE=";
 
       nixpkgsRev = (builtins.fromJSON (builtins.readFile ./flake.lock)).nodes.nixpkgs.locked.rev;
 
@@ -90,6 +90,8 @@
           installPhase = ''
             runHook preInstall
             npm ci --offline --ignore-scripts --no-audit --no-fund
+            mkdir -p "$out/tutorials"
+            cp -r tutorials/_site "$out/tutorials/_site"
             mkdir -p "$out"
             mv node_modules "$out/"
             runHook postInstall
@@ -262,7 +264,7 @@
               export TZ=UTC
               export LC_ALL=C.UTF-8
               if [ -e node_modules ] && [ ! -L node_modules ]; then
-                echo "ihsm: local node_modules directory shadows the Nix store — rename or remove it to use the dev shell deps."
+                echo "ihsm: remove local node_modules/ to use Nix store deps (rm -rf node_modules)."
               else
                 ln -snf ${node_modules}/node_modules node_modules
               fi

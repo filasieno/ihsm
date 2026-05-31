@@ -45,6 +45,10 @@
 	"maintainers": [
 		"Fabio Nicola Filasieno <fabio.filasieno@users.noreply.github.com>"
 	],
+	"overrides": {
+		"glob": "^13.0.6",
+		"uuid": "^11.1.0"
+	},
 	"engines": {
 		"node": ">=22"
 	},
