@@ -175,11 +175,13 @@ export class LeafEastB extends MidEast {
 	}
 }
 
-ihsm.registerStateNames(self); // grabs every exported state automatically
-
 export function createDeepMachine() {
 	return ihsm.makeHsm(DeepTop, { trace: [], value: 0, failExit: false });
 }
 
 /** After `create()` + `sync()`: outer → inner along `@ihsm.InitialState` chain. */
 export const INIT_TRACE = ['enter:DeepTop', 'enter:StackWest', 'enter:MidWest', 'enter:LeafWestA'];
+
+// Registered last so every export (including the const above) is initialized
+// before the namespace is enumerated — avoids a TDZ error under strict bundlers.
+ihsm.registerStateNames(self); // grabs every exported state automatically

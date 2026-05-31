@@ -73,6 +73,15 @@ function transformMarkdown(body, tutorialId) {
 		fileBase: tutorialId,
 	});
 
+	// Repeat the (external) statechart image just before "Reading the trace" so
+	// readers can correlate trace lines with states without scrolling back up.
+	// Reuses the same rendered SVG asset — a copy of the embed, not a re-render.
+	const firstDiagram = text.match(/!\[UML state diagram\]\([^)]+\)/);
+	if (firstDiagram && /^## Reading the trace$/m.test(text)) {
+		const diagramCopy = `_State diagram (repeated for reference):_\n\n${firstDiagram[0]}\n\n`;
+		text = text.replace(/^## Reading the trace$/m, `${diagramCopy}## Reading the trace`);
+	}
+
 	return text.trimEnd() + '\n';
 }
 

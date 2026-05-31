@@ -56,6 +56,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added the missing `eslint-config-prettier` dev dependency required by
   `eslint.config.mjs`, so `npm run lint` runs again; cleared the lint/type
   warnings it then surfaced in the spec suite.
+- **Docs site build crash** — `registerStateNames(self)` in
+  `tutorials/05-hierarchy` ran before the later `export const INIT_TRACE`,
+  so enumerating the self-namespace under Webpack SSR threw `Cannot access
+  'INIT_TRACE' before initialization`. The call is now the module's last
+  statement, and the reference documents the placement rule.
+- **Stale docs verification** — `scripts/verify-docs-site.sh` no longer asserts
+  the removed `tutorials/16-then` page (which was failing the GitHub Pages
+  deploy); it now also asserts the repeated statechart before "Reading the trace".
+
+### Documentation
+
+- Each tutorial page now repeats its **statechart diagram just before
+  "Reading the trace"** (reusing the same rendered SVG) so the diagram and the
+  trace are visible together without scrolling.
 
 ## [0.0.18] - 2026-05-31
 

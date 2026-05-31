@@ -956,12 +956,20 @@ export class DoorTop extends ihsm.TopState<DoorCtx, DoorProtocol> {}
 export class Open extends DoorTop {}
 export class Closed extends DoorTop {}
 
-ihsm.registerStateNames(self); // grabs every exported state automatically
-
 export function createDoor() {
   return ihsm.makeHsm(DoorTop, { openCount: 0 });
 }
+
+ihsm.registerStateNames(self); // grabs every exported state automatically
 ```
+
+**Placement:** put the `registerStateNames(self)` call **after every export** in the
+module (it can stay above hoisted `function` declarations, but it must come after any
+`const`/`let`/`class` export). Enumerating the self-namespace touches every export's
+live binding; a `const`/`class` declared *after* the call is still in its temporal dead
+zone and strict bundlers (e.g. Webpack SSR) will throw `Cannot access … before
+initialization`. When in doubt, make it the last statement of the file — or register
+from a consumer module instead (below), which is never affected.
 
 Equivalently, register from a consumer that imports the module as a namespace:
 
