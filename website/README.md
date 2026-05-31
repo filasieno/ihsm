@@ -41,7 +41,7 @@ ihsm/
 
 | Gitignored output | Source |
 |-------------------|--------|
-| `lib/` | `src/` via `tsc` (Node + browser entries) |
+| `lib/cjs/`, `lib/esm/` | `src/` via `tsc` (CommonJS + ESM builds) |
 | `.tsc/` | TypeScript project-reference cache |
 | `website/docs/` | `docs-src/` + generators |
 | `website/sidebars.ts` | `generate-tutorial-mdx.mjs` (unified Documentation sidebar) |
@@ -51,8 +51,7 @@ ihsm/
 Enforced by:
 
 - `.gitignore`
-- `bash scripts/verify-no-generated-tracked.sh` (CI + `npm run lint`)
-- `bash scripts/verify-no-generated-in-source.sh` (Nix sandbox)
+- `bash scripts/verify-no-generated-in-source.sh` (CI + Nix sandbox; also fails on stray compiled output under `src/`/`tutorials/`)
 
 **PlantUML:** `npm run sync:docs` renders ` ```plantuml ` blocks to SVG via the `plantuml` CLI (Graphviz required). The Nix dev shell and `nix build .#docs` provide both.
 
@@ -65,8 +64,8 @@ Single [project-reference](https://www.typescriptlang.org/docs/handbook/project-
 | Config | Role |
 |--------|------|
 | `tsconfig.json` | Solution entry |
-| `tsconfig.lib.json` | Node library → `lib/` |
-| `tsconfig.browser.json` | Browser entry → `lib/index.browser.js` |
+| `tsconfig.lib.json` | CommonJS library → `lib/cjs/` |
+| `tsconfig.esm.json` | ESM library → `lib/esm/` |
 | `tsconfig.tutorials.json` | Example machines (Mocha + webpack) |
 | `website/tsconfig.json` | Docusaurus + React |
 
@@ -77,9 +76,9 @@ Run from the **repo root** inside **`nix develop`**. Full list: [README.md](../R
 | Command | Purpose |
 | ------- | ------- |
 | `npm run sync:docs` | Materialize `website/docs/`, `website/sidebars.ts`, and PlantUML SVGs from sources |
-| `npm run verify:generated` | Fail if git tracks generated output |
+| `npm run verify:source` | Fail if generated output appears in the source tree |
 | `npm run typecheck` | Type-check the full solution (lib + tutorials + website); runs `sync:docs` first |
-| `npm run build` | Compile publishable library → `lib/` only (no Docusaurus bundle) |
+| `npm run build` | Compile publishable library → `lib/cjs/` + `lib/esm/` (no Docusaurus bundle) |
 | `npm run doc:preview` | `sync:docs`, then Docusaurus dev server (port 3010) |
 | `npm run doc:site` | `sync:docs`, then production static site → `docs-build/` |
 | `npm run doc` | `sync:docs`, then Docusaurus production build via the website workspace |

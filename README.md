@@ -121,9 +121,9 @@ for docs-site layout and generated output.
 
 | Command | Purpose |
 | ------- | ------- |
-| `npm run build` | Compile the publishable library → `lib/` (Node + browser entries) |
-| `npm run build-node` | Compile the Node entry only → `lib/` |
-| `npm run build-browser` | Compile the browser entry only → `lib/index.browser.js` |
+| `npm run build` | Compile the publishable library → `lib/cjs/` (CommonJS) and `lib/esm/` (ESM), then finalize |
+| `npm run build-cjs` | Compile the CommonJS tree only → `lib/cjs/` |
+| `npm run build-esm` | Compile the ESM tree only → `lib/esm/` |
 | `npm run clean` | Remove generated artifacts (`lib/`, `.tsc/`, coverage, `docs-build/`, `website/docs/`, …) |
 | `npm run dist` | Clean, then build library and documentation site (maintainer bundle) |
 
@@ -140,10 +140,10 @@ for docs-site layout and generated output.
 
 | Command | Purpose |
 | ------- | ------- |
-| `npm run typecheck` | Type-check the full project graph (lib, browser, tutorials, website); runs `sync:docs` first |
-| `npm run lint` | Guard against tracked generated files, then typecheck, ESLint, and Prettier check |
+| `npm run typecheck` | Type-check the full project graph (CJS lib, ESM lib, tutorials, website); runs `sync:docs` first |
+| `npm run lint` | Typecheck, then ESLint and Prettier check |
 | `npm run prettier` | Auto-format TypeScript sources (`src/`, `tutorials/`, `website/`) |
-| `npm run verify:generated` | Fail if git tracks generated output (`lib/`, `website/docs/`, …) |
+| `npm run verify:source` | Fail if generated output (compiled `.js`/`.d.ts`, docs) appears in the source tree |
 | `npm run release:check` | Local release gate: `test:all`, lint, build, doc, and `verify:doc` |
 
 #### Documentation
@@ -168,7 +168,7 @@ Contributions are welcome — bug reports, docs, and code.
 
 Please follow [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md). New behavior needs tests in `src/spec/`; tutorial changes need matching specs under `tutorials/`.
 
-**Generated output is never committed** — only sources (`src/`, `tutorials/`, `reference/`, `website/docs-src/`). CI runs `scripts/verify-no-generated-tracked.sh`. Build artifacts (`lib/`, `website/docs/`, `docs-build/`, …) are gitignored and produced by Nix/npm.
+**Generated output is never committed** — only sources (`src/`, `tutorials/`, `reference/`, `website/docs-src/`). CI runs `scripts/verify-no-generated-in-source.sh`. Build artifacts (`lib/`, `website/docs/`, `docs-build/`, …) are gitignored and produced by Nix/npm.
 
 ## License
 

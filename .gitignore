@@ -21,7 +21,8 @@ coverage
 .nyc_output
 lib-cov
 
-# Dependencies
+# Dependencies (also ignore the Nix store symlink, not just real dirs)
+/node_modules
 node_modules/
 node_modules.bak/
 jspm_packages/
@@ -55,11 +56,17 @@ jspm_packages/
 .yarn-integrity
 
 
-# Compiled JS next to sources (lib/ is the only publishable JS output)
+# Compiled output next to sources (lib/ is the only publishable JS output;
+# declarations belong in lib/ and the tutorial build cache in .tsc/)
 /src/**/*.js
+/src/**/*.d.ts
+/tutorials/**/*.js
+/tutorials/**/*.d.ts
 **.map
 
 # Nix build symlinks (nix build -o result, result-2, …)
+/result
+/result-*
 result*/
 **/result*/
 

@@ -9,9 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`index.browser.js`** — browser entry built from `src/index.browser.ts` (`package.json` `"browser"` field).
+- **Genuine dual ESM + CommonJS build.** The package now ships native ESM
+  (`lib/esm/`, real `import`/`export` with explicit `.js` extensions, Node-loadable
+  and tree-shakeable) alongside CommonJS (`lib/cjs/`).
+- **`exports` map** with `import`/`require` conditions and per-condition `types`,
+  plus `main`, `module`, and `browser` entry points and `"sideEffects": false`.
+- **`scripts/finalize-build.mjs`** — writes per-format `package.json` markers and
+  rewrites ESM specifiers to genuine extensioned imports (no runtime deps).
 - Full **reference manual** published on the documentation site (`/reference`), generated from `reference/REFERENCE.md`.
-- **`scripts/generate-reference-mdx.mjs`** and `npm run sync:reference` for docs sync.
 - **`SECURITY.md`** — private vulnerability reporting via GitHub Security Advisories.
 - Tutorial pages embed the **playground on the same page** as prose (generated from each tutorial README).
 
@@ -19,14 +24,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Maintainer:** Fabio Nicola Filasieno (`fabio.filasieno@users.noreply.github.com`).
 - Documentation site: **Docusaurus** with Nix CI, unified tutorials + playground, output under `docs-build/`.
-- `npm run build` now runs **node + browser** TypeScript builds.
+- `npm run build` now compiles **both** the CJS and ESM trees and finalizes them.
 - `prepublishOnly` runs **all tests** (unit + tutorials) before publish.
 - Tutorial and reference cross-links point at on-site `/reference` and `/tutorials` paths.
 - CHANGELOG corrected for the 0.0.18 documentation stack (Docusaurus, not VitePress).
 
+### Removed
+
+- The CommonJS-only `index.browser.js` re-export entry (`src/index.browser.ts`,
+  `tsconfig.browser.json`) — superseded by the real ESM build consumed via the
+  `import`/`browser` conditions.
+- `npm run verify:generated` and `scripts/verify-no-generated-tracked.sh`; the
+  Nix sandbox guard `scripts/verify-no-generated-in-source.sh` (now also catching
+  stray compiled output under `src/`/`tutorials/`) is the single enforced check.
+
 ### Fixed
 
-- Broken `browser` field (missing `lib/index.browser.js`).
+- Generated `.d.ts` declarations no longer linger in `src/` / `tutorials/`; all
+  TypeScript output is emitted to `lib/` and `.tsc/` and gitignored in source.
 - Reference page stub replaced with the full manual on GitHub Pages.
 
 ## [0.0.18] - 2026-05-31

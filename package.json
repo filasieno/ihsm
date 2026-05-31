@@ -1,6 +1,6 @@
 {
 	"author": "Fabio Nicola Filasieno",
-	"browser": "./lib/index.browser.js",
+	"browser": "./lib/esm/index.js",
 	"bugs": {
 		"url": "https://github.com/filasieno/ihsm/issues"
 	},
@@ -48,28 +48,41 @@
 	"engines": {
 		"node": ">=22"
 	},
-	"main": "./lib/index.js",
+	"sideEffects": false,
+	"main": "./lib/cjs/index.js",
+	"module": "./lib/esm/index.js",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./lib/esm/index.d.ts",
+				"default": "./lib/esm/index.js"
+			},
+			"require": {
+				"types": "./lib/cjs/index.d.ts",
+				"default": "./lib/cjs/index.js"
+			}
+		},
+		"./package.json": "./package.json"
+	},
 	"name": "ihsm",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/filasieno/ihsm.git"
 	},
 	"scripts": {
-		"build-browser": "tsc -b tsconfig.browser.json",
-		"build-node": "tsc -b tsconfig.lib.json",
-		"build": "tsc -b tsconfig.lib.json tsconfig.browser.json",
+		"build-cjs": "tsc -b tsconfig.lib.json",
+		"build-esm": "tsc -b tsconfig.esm.json",
+		"build": "tsc -b tsconfig.lib.json tsconfig.esm.json && node scripts/finalize-build.mjs",
 		"clean": "rm -rf ./lib ./.tsc ./.nyc_output ./coverage ./docs-build website/.docusaurus website/docs website/sidebars.ts",
 		"coverage": "nyc report --reporter=text-lcov",
-		"dist": "npm run build-node && npm run doc",
+		"dist": "npm run build && npm run doc",
 		"doc": "npm run sync:docs && npm run build -w ihsm-site",
 		"sync:docs": "node scripts/prepare-website-docs.mjs",
 		"doc:preview": "npm run sync:docs && npm run start -w ihsm-site -- --port 3010",
 		"doc:site": "npm run sync:docs && npm run build -w ihsm-site",
 		"verify:doc": "bash scripts/verify-docs-site.sh docs-build",
-		"verify:generated": "bash scripts/verify-no-generated-tracked.sh",
-		"lint": "npm run verify:generated && npm run typecheck && eslint --max-warnings 0 'src/**/*.ts' 'tutorials/**/*.ts' && prettier --check 'src/**/*.ts' 'tutorials/**/*.ts' 'website/**/*.{ts,tsx}'",
-		"prebuild-browser": "rm -rf ./.tsc/browser.tsbuildinfo",
-		"prebuild-node": "rm -rf ./.tsc/lib.tsbuildinfo",
+		"verify:source": "bash scripts/verify-no-generated-in-source.sh",
+		"lint": "npm run typecheck && eslint --max-warnings 0 'src/**/*.ts' 'tutorials/**/*.ts' && prettier --check 'src/**/*.ts' 'tutorials/**/*.ts' 'website/**/*.{ts,tsx}'",
 		"predist": "npm run clean",
 		"prettier": "prettier --write 'src/**/*.ts' 'tutorials/**/*.ts' 'website/**/*.{ts,tsx}'",
 		"release:check": "npm run test:all && npm run lint && npm run build && npm run doc && npm run verify:doc",
@@ -82,6 +95,6 @@
 		"prepare:ide": "npm run sync:docs && npm run prepare:types",
 		"pretypecheck": "npm run prepare:ide"
 	},
-	"types": "./lib/index.d.ts",
+	"types": "./lib/cjs/index.d.ts",
 	"version": "0.0.19"
 }

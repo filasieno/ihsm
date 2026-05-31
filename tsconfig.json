@@ -2,7 +2,7 @@
 	"files": [],
 	"references": [
 		{ "path": "./tsconfig.lib.json" },
-		{ "path": "./tsconfig.browser.json" },
+		{ "path": "./tsconfig.esm.json" },
 		{ "path": "./tsconfig.tutorials.json" },
 		{ "path": "./website" }
 	]
