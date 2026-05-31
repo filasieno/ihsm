@@ -13,11 +13,13 @@
 Run locally on **`dev`**, then merge to **`master`** when green:
 
 ```shell
-bash scripts/verify-no-generated-tracked.sh
 nix flake check
 nix build .#docs
 bash scripts/verify-docs-site.sh docs-build
 ```
+
+`nix flake check` already runs `scripts/verify-no-generated-in-source.sh` (via the
+`lint` and `docs` derivations), so no separate generated-artifact check is needed.
 
 Confirm `package.json` **`version`** matches the tag you will push (`v0.0.19` → `"0.0.19"`).
 

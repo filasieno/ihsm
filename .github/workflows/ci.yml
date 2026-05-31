@@ -24,9 +24,6 @@ jobs:
       - name: Check formatting
         run: nix fmt -- --check flake.nix
 
-      - name: Verify no generated artifacts are tracked
-        run: bash scripts/verify-no-generated-tracked.sh
-
       - name: Build, test, lint, and docs
         run: nix flake check --print-build-logs
 

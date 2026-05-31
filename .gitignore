@@ -84,3 +84,6 @@ result*/
 # Misc
 *.tmp.txt
 .npmtoken
+
+# Local review notes (not for commit)
+.TODO
