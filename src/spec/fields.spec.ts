@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, makeHsm, HsmInitialState, HsmStateClass, HsmTopState, HsmTraceLevel, HsmTraceWriter } from '../';
-import { clearLastError, TRACE_LEVELS } from './spec.utils';
+import { Hsm, makeHsm, InitialState, StateClass, TopState, TraceLevel, TraceWriter } from '../';
+import { clearLastError, TRACE_LEVELS, registerSpecStateNames } from './spec.utils';
 
-type State = HsmStateClass<Report>;
+type State = StateClass<Report>;
 
 class Report {
 	eventName?: string;
@@ -13,12 +13,12 @@ class Report {
 	currentStateName?: string;
 	currentState?: State;
 	ctxTypeName?: string;
-	traceLevel?: HsmTraceLevel;
+	traceLevel?: TraceLevel;
 	topStateName?: string;
-	traceWriter?: HsmTraceWriter;
+	traceWriter?: TraceWriter;
 }
 
-class TopState extends HsmTopState<Report> {
+class HsmTop extends TopState<Report> {
 	report(msg: string): void {
 		console.log(`received message: ${msg}`);
 		this.ctx.eventName = this.eventName;
@@ -34,11 +34,13 @@ class TopState extends HsmTopState<Report> {
 	}
 }
 
-@HsmInitialState
-class A extends TopState {}
+@InitialState
+class A extends HsmTop {}
 
-@HsmInitialState
+@InitialState
 class B extends A {}
+
+registerSpecStateNames({ HsmTop, A, B });
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Fields (traceLevel = ${traceLevel})`, () => {
@@ -49,7 +51,7 @@ for (const traceLevel of TRACE_LEVELS) {
 
 		it(`are available`, async () => {
 			const ctx = new Report();
-			sm = makeHsm(TopState, ctx, true, traceLevel);
+			sm = makeHsm(HsmTop, ctx, true, traceLevel);
 			sm.post('report', 'hello world');
 			await sm.sync();
 			expect(sm.currentStateName).eq('B');
@@ -57,10 +59,10 @@ for (const traceLevel of TRACE_LEVELS) {
 			expect(ctx.eventPayload).eqls(['hello world']);
 			expect(ctx.currentState).eq(B);
 			expect(ctx.currentStateName).eq('B');
-			expect(ctx.topState).eq(TopState);
+			expect(ctx.topState).eq(HsmTop);
 			expect(ctx.ctxTypeName).eq('Report');
 			expect(ctx.traceLevel).eq(traceLevel);
-			expect(ctx.topStateName).eq('TopState');
+			expect(ctx.topStateName).eq('HsmTop');
 			expect(ctx.traceWriter).eq(sm.traceWriter);
 		});
 	});

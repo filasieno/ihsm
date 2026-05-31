@@ -1,14 +1,18 @@
-import { HsmTraceLevel } from '../../src';
+import { TraceLevel } from '../../src';
 import type { CoordinatorRuntime, TutorialInteractiveMeta } from '../shared/interactive-types';
 import { CollectingTraceWriter } from '../shared/trace';
+import * as machine from './machine';
 import { createOrderCoordinator } from './machine';
+import { registerStateNamesFromExports } from '../shared/state-names';
+
+registerStateNamesFromExports(machine);
 
 function createCoordinatorRuntime(): CoordinatorRuntime {
 	const writer = new CollectingTraceWriter();
 	const coordinator = createOrderCoordinator();
-	coordinator.payment.traceLevel = HsmTraceLevel.VERBOSE_DEBUG;
+	coordinator.payment.traceLevel = TraceLevel.VERBOSE_DEBUG;
 	coordinator.payment.traceWriter = writer;
-	coordinator.shipping.traceLevel = HsmTraceLevel.VERBOSE_DEBUG;
+	coordinator.shipping.traceLevel = TraceLevel.VERBOSE_DEBUG;
 	coordinator.shipping.traceWriter = writer;
 	return { kind: 'coordinator', coordinator, writer };
 }

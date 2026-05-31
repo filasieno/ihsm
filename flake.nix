@@ -19,7 +19,7 @@
 
       # Regenerate when package-lock.json changes:
       #   nix run nixpkgs#prefetch-npm-deps -- package-lock.json
-      npmDepsHash = "sha256-ThdTsiuclLWrs5aiK37DOdXBaOuY9AMAU83vdpvMXgM=";
+      npmDepsHash = "sha256-85YDoG0KhWFyY4lUdJpY22AMJGi3pGB1i3vCyUXNU2s=";
 
       nixpkgsRev = (builtins.fromJSON (builtins.readFile ./flake.lock)).nodes.nixpkgs.locked.rev;
 
@@ -159,13 +159,19 @@
               ;
             pname = "ihsm";
 
+            nativeBuildInputs = [
+              (nodejs pkgs)
+              pkgs.chromium
+            ];
+
             npmScript = "build";
 
             doCheck = true;
             checkPhase = ''
               runHook preCheck
-              npm test
-              npm run test:tutorials
+              export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+              export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${pkgs.chromium}/bin/chromium"
+              npm run test:all
               runHook postCheck
             '';
 
@@ -318,6 +324,8 @@
               echo "  nix build .#docs       Docusaurus site with interactive tutorials"
               echo ""
               echo "Dev (uses the same npm lockfile as nix build):"
+              echo "  npm run test:all         Node + minified browser (unit + tutorials)"
+              echo "  npx playwright install chromium   first-time browser test setup"
               echo "  npm run doc:preview    Docusaurus dev server (interactive tutorials)"
               echo "  npm run release:check  full local gate (needs network for doc)"
             '';

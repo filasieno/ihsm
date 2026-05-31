@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, makeHsm, HsmInitialState, HsmTopState } from '../';
+import { Hsm, makeHsm, InitialState, TopState } from '../';
 import { TRACE_LEVELS } from './spec.utils';
 
 class Report {
@@ -11,10 +11,10 @@ interface Protocol {
 	task(): void;
 }
 
-class TopState extends HsmTopState<Report, Protocol> {}
+class HsmTop extends TopState<Report, Protocol> {}
 
-@HsmInitialState
-class A extends TopState {
+@InitialState
+class A extends HsmTop {
 	onEntry(): void {
 		this.ctx.stateTrace.push('A');
 	}
@@ -23,7 +23,7 @@ class A extends TopState {
 		this.transition(B);
 	}
 }
-class B extends TopState {
+class B extends HsmTop {
 	onEntry(): void {
 		this.ctx.stateTrace.push('B');
 	}
@@ -38,7 +38,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		let sm: Hsm;
 		it(`run a process`, async () => {
 			const ctx = new Report();
-			sm = makeHsm(TopState, ctx, true, traceLevel);
+			sm = makeHsm(HsmTop, ctx, true, traceLevel);
 			await sm.sync();
 			sm.post('task');
 			sm.post('task');

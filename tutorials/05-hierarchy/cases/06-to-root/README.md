@@ -34,7 +34,7 @@ See the **Trace** panel on the [interactive docs site](https://filasieno.github.
 | 1 | LCA = **`DeepTop`** |
 | 2 | Exit entire west stack: **`LeafWestA` → `MidWest` → `StackWest`** |
 | 3 | **`DeepTop.onExit` / `onEntry` do not run** — LCA is neither exited nor re-entered |
-| 4 | Re-enter **`StackWest`** ( `@HsmInitialState` branch ) → **`MidWest` → `LeafWestA`** |
+| 4 | Re-enter **`StackWest`** ( `@InitialState` branch ) → **`MidWest` → `LeafWestA`** |
 | 5 | Final leaf = **`LeafWestA`** |
 
 Transitioning to the root **does not** leave you “bare” at the root class — ihsm immediately descends the **initial branch** again.

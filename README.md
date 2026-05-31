@@ -60,7 +60,21 @@ Each tutorial page on the documentation site combines prose, code samples, and a
 npm install ihsm@latest
 ```
 
-Requires **Node.js 22+** at runtime.
+### Runtime support
+
+ihsm ships modern **ES2022** ESM and CommonJS — no transpiled legacy (ES5/ES2015)
+output and no polyfills. Supported runtimes:
+
+| Runtime | Minimum |
+| ------- | ------- |
+| Node.js | **22+** |
+| Chrome / Edge | **94+** |
+| Firefox | **93+** |
+| Safari (macOS / iOS) | **15.4+** |
+
+Older browsers and JavaScript engines are intentionally **not** supported. If you
+must target them, transpile `ihsm` yourself with your bundler (the published
+`browserslist` field declares this baseline for downstream tooling).
 
 ## Requirements
 
@@ -131,10 +145,14 @@ for docs-site layout and generated output.
 
 | Command | Purpose |
 | ------- | ------- |
-| `npm test` | Run unit tests in `src/spec/` with NYC coverage |
-| `npm run test:tutorials` | Run Mocha specs for all tutorials under `tutorials/` |
-| `npm run test:all` | Run `npm test`, then `npm run test:tutorials` |
-| `npm run coverage` | Print an LCOV coverage report from the last `npm test` run |
+| `npm test` | Unit tests in Node (`src/spec/`) with NYC coverage, then the same specs minified in headless Chromium |
+| `npm run test:node` | Node-only unit tests (with coverage) |
+| `npm run test:browser` | Minified browser bundles for unit + tutorial specs (Playwright + esbuild) |
+| `npm run test:tutorials` | Tutorial specs in Node, then minified in the browser |
+| `npm run test:all` | `npm test` + `npm run test:tutorials` (both environments) |
+| `npm run coverage` | Print an LCOV coverage report from the last `npm run test:node` run |
+
+First-time browser setup: `npx playwright install chromium`.
 
 #### Quality
 

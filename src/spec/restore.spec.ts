@@ -1,19 +1,19 @@
 import { expect } from 'chai';
 import 'mocha';
-import { makeHsm, HsmTopState, HsmInitialState, HsmAny } from '../';
+import { makeHsm, TopState, InitialState, Any } from '../';
 import { clearLastError, TRACE_LEVELS, createTestDispatchErrorCallback } from './spec.utils';
 
-class TopState extends HsmTopState {
+class HsmTop extends TopState {
 	getValue(obj: { value: string }): void {
 		obj.value = this.ctx.value;
 	}
 }
-@HsmInitialState
-class A extends TopState {}
-@HsmInitialState
+@InitialState
+class A extends HsmTop {}
+@InitialState
 class B extends A {}
 
-class C extends TopState {}
+class C extends HsmTop {}
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Restore (traceLevel = ${traceLevel})`, () => {
@@ -28,12 +28,12 @@ for (const traceLevel of TRACE_LEVELS) {
 			const first = { value: 'first' };
 			const second = { value: 'second' };
 
-			const hsm = makeHsm(TopState, initial, false, traceLevel, undefined, dispatchErrorCallback);
-			const query: HsmAny = { value: undefined };
+			const hsm = makeHsm(HsmTop, initial, false, traceLevel, undefined, dispatchErrorCallback);
+			const query: Any = { value: undefined };
 			hsm.post('getValue', query);
 			await hsm.sync();
 			expect(query.value).equals(initial.value);
-			expect(hsm.currentState).equals(TopState);
+			expect(hsm.currentState).equals(HsmTop);
 
 			hsm.restore(B, first);
 			hsm.post('getValue', query);

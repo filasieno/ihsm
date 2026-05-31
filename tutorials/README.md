@@ -23,7 +23,6 @@ reference manual in one Docusaurus app (`website/`).
 | 13 | [Async handlers](./13-async-handlers/README.md)             | `async`/`await`                                                   |
 | 14 | [Nested machines](./14-nested-machines/README.md)           | Orthogonal actors                                                 |
 | 15 | [Complex workflow](./15-complex-workflow/README.md)         | Integration                                                       |
-| 16 | [then()](./16-then/README.md)                               | Decision pseudo states                                            |
 | 17 | [postNow()](./17-post-now/README.md)                        | Hi-priority extended transitions                                  |
 
 ## Verify

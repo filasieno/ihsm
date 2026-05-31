@@ -1,9 +1,10 @@
 import { singleSenderTutorial } from '../shared/interactive-helpers';
-import { DoorTop } from './machine';
+import * as machine from './machine';
 
 export const interactive = singleSenderTutorial({
 	title: 'Door machine',
-	topState: DoorTop,
+	topState: machine.DoorTop,
+	machineExports: machine,
 	initialCtx: { openCount: 0 },
 	messages: [
 		{ id: 'open', label: 'open', kind: 'post' },

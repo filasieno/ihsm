@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, makeHsm, HsmInitialState, HsmTopState, HsmTraceLevel } from '../';
-import { TRACE_LEVELS, clearLastError } from './spec.utils';
+import { Hsm, makeHsm, InitialState, StateClass, TopState, TraceLevel } from '../';
+import { TRACE_LEVELS, clearLastError, registerSpecStateNames } from './spec.utils';
 
-type Cons = new () => TopState;
+type Cons = StateClass<TransitionTrace, Protocol>;
 
 class TransitionTrace {
 	public exitList: Cons[] = [];
@@ -15,7 +15,7 @@ interface Protocol {
 	clear(): void;
 }
 
-class TopState extends HsmTopState<TransitionTrace, Protocol> implements Protocol {
+class HsmTop extends TopState<TransitionTrace, Protocol> implements Protocol {
 	transitionTo(s: Cons): void {
 		this.clear();
 		this.transition(s);
@@ -25,14 +25,14 @@ class TopState extends HsmTopState<TransitionTrace, Protocol> implements Protoco
 		this.ctx.exitList = [];
 	}
 	onEntry(): void {
-		this.ctx.entryList.push(TopState);
+		this.ctx.entryList.push(HsmTop);
 	}
 	onExit(): void {
-		this.ctx.exitList.push(TopState);
+		this.ctx.exitList.push(HsmTop);
 	}
 }
 
-class A extends TopState implements Protocol {
+class A extends HsmTop implements Protocol {
 	onEntry(): void {
 		this.ctx.entryList.push(A);
 	}
@@ -104,7 +104,7 @@ class A2111 extends A211 {
 	}
 }
 
-class B extends TopState {
+class B extends HsmTop {
 	onEntry(): void {
 		this.ctx.entryList.push(B);
 	}
@@ -122,8 +122,8 @@ class B1 extends B {
 	}
 }
 
-@HsmInitialState
-class C extends TopState {
+@InitialState
+class C extends HsmTop {
 	onEntry(): void {
 		this.ctx.entryList.push(C);
 	}
@@ -132,7 +132,7 @@ class C extends TopState {
 	}
 }
 
-@HsmInitialState
+@InitialState
 class C1 extends C {
 	onEntry(): void {
 		this.ctx.entryList.push(C1);
@@ -142,7 +142,7 @@ class C1 extends C {
 	}
 }
 
-@HsmInitialState
+@InitialState
 class C11 extends C1 {
 	onEntry(): void {
 		this.ctx.entryList.push(C11);
@@ -152,7 +152,7 @@ class C11 extends C1 {
 	}
 }
 
-@HsmInitialState
+@InitialState
 class C111 extends C11 {
 	onEntry(): void {
 		this.ctx.entryList.push(C111);
@@ -162,7 +162,7 @@ class C111 extends C11 {
 	}
 }
 
-@HsmInitialState
+@InitialState
 class C1111 extends C111 {
 	async onEntry(): Promise<void> {
 		this.ctx.entryList.push(C1111);
@@ -172,6 +172,25 @@ class C1111 extends C111 {
 	}
 }
 
+registerSpecStateNames({
+	HsmTop,
+	A,
+	A1,
+	A11,
+	A111,
+	A2,
+	A21,
+	A211,
+	A2111,
+	B,
+	B1,
+	C,
+	C1,
+	C11,
+	C111,
+	C1111,
+});
+
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Transition (traceLevel = ${traceLevel})`, function () {
 		let ctx: TransitionTrace;
@@ -179,16 +198,16 @@ for (const traceLevel of TRACE_LEVELS) {
 		beforeEach(async () => {
 			clearLastError();
 			ctx = new TransitionTrace();
-			sm = makeHsm(TopState, ctx, true, traceLevel);
+			sm = makeHsm(HsmTop, ctx, true, traceLevel);
 			await sm.sync();
 		});
 
-		it(`using sets the initial currentState following the @initialState annotation directives (traceLevel = ${traceLevel as HsmTraceLevel})`, async (): Promise<void> => {
+		it(`using sets the initial currentState following the @initialState annotation directives (traceLevel = ${traceLevel as TraceLevel})`, async (): Promise<void> => {
 			expect(sm.currentState).eq(C1111);
-			expect(ctx.entryList).to.eql([TopState, C, C1, C11, C111, C1111]);
+			expect(ctx.entryList).to.eql([HsmTop, C, C1, C11, C111, C1111]);
 		});
 
-		it(`checks nextState to another branch with common ancestor (traceLevel = ${traceLevel as HsmTraceLevel})`, async () => {
+		it(`checks nextState to another branch with common ancestor (traceLevel = ${traceLevel as TraceLevel})`, async () => {
 			sm.post('transitionTo', A111);
 			await sm.sync();
 
@@ -205,7 +224,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			expect(ctx.entryList).to.eql([A2, A21, A211]);
 		});
 
-		it(`checks nextState to ancestor (traceLevel = ${traceLevel as HsmTraceLevel})`, async () => {
+		it(`checks nextState to ancestor (traceLevel = ${traceLevel as TraceLevel})`, async () => {
 			sm.post('transitionTo', A111);
 			sm.post('transitionTo', A1);
 			await sm.sync();
@@ -214,7 +233,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			expect(ctx.entryList).to.eql([]);
 		});
 
-		it(`checks nextState to descendant (traceLevel = ${traceLevel as HsmTraceLevel})`, async () => {
+		it(`checks nextState to descendant (traceLevel = ${traceLevel as TraceLevel})`, async () => {
 			sm.post('transitionTo', A111);
 			sm.post('transitionTo', A1);
 			await sm.sync();
@@ -223,7 +242,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			expect(ctx.entryList).to.eql([]);
 		});
 
-		it(`checks nextState to another branch without common ancestor (traceLevel = ${traceLevel as HsmTraceLevel})`, async () => {
+		it(`checks nextState to another branch without common ancestor (traceLevel = ${traceLevel as TraceLevel})`, async () => {
 			sm.post('transitionTo', A2111);
 			sm.post('transitionTo', B1);
 			await sm.sync();
@@ -232,7 +251,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			expect(ctx.entryList).to.eql([B, B1]);
 		});
 
-		it(`checks nextState to self (traceLevel = ${traceLevel as HsmTraceLevel})`, async () => {
+		it(`checks nextState to self (traceLevel = ${traceLevel as TraceLevel})`, async () => {
 			sm.post('transitionTo', A);
 			sm.post('transitionTo', A);
 			await sm.sync();
@@ -241,7 +260,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			expect(ctx.entryList).to.eql([]);
 		});
 
-		it(`checks nextState to a parent currentState (traceLevel = ${traceLevel as HsmTraceLevel})`, async () => {
+		it(`checks nextState to a parent currentState (traceLevel = ${traceLevel as TraceLevel})`, async () => {
 			sm.post('transitionTo', A111);
 			sm.post('transitionTo', C1);
 			await sm.sync();
@@ -250,9 +269,9 @@ for (const traceLevel of TRACE_LEVELS) {
 			expect(ctx.entryList).to.eql([C, C1, C11, C111, C1111]);
 		});
 
-		it(`checks nextState to parent currentState which initial currentState is the current currentState (traceLevel = ${traceLevel as HsmTraceLevel})`, async () => {
+		it(`checks nextState to parent currentState which initial currentState is the current currentState (traceLevel = ${traceLevel as TraceLevel})`, async () => {
 			sm.post('transitionTo', C1111);
-			sm.post('transitionTo', TopState);
+			sm.post('transitionTo', HsmTop);
 			await sm.sync();
 
 			expect(ctx.exitList).to.eql([C1111, C111, C11, C1, C]);

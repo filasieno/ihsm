@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { Hsm, HsmState, makeHsm, HsmInitialState, HsmTopState } from '../';
+import { Hsm, State, makeHsm, InitialState, TopState } from '../';
 import { TRACE_LEVELS } from './spec.utils';
 
 interface Ctx {
@@ -15,8 +15,8 @@ interface Protocol {
 	enqueueBoth(): void;
 }
 
-@HsmInitialState
-class TopState extends HsmTopState<Ctx, Protocol> implements Protocol {
+@InitialState
+class HsmTop extends TopState<Ctx, Protocol> implements Protocol {
 	run(): void {
 		this.ctx.order.push('run');
 	}
@@ -39,7 +39,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		let sm: Hsm<Ctx, Protocol>;
 
 		beforeEach(async () => {
-			sm = makeHsm(TopState, { order: [] }, true, traceLevel);
+			sm = makeHsm(HsmTop, { order: [] }, true, traceLevel);
 			await sm.sync();
 		});
 
@@ -59,7 +59,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		});
 
 		it('can be invoked on the handler view when the actor is idle', async () => {
-			const handler = sm as unknown as HsmState<Ctx, Protocol>;
+			const handler = sm as unknown as State<Ctx, Protocol>;
 			handler.postNow('run');
 			await sm.sync();
 			expect(sm.ctx.order).eqls(['run']);

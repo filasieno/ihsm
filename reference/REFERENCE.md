@@ -32,7 +32,7 @@ supply chain.
 
 **When to prefer declarative libraries (e.g. XState):** visual editors, single-chart
 parallel regions, or deep frontend/Stately integration. See
-[§14 Comparison with XState](#_14-comparison-with-xstate).
+[§14 Comparison with XState](#_13-comparison-with-xstate).
 
 ---
 
@@ -47,12 +47,11 @@ parallel regions, or deep frontend/Stately integration. See
 7. [restore()](#_7-restore)
 8. [Error model](#_8-error-model)
 9. [Async handlers](#_9-async-handlers)
-10. [then()](#_10-then)
-11. [makeHsm](#_11-makehsm)
-12. [Zero dependencies](#_12-zero-dependencies)
-13. [Code coverage](#_13-code-coverage)
-14. [Comparison with XState](#_14-comparison-with-xstate)
-15. [API quick reference](#_15-api-quick-reference)
+10. [makeHsm](#_10-makehsm)
+11. [Zero dependencies](#_11-zero-dependencies)
+12. [Code coverage](#_12-code-coverage)
+13. [Comparison with XState](#_13-comparison-with-xstate)
+14. [API quick reference](#_14-api-quick-reference)
 
 ---
 
@@ -60,14 +59,14 @@ parallel regions, or deep frontend/Stately integration. See
 
 ### State as class
 
-Each state is a **class** extending `HsmTopState` or a parent state class. The
+Each state is a **class** extending `TopState` or a parent state class. The
 active state is the **prototype** of a single instance object — switched with
 `Object.setPrototypeOf` when you call `transition(NextStateClass)`.
 
 ```typescript
-class DoorTop extends HsmTopState<DoorCtx, DoorProtocol> {}
+class DoorTop extends TopState<DoorCtx, DoorProtocol> {}
 
-@HsmInitialState
+@InitialState
 class Closed extends DoorTop {
   open(): void {
     this.transition(Open);
@@ -147,11 +146,10 @@ await door.sync(); // wait for initialization
 | Context | `ctx` on instance | Yes |
 | Typed events | `Protocol` interface | Yes |
 | Hierarchy | class `extends` | Yes |
-| Initial substate | `@HsmInitialState` | Yes |
+| Initial substate | `@InitialState` | Yes |
 | Transition | `this.transition(StateClass)` | Yes |
 | Cached LCA path | automatic | Yes (internal) |
 | Entry / exit | `onEntry()` / `onExit()` | Yes |
-| `then()` | automatic post-transition hook | Yes |
 | Internal transition | handle event, no `transition()` | Implicit (by omission) |
 | Guards | `if` in handler | Implicit (code) |
 | History | `ctx` + `restore()` | Implicit (data) |
@@ -162,7 +160,7 @@ await door.sync(); // wait for initialization
 | `sync` | drain queue | Yes |
 | `restore` | set state + ctx | Yes |
 | `makeHsm` | create + optional init | Yes |
-| Tracing | levels + `HsmTraceWriter` | Yes |
+| Tracing | levels + `TraceWriter` | Yes |
 | Errors | typed error hierarchy | Yes |
 | Async handlers | `async` methods | Yes |
 
@@ -192,16 +190,16 @@ walks up the LCA path.
 
 Tutorial: [../tutorials/05-hierarchy/README.md](../tutorials/05-hierarchy/README.md)
 
-### `@HsmInitialState`
+### `@InitialState`
 
 Decorator function marking the default child of a composite:
 
 ```typescript
-@HsmInitialState
+@InitialState
 class CheckingInventory extends Active { }
 ```
 
-Only one initial state per parent; duplicate marks throw `HsmInitialStateError`.
+Only one initial state per parent; duplicate marks throw `InitialStateError`.
 
 ### Transitions and caching
 
@@ -218,35 +216,7 @@ Tutorial: [../tutorials/05-hierarchy/README.md](../tutorials/05-hierarchy/README
 
 Override `onEntry()` / `onExit()` on state classes. Sync or async. Only states
 that **define their own** handlers participate in debug/trace exit lists; inherited
-empty defaults from `HsmTopState` are skipped in verbose tracing.
-
-### `then()`
-
-Optional hook on a **leaf state class**. Runs automatically after **initialization**
-or after an **event dispatch** finishes — including any `transition()` exit/entry
-work scheduled by the handler. Use it for automatic follow-up when a state becomes
-active (for example, transition to a terminal state after a brief pending phase).
-
-```typescript
-class Pending extends Top {
-  then(): void {
-    this.transition(Done);
-  }
-}
-
-@HsmInitialState
-class Boot extends BootTop {
-  then(): void {
-    this.transition(BootReady); // runs once after init descent
-  }
-}
-```
-
-Only states that **define their own** `then()` run the hook (the empty default on
-`HsmTopState` is not inherited). `then()` is not part of `Protocol` — clients
-cannot `post('then')`. It may be sync or async; if it calls `transition()`, the
-runtime may chain further `then()` steps (up to 32 per init/dispatch). See
-[§10 then()](#_10-then).
+empty defaults from `TopState` are skipped in verbose tracing.
 
 ### Internal transitions
 
@@ -291,7 +261,7 @@ Tutorial: [../tutorials/14-nested-machines/README.md](../tutorials/14-nested-mac
 ## 3. Static type checking
 
 ihsm pushes correctness to **compile time** via generics on `makeHsm`,
-`HsmTopState`, and `Hsm`. At a glance:
+`TopState`, and `Hsm`. At a glance:
 
 ```typescript
 interface PaymentProtocol {
@@ -302,7 +272,7 @@ interface PaymentProtocol {
   ): void;
 }
 
-class PaymentTop extends HsmTopState<Wallet, PaymentProtocol> implements PaymentProtocol {}
+class PaymentTop extends TopState<Wallet, PaymentProtocol> implements PaymentProtocol {}
 const wallet = makeHsm(PaymentTop, { balance: 0 });
 
 wallet.post('charge', 10);              // ✓ event name + payload
@@ -356,10 +326,10 @@ Five rules define how a `Protocol` interface maps to the runtime mailbox:
 
 | Rule | Meaning |
 | ---- | ------- |
-| **1. Two type parameters everywhere** | `Context` (domain data) and `Protocol` (vocabulary) flow through `makeHsm`, `HsmTopState`, `Hsm`, and errors. |
+| **1. Two type parameters everywhere** | `Context` (domain data) and `Protocol` (vocabulary) flow through `makeHsm`, `TopState`, `Hsm`, and errors. |
 | **2. Events are void handlers** | A **event** is a `Protocol` method whose return type is `void` or `Promise<void>`. Payload types are everything before that return. |
 | **3. Services are resolve/reject handlers** | A **service** (for `call`) is a method whose **first two parameters** are `resolve: (result: T) => void` and `reject: (error: Error) => void`. Request args follow; `Promise` return type is `T`. |
-| **4. Reserved names are excluded** | Keys that exist on `HsmState` (e.g. `transition`, `post`, `ctx`) cannot be used as event or service names — they become `never` at the type level. |
+| **4. Reserved names are excluded** | Keys that exist on `State` (e.g. `transition`, `post`, `ctx`) cannot be used as event or service names — they become `never` at the type level. |
 | **5. Untyped escape hatch** | `Protocol` may be `undefined`; then `post` accepts `string` and `any[]` (legacy / gradual typing). |
 
 State classes **implement** `Protocol` so handler signatures and the external
@@ -368,13 +338,13 @@ API cannot drift apart:
 ```typescript
 export interface WalletProtocol {
   deposit(amount: number): void;
-  getBalance(resolve: HsmResolveCallback<number>, reject: HsmRejectCallback): void;
+  getBalance(resolve: ResolveCallback<number>, reject: RejectCallback): void;
 }
 
-export class WalletTop extends HsmTopState<WalletCtx, WalletProtocol>
+export class WalletTop extends TopState<WalletCtx, WalletProtocol>
   implements WalletProtocol {
   deposit(amount: number): void { /* … */ }
-  getBalance(resolve: HsmResolveCallback<number>, reject: HsmRejectCallback): void { /* … */ }
+  getBalance(resolve: ResolveCallback<number>, reject: RejectCallback): void { /* … */ }
 }
 ```
 
@@ -390,8 +360,8 @@ signature that uses it.
 
 ```typescript
 export function makeHsm<Context, Protocol>(topState, ctx, initialize?, traceLevel?, traceWriter?, dispatchErrorCallback?): Hsm<Context, Protocol>
-export abstract class HsmTopState<Context = HsmAny, Protocol extends {} | undefined = undefined> { /* … */ }
-export interface Hsm<Context = HsmAny, Protocol extends {} | undefined = undefined> { /* … */ }
+export abstract class TopState<Context = Any, Protocol extends {} | undefined = undefined> { /* … */ }
+export interface Hsm<Context = Any, Protocol extends {} | undefined = undefined> { /* … */ }
 ```
 
 **Effect:** `makeHsm(Top, ctx)` returns `Hsm<Context, Protocol>` — callers
@@ -411,7 +381,7 @@ for untyped mode. Event names must be keys of that interface.
 
 ```typescript
 post<EventName extends keyof Protocol>(
-  eventName: HsmEventHandlerName<Protocol, EventName>,
+  eventName: PostedEvent<Protocol, EventName>,
   …
 ): void;
 ```
@@ -434,12 +404,12 @@ Every helper type branches on `Protocol extends undefined` (untyped fallback)
 and on whether a member is a valid event or service:
 
 ```typescript
-export type HsmEventHandlerName<Protocol, EventName extends keyof Protocol> =
+export type PostedEvent<Protocol, EventName extends keyof Protocol> =
   Protocol extends undefined ? string
-  : EventName extends keyof HsmState<any, any> ? never
+  : EventName extends keyof State<any, any> ? never
   : EventName;
 
-export type HsmEventHandlerPayload<Protocol, EventName extends keyof Protocol> =
+export type EventPayload<Protocol, EventName extends keyof Protocol> =
   Protocol extends undefined ? any[]
   : Protocol[EventName] extends (...payload: infer Payload) => Promise<void> | void
     ? (Payload extends any[] ? Payload : never)
@@ -449,7 +419,7 @@ export type HsmEventHandlerPayload<Protocol, EventName extends keyof Protocol> =
 **Effect:**
 
 - Unknown protocol → permissive `string` / `any[]`.
-- Names on `HsmState` → `never` (compile error if used as event).
+- Names on `State` → `never` (compile error if used as event).
 - Non-void-return methods that are not services → payload becomes `never`
   (usually means “not a valid event shape”; prefer `void` handlers for events).
 
@@ -469,7 +439,7 @@ so `post('setTarget', 22)` is valid and `post('setTarget', 'hot')` is not.
 **Service request args** — everything after `resolve` and `reject`:
 
 ```typescript
-export type HsmServiceRequest<Protocol, EventName extends keyof Protocol> =
+export type ServiceRequest<Protocol, EventName extends keyof Protocol> =
   Protocol extends undefined ? any[]
   : Protocol[EventName] extends (
       resolve: (result: infer Reply) => void,
@@ -483,7 +453,7 @@ export type HsmServiceRequest<Protocol, EventName extends keyof Protocol> =
 **Service response** — type passed to `resolve`:
 
 ```typescript
-export type HsmServiceResponse<Protocol, EventName extends keyof Protocol> =
+export type ServiceResponse<Protocol, EventName extends keyof Protocol> =
   Protocol extends undefined ? any
   : Protocol[EventName] extends (
       resolve: infer Reply,
@@ -500,11 +470,11 @@ For `getBalance(resolve: (n: number) => void, reject: …): void`, `Reply` is
 ##### 7. `never` — reject invalid names at compile time
 
 ```typescript
-EventName extends keyof HsmState<any, any> ? never : EventName
+EventName extends keyof State<any, any> ? never : EventName
 ```
 
 If you add `transition` or `post` to `Protocol`, those keys collide with
-`HsmState` and become `never`, producing a type error at call sites.
+`State` and become `never`, producing a type error at call sites.
 
 Payload `never` also blocks wrong arity:
 
@@ -516,18 +486,18 @@ wallet.post('setTarget', 1, 2);  // ✗ too many arguments
 
 ##### 8. Generic methods on interfaces and classes
 
-Both `HsmBase` and `HsmTopState` declare:
+Both `Base` and `TopState` declare:
 
 ```typescript
 post<EventName extends keyof Protocol>(
-  eventName: HsmEventHandlerName<Protocol, EventName>,
-  ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>
+  eventName: PostedEvent<Protocol, EventName>,
+  ...eventPayload: EventPayload<Protocol, EventName>
 ): void;
 
 call<EventName extends keyof Protocol>(
-  eventName: HsmServiceName<Protocol, EventName>,
-  ...eventPayload: HsmServiceRequest<Protocol, EventName>
-): Promise<HsmServiceResponse<Protocol, EventName>>;
+  eventName: ServiceName<Protocol, EventName>,
+  ...eventPayload: ServiceRequest<Protocol, EventName>
+): Promise<ServiceResponse<Protocol, EventName>>;
 ```
 
 **Effect:** each call site gets a **specialized** check for the literal event
@@ -536,7 +506,7 @@ string you pass; TypeScript narrows `EventName` and applies the matching
 
 ##### 9. Rest parameters with inferred tuples
 
-`...eventPayload: HsmEventHandlerPayload<…>` types the variadic tail of `post`
+`...eventPayload: EventPayload<…>` types the variadic tail of `post`
 as an exact tuple derived from the handler, not as `any[]`.
 
 ##### 10. `implements Protocol` on state classes
@@ -548,14 +518,14 @@ signature on the state hierarchy (or a parent).
 ##### 11. Separate aliases for services vs events
 
 ```typescript
-export type HsmServiceName<Protocol, EventName> =
+export type ServiceName<Protocol, EventName> =
   Protocol extends undefined ? string
-  : EventName extends keyof HsmState<any, any> ? never
+  : EventName extends keyof State<any, any> ? never
   : EventName;
 ```
 
-`call()` uses `HsmServiceName` + `HsmServiceRequest` / `HsmServiceResponse`;
-`post()` uses `HsmEventHandlerName` + `HsmEventHandlerPayload`. Same key set,
+`call()` uses `ServiceName` + `ServiceRequest` / `ServiceResponse`;
+`post()` uses `EventName` + `EventPayload`. Same key set,
 different signature rules — a method is typed for `call` only if it matches the
 resolve/reject pattern.
 
@@ -565,13 +535,13 @@ Runtime errors carry the same generics so handlers can inspect typed event names
 and payloads in `onError` / `onUnhandled`:
 
 ```typescript
-export abstract class HsmRuntimeError<
+export abstract class RuntimeError<
   Context,
   Protocol extends {} | undefined,
   EventName extends keyof Protocol
 > extends HsmError<Context, Protocol> {
-  eventName: HsmEventHandlerName<Protocol, EventName>;
-  eventPayload: HsmEventHandlerPayload<Protocol, EventName>;
+  eventName: PostedEvent<Protocol, EventName>;
+  eventPayload: EventPayload<Protocol, EventName>;
 }
 ```
 
@@ -581,8 +551,8 @@ export abstract class HsmRuntimeError<
 ##### 13. Helper aliases for service callbacks
 
 ```typescript
-export type HsmResolveCallback<Reply> = (result: Reply) => void;
-export type HsmRejectCallback = (error: Error) => void;
+export type ResolveCallback<Reply> = (result: Reply) => void;
+export type RejectCallback = (error: Error) => void;
 ```
 
 These document the expected resolve/reject shapes and match what `infer Reply`
@@ -658,7 +628,7 @@ runtime behavior as follows:
 
 | Chart element | ihsm runtime |
 | ------------- | ------------ |
-| **`[ * ]` (filled circle)** | Initial pseudostate — exactly one `@HsmInitialState` child per composite parent |
+| **`[ * ]` (filled circle)** | Initial pseudostate — exactly one `@InitialState` child per composite parent |
 | **Rounded box / `state Name { … }`** | State **class**; nested box = composite with substates |
 | **`A --> B : label`** | External transition — handler calls `this.transition(B)`; LCA exit/entry runs |
 | **`StateName : event / action` inside a state box** | **Internal transition** — handler runs, no `transition()`, no exit/entry |
@@ -696,7 +666,7 @@ Fire-and-forget. The client enqueues; the handler runs later on the active state
 
 ```typescript
 // Protocol: open(): void;
-@HsmInitialState
+@InitialState
 class Closed extends DoorTop {
   open(): void {
     this.ctx.openCount += 1;
@@ -726,12 +696,12 @@ its mailbox and receive a **typed Promise**.
 
 ```typescript
 // Protocol: getBalance(resolve: (n: number) => void, reject: (e: Error) => void): void;
-getBalance(resolve: HsmResolveCallback<number>, _reject: HsmRejectCallback): void {
+getBalance(resolve: ResolveCallback<number>, _reject: RejectCallback): void {
   resolve(this.ctx.balance);
 }
 
 // async — await work, then resolve
-async fetchBalance(resolve: HsmResolveCallback<number>, reject: HsmRejectCallback, id: string): Promise<void> {
+async fetchBalance(resolve: ResolveCallback<number>, reject: RejectCallback, id: string): Promise<void> {
   const row = await db.load(id);
   resolve(row.balance);
 }
@@ -819,7 +789,7 @@ this.transition(TargetStateClass);
 Scheduled when the current event handler finishes successfully. ihsm computes
 the **lowest common ancestor (LCA)** on the class prototype chain, runs `onExit`
 from the current leaf up to (but not including) the LCA, then `onEntry` down
-toward the target — **descending `@HsmInitialState` chains** when the target
+toward the target — **descending `@InitialState` chains** when the target
 is a composite.
 
 Tutorial: [../tutorials/05-hierarchy/README.md](../tutorials/05-hierarchy/README.md)
@@ -835,7 +805,7 @@ The table lists **external** transitions (handler calls `transition()`). An
 | ---- | --------------------- | -------------- | ------------ | ----- |
 | **Internal** | `tick()` in `LeafWestA` | `LeafWestA : tick / value++` inside box | none | `ctx` updates; state class unchanged |
 | **Child → sibling child** | `LeafWestA → LeafWestB` | `A --> B : goSiblingWest` | exit A, enter B | LCA = parent (`MidWest`) |
-| **Child → parent composite** | `LeafWestA → MidWest` | arrow to parent composite | exit leaf; re-enter initial leaf | Composites with `@HsmInitialState` descend again |
+| **Child → parent composite** | `LeafWestA → MidWest` | arrow to parent composite | exit leaf; re-enter initial leaf | Composites with `@InitialState` descend again |
 | **Child → ancestor** | `LeafWestB → StackWest` | arrow to ancestor | exit up to LCA; enter down initial chain | Ancestors above LCA untouched |
 | **Child → root** | `LeafWestA → DeepTop` | arrow to root | exit to LCA; re-enter initial branch | Root’s own onExit/onEntry skipped at LCA |
 | **Cross-stack leaf → leaf** | `LeafWestA → LeafEastB` | arrow across stacks | exit west stack; enter east leaf | LCA = `DeepTop` |
@@ -852,12 +822,12 @@ The table lists **external** transitions (handler calls `transition()`). An
 States are classes; inheritance is the hierarchy. To transition from `src` to
 `dst`:
 
-1. Walk `src` → `HsmTopState`, recording path and indexes.
+1. Walk `src` → `TopState`, recording path and indexes.
 2. Walk `dst` upward until a class appears on the `src` path — that is the **LCA**.
 3. **Exit** states from the current leaf up to (not including) the LCA — only
    classes that **define their own** `onExit` (debug/verbose trace lists).
 4. **Enter** states from the LCA down toward `dst`; if `dst` is composite,
-   follow each `@HsmInitialState` until the deepest initial leaf.
+   follow each `@InitialState` until the deepest initial leaf.
 5. Set `currentState` to that final leaf class.
 
 Paths are **cached** per `FromState=>ToState` in `_transitionCache`.
@@ -882,15 +852,13 @@ See [§4 `sync()`](#sync) and [tutorial 08](../tutorials/08-post-and-sync/README
 
 | Failure | Error type | Default outcome |
 | ------- | ---------- | --------------- |
-| Handler throws | `HsmEventHandlerError` | `onError` → often `HsmFatalErrorState` |
-| No handler | `HsmUnhandledEventError` | `onUnhandled` → `onError` |
-| `onExit` / `onEntry` throws | `HsmTransitionError` | Recovery → `HsmFatalErrorState` |
-| `then()` throws | `HsmTransitionError` (`failedCallback: 'then'`) | `HsmFatalErrorState` |
-| `then()` chain exceeds limit | `HsmThenDepthError` | `HsmFatalErrorState` |
-| `onError` throws | `HsmFatalError` | `HsmFatalErrorState` |
+| Handler throws | `EventHandlerError` | `onError` → often `FatalErrorState` |
+| No handler | `UnhandledEventError` | `onUnhandled` → `onError` |
+| `onExit` / `onEntry` throws | `TransitionError` | Recovery → `FatalErrorState` |
+| `onError` throws | `FatalError` | `FatalErrorState` |
 
 `sync()` drains the queue; with the **default** `dispatchErrorCallback` the
-Promise still **resolves** after the machine enters `HsmFatalErrorState` (the
+Promise still **resolves** after the machine enters `FatalErrorState` (the
 callback throws to the console/logger, not to the caller). Override the callback
 to propagate failures to application code.
 
@@ -917,14 +885,14 @@ to propagate failures to application code.
 | `DEBUG` | 1 | Transition and handler boundaries |
 | `VERBOSE_DEBUG` | 2 | Lookup walks, cache hit/miss |
 
-Set trace level: `makeHsm(Top, ctx, true, HsmTraceLevel.DEBUG)`.
+Set trace level: `makeHsm(Top, ctx, true, TraceLevel.DEBUG)`.
 
 ### Trace writer
 
-Implement `HsmTraceWriter`:
+Implement `TraceWriter`:
 
 ```typescript
-interface HsmTraceWriter {
+interface TraceWriter {
   write(hsm, msg): void;
 }
 ```
@@ -943,6 +911,85 @@ Tutorial: [../tutorials/02-tracing/README.md](../tutorials/02-tracing/README.md)
 
 **XState:** `@xstate/inspect`, Stately visualizer — external tooling vs
 in-process trace hooks.
+
+### State display names (Node and minified browsers)
+
+Trace output, error messages, `currentStateName`, and `topStateName` all read a
+state's **display name**. By default that name comes from the JavaScript class
+name (`Class.name`).
+
+In **Node** (and any unminified build) class names are preserved, so everything
+works out of the box — no setup required.
+
+In a **minified browser bundle**, bundlers (esbuild, terser, Rollup, webpack)
+**rename classes** to short identifiers like `t` or `e`. `Class.name` then
+returns the mangled name and your traces, `currentStateName`, and error messages
+become unreadable. To keep names stable in every environment, register an
+explicit display name for each state class.
+
+There are two ways to keep names stable. Pick whichever fits your build.
+
+#### Option 1 — keep class names in your bundler (zero code)
+
+If you can afford slightly larger output, tell your minifier not to rename
+classes. Then `Class.name` is preserved and **no registration is needed**:
+
+| Bundler | Setting |
+| ------- | ------- |
+| esbuild | `keepNames: true` |
+| terser | `keep_classnames: true` |
+| webpack (TerserPlugin) | `terserOptions: { keep_classnames: true }` |
+| Rollup (terser plugin) | `terser({ keep_classnames: true })` |
+
+#### Option 2 — register display names (no enumeration)
+
+`registerStateNames` reads a stable name from each **export key**, which
+minifiers preserve even when they mangle the class identifiers. The ergonomic
+way is to register the module's own namespace — no need to list every state:
+
+```typescript
+// machine.ts
+import * as ihsm from 'ihsm';
+import * as self from './machine'; // self-reference
+
+export class DoorTop extends ihsm.TopState<DoorCtx, DoorProtocol> {}
+export class Open extends DoorTop {}
+export class Closed extends DoorTop {}
+
+ihsm.registerStateNames(self); // grabs every exported state automatically
+
+export function createDoor() {
+  return ihsm.makeHsm(DoorTop, { openCount: 0 });
+}
+```
+
+Equivalently, register from a consumer that imports the module as a namespace:
+
+```typescript
+import * as machine from './machine';
+registerStateNames(machine);
+```
+
+For one-off cases you can also name a single class explicitly:
+
+```typescript
+import { defineStateName } from 'ihsm';
+defineStateName(DoorTop, 'DoorTop');
+```
+
+In every form, factory functions and other non-state exports are ignored.
+
+Notes:
+
+- Names are stored as a **non-enumerable, non-inherited own property**, so a
+  subclass never accidentally reports its parent's display name.
+- Registration is **idempotent** for the same name; registering a *different*
+  name for an already-named class throws (names are intended to be stable).
+- The library registers its own built-ins (`TopState`, `FatalErrorState`)
+  automatically.
+- This is exactly how the bundled tutorials and the minified browser test suite
+  (`npm run test:browser`, built with `minify: true`) keep their state names
+  readable.
 
 ---
 
@@ -986,20 +1033,18 @@ Tutorial: [../tutorials/11-restore/README.md](../tutorials/11-restore/README.md)
 
 | Type | When |
 | ---- | ---- |
-| `HsmUnhandledEventError` | No handler for event in current state |
-| `HsmEventHandlerError` | Handler threw |
-| `HsmTransitionError` | `onEntry`/`onExit`/`then()` threw during transition |
-| `HsmInitializationError` | `onEntry` during init failed |
-| `HsmThenDepthError` | `then()` chain exceeded 32 steps |
-| `HsmFatalError` | `onError` recovery failed |
-| `HsmInitialStateError` | Two `@HsmInitialState` on same parent |
+| `UnhandledEventError` | No handler for event in current state |
+| `EventHandlerError` | Handler threw |
+| `InitializationError` | `onEntry` during init failed |
+| `FatalError` | `onError` recovery failed |
+| `InitialStateError` | Two `@InitialState` on same parent |
 
 Hooks:
 
 - `onUnhandled(error)` — default throws; override to recover or redirect
 - `onError(error)` — default rethrows; override to log and transition
 
-Fatal state: `HsmFatalErrorState` when transition recovery fails.
+Fatal error state: `FatalErrorState` when transition recovery fails.
 
 Tutorial: [../tutorials/12-error-recovery/README.md](../tutorials/12-error-recovery/README.md)
 
@@ -1024,7 +1069,7 @@ user-visible “Uploading”, different event set) — not for every syscall.
 ### Example: open → read → write → close in one handler
 
 ```typescript
-@HsmInitialState
+@InitialState
 class Idle extends FileTop {
   async transfer(from: string, to: string): Promise<void> {
     const readFd = await open(from, 'r');
@@ -1059,88 +1104,13 @@ for in-flight work.
 
 ---
 
-## 10. then()
-
-Optional lifecycle hook on state classes. The runtime invokes it **automatically**
-after every successful **initialization** or **event dispatch**, once all
-scheduled transitions (`onExit`, LCA walk, `onEntry`) for that turn have finished.
-
-### Define on the leaf
-
-```typescript
-class Pending extends Top {
-  then(): void {
-    this.ctx.log.push('then:Pending');
-    this.transition(Done);
-  }
-}
-
-class AsyncPending extends Top {
-  async then(): Promise<void> {
-    await this.sleep(10);
-    this.transition(AsyncDone);
-  }
-}
-
-@HsmInitialState
-class Boot extends BootTop {
-  then(): void {
-    this.transition(BootReady); // after init descent completes
-  }
-}
-```
-
-The empty default on `HsmTopState` is **not** inherited — only leaf classes that
-**own** `then()` (`hasOwnProperty`) participate. A child that extends a parent
-with `then()` but does not override it will **not** run the parent's hook.
-
-### When it runs
-
-| Trigger | Order |
-| ------- | ----- |
-| `makeHsm(Top, ctx, true)` | `@HsmInitialState` descent → `onEntry` chain → **`then()` on initial leaf** |
-| Handler calls `transition()` | handler → transition (exit/entry) → **`then()` on new leaf** |
-| Handler without transition | handler completes → **`then()` on current leaf** (if defined) |
-
-`then()` is **not** an event or service — it is excluded from `Protocol` typing
-and cannot be targeted with `post('then')` or `call('then')`.
-
-### Chaining
-
-If `then()` calls `this.transition(Next)`, the runtime runs that transition and
-then invokes `Next`'s `then()` when the new leaf owns one. The loop continues
-until a step does not schedule a transition or the leaf has no `then()`. Maximum
-**32** steps per initialization or dispatch; exceeding that throws
-`HsmThenDepthError` and moves to `HsmFatalErrorState`.
-
-### Errors
-
-| Failure | Error type | Outcome |
-| ------- | ---------- | ------- |
-| `then()` throws | `HsmTransitionError` (`failedCallback: 'then'`) | `HsmFatalErrorState` |
-| Chain > 32 steps | `HsmThenDepthError` | `HsmFatalErrorState` |
-
-### vs handler `transition()` and `onEntry`
-
-| | Handler `transition()` | `then()` | `post()` from `onEntry` |
-| --- | --- | --- | --- |
-| Runs | After handler body, before dispatch ends | After handler **and** its transitions | Next mailbox job |
-| After init | No | Yes (on initial leaf) | Only if you `post` in `onEntry` |
-| Same dispatch turn | Yes | Yes (including chained steps) | No — separate dispatch |
-
-Use `then()` when follow-up should run **as part of the same init or event
-dispatch** once the state is fully entered. Use `post()` from `onEntry` when the
-follow-up should be a **separate** mailbox job (see [§5 Rules of thumb](#rules-of-thumb)).
-
----
-
-## 11. makeHsm
+## 10. makeHsm
 
 Creates a machine instance bound to a **context** object and optionally runs
 initialization.
 
 ```typescript
-import { makeHsm, HsmTraceLevel } from 'ihsm';
+import { makeHsm, TraceLevel } from 'ihsm';
 
 // Default: initialize=true, traceLevel=DEBUG, console trace writer
 const door = makeHsm(DoorTop, { openCount: 0 });
@@ -1152,7 +1122,7 @@ const traced = makeHsm(
   DoorTop,
   { openCount: 0 },
   true,
-  HsmTraceLevel.VERBOSE_DEBUG,
+  TraceLevel.VERBOSE_DEBUG,
   writer,
 );
 
@@ -1166,7 +1136,7 @@ makeHsm(
   TopStateClass,
   ctx,
   initialize?,           // default true — run onEntry descent
-  traceLevel?,             // default HsmTraceLevel.DEBUG
+  traceLevel?,             // default TraceLevel.DEBUG
   traceWriter?,            // default console logger
   dispatchErrorCallback?   // default: log and rethrow
 ): Hsm<Context, Protocol>
@@ -1176,9 +1146,8 @@ makeHsm(
 | --------- | ------- |
 | `topState` | Root state class (required) |
 | `ctx` | Mutable domain context (required) |
-| `initialize` | When `true`, walks `@HsmInitialState` chain, runs `onEntry`, then `then()` on the initial leaf |
 | `traceLevel` | `PRODUCTION`, `DEBUG`, or `VERBOSE_DEBUG` |
-| `traceWriter` | Custom `HsmTraceWriter` (tests, structured logs) |
+| `traceWriter` | Custom `TraceWriter` (tests, structured logs) |
 | `dispatchErrorCallback` | Hook when dispatch throws and is not recovered |
 
 `Context` and `Protocol` are inferred from the top state class — callers get a
@@ -1192,7 +1161,7 @@ Tutorial: [../tutorials/01-hello-state-machine/README.md](../tutorials/01-hello-
 
 ---
 
-## 12. Zero dependencies
+## 11. Zero dependencies
 
 `package.json` has **no** `dependencies`. Runtime uses only JavaScript builtins
 (`Map`, `Promise`, `setTimeout`, `Object.setPrototypeOf`).
@@ -1205,7 +1174,7 @@ Implications:
 
 ---
 
-## 13. Code coverage
+## 12. Code coverage
 
 The runtime under `src/` (excluding `src/spec/`) maintains **100%** coverage:
 
@@ -1226,7 +1195,7 @@ Tutorial tests: `npm run test:tutorials`
 
 ---
 
-## 14. Comparison with XState
+## 13. Comparison with XState
 
 | Concern | ihsm | XState v5 |
 | ------- | ---- | --------- |
@@ -1249,7 +1218,7 @@ visual specs, parallel regions in one chart, or frontend ecosystem integration.
 
 ---
 
-## 15. API quick reference
+## 14. API quick reference
 
 ### `makeHsm<Context, Protocol>`
 
@@ -1258,7 +1227,7 @@ makeHsm(
   topState,
   ctx,
   initialize?,           // default true
-  traceLevel?,             // default HsmTraceLevel.DEBUG
+  traceLevel?,             // default TraceLevel.DEBUG
   traceWriter?,            // default console logger
   dispatchErrorCallback?,  // default: log and rethrow
 ): Hsm<Context, Protocol>
@@ -1268,12 +1237,11 @@ makeHsm(
 | --------- | ----------- |
 | `topState` | Root state class |
 | `ctx` | Domain context object |
-| `initialize` | Run `@HsmInitialState` descent, `onEntry`, and leaf `then()` when `true` |
 | `traceLevel` | `PRODUCTION`, `DEBUG`, or `VERBOSE_DEBUG` |
 | `traceWriter` | Custom trace sink |
 | `dispatchErrorCallback` | Hook when dispatch throws and is not recovered |
 
-### `HsmTopState<Context, Protocol>`
+### `TopState<Context, Protocol>`
 
 | Method / property | Description |
 | ----------------- | ----------- |
@@ -1285,7 +1253,6 @@ makeHsm(
 | `sleep(ms)` | Promise delay helper |
 | `unhandled()` | Throw unhandled event |
 | `onEntry` / `onExit` | Lifecycle |
-| `then()` | Automatic post-transition hook (leaf-owned only) |
 | `onError` / `onUnhandled` | Recovery hooks |
 
 ### `Hsm<Context, Protocol>`
@@ -1299,26 +1266,36 @@ makeHsm(
 
 | Class | When |
 | ----- | ---- |
-| `HsmUnhandledEventError` | No handler in current state |
-| `HsmEventHandlerError` | Handler threw |
-| `HsmTransitionError` | `onEntry` / `onExit` / `then()` threw |
-| `HsmInitializationError` | Init `onEntry` failed |
-| `HsmThenDepthError` | `then()` chain exceeded 32 steps |
-| `HsmFatalError` | `onError` recovery failed |
-| `HsmInitialStateError` | Duplicate `@HsmInitialState` |
-| `HsmFatalErrorState` | Terminal recovery-failure state |
+| `UnhandledEventError` | No handler in current state |
+| `EventHandlerError` | Handler threw |
+| `InitializationError` | Init `onEntry` failed |
+| `FatalError` | `onError` recovery failed |
+| `InitialStateError` | Duplicate `@InitialState` |
+| `FatalErrorState` | Terminal recovery-failure state |
 
 ### Trace levels
 
 | Name | Value |
 | ---- | ----- |
-| `HsmTraceLevel.PRODUCTION` | 0 |
-| `HsmTraceLevel.DEBUG` | 1 |
-| `HsmTraceLevel.VERBOSE_DEBUG` | 2 |
+| `TraceLevel.PRODUCTION` | 0 |
+| `TraceLevel.DEBUG` | 1 |
+| `TraceLevel.VERBOSE_DEBUG` | 2 |
 
-### `HsmInitialState(StateClass)`
+### `InitialState(StateClass)`
 
 Mark default substate of composite parent.
+
+### `defineStateName(StateClass, name)`
+
+Assign a stable display name to one state class so traces, error messages, and
+`currentStateName` survive minification. See
+[§6 State display names](#state-display-names-node-and-minified-browsers).
+
+### `registerStateNames(exports)`
+
+Register display names in bulk from an exports map (export key → state class);
+non-state values are ignored. Recommended for minified browser bundles. See
+[§6 State display names](#state-display-names-node-and-minified-browsers).
 
 ---
 

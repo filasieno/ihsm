@@ -8,8 +8,8 @@
 		"outDir": "./.tsc/tutorials",
 		"rootDir": ".",
 		"tsBuildInfoFile": "./.tsc/tutorials.tsbuildinfo",
-		"module": "commonjs",
-		"moduleResolution": "bundler",
+		"module": "node16",
+		"moduleResolution": "node16",
 		"types": ["mocha", "node"]
 	},
 	"include": [
@@ -18,7 +18,8 @@
 		"tutorials/**/trace-*.ts",
 		"tutorials/shared/trace.ts",
 		"tutorials/shared/interactive-helpers.ts",
-		"tutorials/shared/interactive-types.ts"
+		"tutorials/shared/interactive-types.ts",
+		"tutorials/shared/state-names.ts"
 	],
 	"references": [{ "path": "./tsconfig.lib.json" }]
 }

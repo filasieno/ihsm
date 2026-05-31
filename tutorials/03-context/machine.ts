@@ -1,4 +1,5 @@
-import { makeHsm, HsmInitialState, HsmTopState } from '../../src';
+import * as ihsm from '../../src';
+import * as self from './machine';
 
 export interface CounterCtx {
 	value: number;
@@ -11,7 +12,7 @@ export interface CounterProtocol {
 	reset(): void;
 }
 
-export class CounterTop extends HsmTopState<CounterCtx, CounterProtocol> implements CounterProtocol {
+export class CounterTop extends ihsm.TopState<CounterCtx, CounterProtocol> implements CounterProtocol {
 	increment(): void {
 		this.ctx.value += this.ctx.step;
 	}
@@ -25,9 +26,11 @@ export class CounterTop extends HsmTopState<CounterCtx, CounterProtocol> impleme
 	}
 }
 
-@HsmInitialState
+@ihsm.InitialState
 export class Running extends CounterTop {}
 
+ihsm.registerStateNames(self); // grabs every exported state automatically
+
 export function createCounter(initial = 0, step = 1) {
-	return makeHsm(CounterTop, { value: initial, step });
+	return ihsm.makeHsm(CounterTop, { value: initial, step });
 }

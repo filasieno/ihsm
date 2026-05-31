@@ -35,9 +35,9 @@ await sm.sync();
 
 | Step | Action |
 | ---- | ------ |
-| 1 | Start at `DeepTop`, follow `@HsmInitialState StackWest` |
-| 2 | Follow `@HsmInitialState MidWest` |
-| 3 | Follow `@HsmInitialState LeafWestA` — no further initial child |
+| 1 | Start at `DeepTop`, follow `@InitialState StackWest` |
+| 2 | Follow `@InitialState MidWest` |
+| 3 | Follow `@InitialState LeafWestA` — no further initial child |
 | 4 | Active leaf = **`LeafWestA`** |
 
 Each composite on the path runs `onEntry` **outer → inner**.

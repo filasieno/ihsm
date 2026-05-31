@@ -1,4 +1,5 @@
-import { makeHsm, HsmInitialState, HsmTopState } from '../../src';
+import * as ihsm from '../../src';
+import * as self from './machine';
 
 export interface DeepCtx {
 	trace: string[];
@@ -28,7 +29,7 @@ function pushTrace(ctx: DeepCtx, line: string): void {
 }
 
 /** Root — LCA for every cross-stack transition. */
-export class DeepTop extends HsmTopState<DeepCtx, DeepProtocol> implements DeepProtocol {
+export class DeepTop extends ihsm.TopState<DeepCtx, DeepProtocol> implements DeepProtocol {
 	onEntry(): void {
 		pushTrace(this.ctx, 'enter:DeepTop');
 	}
@@ -88,7 +89,7 @@ export class DeepTop extends HsmTopState<DeepCtx, DeepProtocol> implements DeepP
 }
 
 /** West stack — initial branch after create. Depth: StackWest → MidWest → leaf. */
-@HsmInitialState
+@ihsm.InitialState
 export class StackWest extends DeepTop {
 	onEntry(): void {
 		pushTrace(this.ctx, 'enter:StackWest');
@@ -99,7 +100,7 @@ export class StackWest extends DeepTop {
 	}
 }
 
-@HsmInitialState
+@ihsm.InitialState
 export class MidWest extends StackWest {
 	onEntry(): void {
 		pushTrace(this.ctx, 'enter:MidWest');
@@ -110,7 +111,7 @@ export class MidWest extends StackWest {
 	}
 }
 
-@HsmInitialState
+@ihsm.InitialState
 export class LeafWestA extends MidWest {
 	onEntry(): void {
 		pushTrace(this.ctx, 'enter:LeafWestA');
@@ -142,7 +143,7 @@ export class StackEast extends DeepTop {
 	}
 }
 
-@HsmInitialState
+@ihsm.InitialState
 export class MidEast extends StackEast {
 	onEntry(): void {
 		pushTrace(this.ctx, 'enter:MidEast');
@@ -153,7 +154,7 @@ export class MidEast extends StackEast {
 	}
 }
 
-@HsmInitialState
+@ihsm.InitialState
 export class LeafEastA extends MidEast {
 	onEntry(): void {
 		pushTrace(this.ctx, 'enter:LeafEastA');
@@ -174,9 +175,11 @@ export class LeafEastB extends MidEast {
 	}
 }
 
+ihsm.registerStateNames(self); // grabs every exported state automatically
+
 export function createDeepMachine() {
-	return makeHsm(DeepTop, { trace: [], value: 0, failExit: false });
+	return ihsm.makeHsm(DeepTop, { trace: [], value: 0, failExit: false });
 }
 
-/** After `create()` + `sync()`: outer → inner along `@HsmInitialState` chain. */
+/** After `create()` + `sync()`: outer → inner along `@ihsm.InitialState` chain. */
 export const INIT_TRACE = ['enter:DeepTop', 'enter:StackWest', 'enter:MidWest', 'enter:LeafWestA'];

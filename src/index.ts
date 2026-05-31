@@ -1,24 +1,24 @@
 import { HsmWithTracing, Instance } from './internal/defs.private';
 import { HsmObject } from './internal/hsm';
-import { hasInitialState, quoteError } from './internal/utils';
+import { hasInitialState, quoteError, defineStateName as defineStateNameInternal, getStateName } from './internal/utils';
 
 /**
  * Default context and protocol map when a machine is created without explicit typing.
  * @category Factory
  */
-export type HsmAny = Record<string, any>;
+export type Any = Record<string, any>;
 
 /**
  * Rejects an async {@link Hsm.call} service with an error.
  * @category Event handler
  */
-export type HsmRejectCallback = (error: Error) => void;
+export type RejectCallback = (error: Error) => void;
 
 /**
  * Resolves an async {@link Hsm.call} service with a typed reply.
  * @category Event handler
  */
-export type HsmResolveCallback<Reply> = (result: Reply) => void;
+export type ResolveCallback<Reply> = (result: Reply) => void;
 
 //
 // Configuration
@@ -28,16 +28,16 @@ export type HsmResolveCallback<Reply> = (result: Reply) => void;
  * Called when event dispatch fails and the runtime does not recover via `onError`.
  * @category Factory
  */
-export interface HsmDispatchErrorCallback<Context, Protocol extends {} | undefined> {
-	(hsm: HsmBase<Context, Protocol>, err: Error): void;
+export interface DispatchErrorCallback<Context, Protocol extends {} | undefined> {
+	(hsm: Base<Context, Protocol>, err: Error): void;
 }
-// export type HsmDispatchErrorCallback<Context, Protocol extends {} | undefined> = (hsm: Hsm<Context, Protocol>, traceWriter: HsmTraceWriter, err: Error) => void;
+// export type DispatchErrorCallback<Context, Protocol extends {} | undefined> = (hsm: Hsm<Context, Protocol>, traceWriter: TraceWriter, err: Error) => void;
 
 /**
  * Trace verbosity for dispatch logging.
  * @category Factory
  */
-export enum HsmTraceLevel {
+export enum TraceLevel {
 	PRODUCTION,
 	DEBUG,
 	VERBOSE_DEBUG,
@@ -47,111 +47,110 @@ export enum HsmTraceLevel {
  * Receives trace lines from the runtime and from handlers via `this.traceWriter.write`.
  * @category Factory
  */
-export interface HsmTraceWriter {
-	write<Context, Protocol extends {} | undefined>(hsm: HsmProperties<Context, Protocol>, msg: any): void;
+export interface TraceWriter {
+	write<Context, Protocol extends {} | undefined>(hsm: Properties<Context, Protocol>, msg: any): void;
 }
 
 /**
  * @category State machine
  */
-export interface HsmProperties<Context, Protocol extends {} | undefined> {
-	readonly currentState: HsmStateClass<Context, Protocol>;
+export interface Properties<Context, Protocol extends {} | undefined> {
+	readonly currentState: StateClass<Context, Protocol>;
 	readonly currentStateName: string;
-	readonly topState: HsmStateClass<Context, Protocol>;
+	readonly topState: StateClass<Context, Protocol>;
 	readonly topStateName: string;
 	readonly ctxTypeName: string;
 	readonly traceHeader: string;
 	readonly eventName: string;
 	readonly eventPayload: any[];
 
-	traceLevel: HsmTraceLevel;
-	traceWriter: HsmTraceWriter;
-	dispatchErrorCallback: HsmDispatchErrorCallback<Context, Protocol>;
+	traceLevel: TraceLevel;
+	traceWriter: TraceWriter;
+	dispatchErrorCallback: DispatchErrorCallback<Context, Protocol>;
 }
 
 /**
  * @category State machine
  */
-export interface HsmBase<Context, Protocol extends {} | undefined> extends HsmProperties<Context, Protocol> {
-	post<EventName extends keyof Protocol>(eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void;
-	deferredPost<EventName extends keyof Protocol>(millis: number, eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void;
+export interface Base<Context, Protocol extends {} | undefined> extends Properties<Context, Protocol> {
+	post<EventName extends keyof Protocol>(eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void;
+	deferredPost<EventName extends keyof Protocol>(millis: number, eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void;
 }
 
 /**
  * @category State machine
  */
-export interface HsmState<Context, Protocol extends {} | undefined> extends HsmBase<Context, Protocol> {
+export interface State<Context, Protocol extends {} | undefined> extends Base<Context, Protocol> {
 	readonly ctx: Context;
-	transition(nextState: HsmStateClass<Context, Protocol>): void;
+	transition(nextState: StateClass<Context, Protocol>): void;
 	unhandled(): never;
 	sleep(millis: number): Promise<void>;
 	/** Handler-only: queue an event on the internal high-priority mailbox (before normal `post`). */
-	postNow<EventName extends keyof Protocol>(eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void;
+	postNow<EventName extends keyof Protocol>(eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void;
 }
 
 /**
  * Actor handle returned by {@link makeHsm} — client API (`post`, `call`, `sync`, `restore`).
  * @category State machine
  */
-export interface Hsm<Context = HsmAny, Protocol extends {} | undefined = undefined> extends HsmBase<Context, Protocol> {
+export interface Hsm<Context = Any, Protocol extends {} | undefined = undefined> extends Base<Context, Protocol> {
 	readonly ctx: Context;
 	sync(): Promise<void>;
-	restore(state: HsmStateClass<Context, Protocol>, ctx: Context): void;
-	call<EventName extends keyof Protocol>(eventName: HsmServiceName<Protocol, EventName>, ...eventPayload: HsmServiceRequest<Protocol, EventName>): Promise<HsmServiceResponse<Protocol, EventName>>;
+	restore(state: StateClass<Context, Protocol>, ctx: Context): void;
+	call<EventName extends keyof Protocol>(eventName: ServiceName<Protocol, EventName>, ...eventPayload: ServiceRequest<Protocol, EventName>): Promise<ServiceResponse<Protocol, EventName>>;
 }
 
 /**
  * @category Event handler
  */
 
-export type HsmEventHandlerName<Protocol extends {} | undefined, EventName extends keyof Protocol> = Protocol extends undefined ? string : EventName extends keyof HsmState<any, any> | 'then' ? never : EventName;
+export type PostedEvent<Protocol extends {} | undefined, EventName extends keyof Protocol> = Protocol extends undefined ? string : EventName extends keyof State<any, any> ? never : EventName;
 
 /**
  * @category Event handler
  */
 
-export type HsmEventHandlerPayload<Protocol extends {} | undefined, EventName extends keyof Protocol> = Protocol extends undefined ? any[] : Protocol[EventName] extends (...payload: infer Payload) => Promise<void> | void ? (Payload extends any[] ? Payload : never) : never;
+export type EventPayload<Protocol extends {} | undefined, EventName extends keyof Protocol> = Protocol extends undefined ? any[] : Protocol[EventName] extends (...payload: infer Payload) => Promise<void> | void ? (Payload extends any[] ? Payload : never) : never;
 
 /**
  * Constructor type for a state class in the machine hierarchy.
  * @category State machine
  */
-export type HsmStateClass<Context = HsmAny, Protocol extends {} | undefined = undefined> = Function & { prototype: HsmTopState<Context, Protocol> };
+export type StateClass<Context = Any, Protocol extends {} | undefined = undefined> = Function & { prototype: TopState<Context, Protocol> };
 
 /**
  *
  */
-export type HsmServiceRequest<Protocol, EventName extends keyof Protocol> = Protocol extends undefined ? any[] : Protocol[EventName] extends (resolve: (result: infer Reply) => void, reject: (error: infer Error) => void, ...payload: infer Payload) => Promise<void> | void ? (Payload extends any[] ? Payload : never) : never;
+export type ServiceRequest<Protocol, EventName extends keyof Protocol> = Protocol extends undefined ? any[] : Protocol[EventName] extends (resolve: (result: infer Reply) => void, reject: (error: infer Error) => void, ...payload: infer Payload) => Promise<void> | void ? (Payload extends any[] ? Payload : never) : never;
 
 /**
  *
  */
-export type HsmServiceResponse<Protocol, EventName extends keyof Protocol> = Protocol extends undefined ? any : Protocol[EventName] extends (resolve: infer Reply, reject: infer Error, ...payload: infer Payload) => Promise<void> | void ? Reply : never;
+export type ServiceResponse<Protocol, EventName extends keyof Protocol> = Protocol extends undefined ? any : Protocol[EventName] extends (resolve: infer Reply, reject: infer Error, ...payload: infer Payload) => Promise<void> | void ? Reply : never;
 
 /**
  *
  */
-export type HsmServiceName<Protocol, EventName> = Protocol extends undefined ? string : EventName extends keyof HsmState<any, any> | 'then' ? never : EventName;
+export type ServiceName<Protocol, EventName> = Protocol extends undefined ? string : EventName extends keyof State<any, any> ? never : EventName;
 
 /**
- * Optional lifecycle hooks implemented by state classes (`onEntry`, `onExit`, `then`, …).
+ * Optional lifecycle hooks implemented by state classes (`onEntry`, `onExit`, …).
  * @category State machine
  */
-export interface HsmStateMachineEvents<Context, Protocol extends {} | undefined> {
+export interface StateEvents<Context, Protocol extends {} | undefined> {
 	onExit(): Promise<void> | void;
 	onEntry(): Promise<void> | void;
-	then(): Promise<void> | void;
-	onError<EventName extends keyof Protocol>(error: HsmRuntimeError<Context, Protocol, EventName>): Promise<void> | void;
-	onUnhandled<EventName extends keyof Protocol>(error: HsmUnhandledEventError<Context, Protocol, EventName>): Promise<void> | void;
+	onError<EventName extends keyof Protocol>(error: RuntimeError<Context, Protocol, EventName>): Promise<void> | void;
+	onUnhandled<EventName extends keyof Protocol>(error: UnhandledEventError<Context, Protocol, EventName>): Promise<void> | void;
 }
 
 /**
  * Root of the state class hierarchy; hosts mailbox machinery. Subclass or pass to {@link makeHsm}.
  * @category State machine
  */
-export abstract class HsmTopState<Context = HsmAny, Protocol extends {} | undefined = undefined> implements HsmState<Context, Protocol>, HsmStateMachineEvents<Context, Protocol> {
+export abstract class TopState<Context = Any, Protocol extends {} | undefined = undefined> implements State<Context, Protocol>, StateEvents<Context, Protocol> {
 	readonly ctx!: Context;
-	readonly hsm!: HsmState<Context, Protocol>;
+	readonly hsm!: State<Context, Protocol>;
 	constructor() {
 		throw new Error('Fatal error: States cannot be instantiated');
 	}
@@ -164,28 +163,28 @@ export abstract class HsmTopState<Context = HsmAny, Protocol extends {} | undefi
 	get traceHeader(): string {
 		return this.hsm.traceHeader;
 	}
-	get topState(): HsmStateClass<Context, Protocol> {
+	get topState(): StateClass<Context, Protocol> {
 		return this.hsm.topState;
 	}
 	get currentStateName(): string {
 		return this.hsm.currentStateName;
 	}
-	get currentState(): HsmStateClass<Context, Protocol> {
+	get currentState(): StateClass<Context, Protocol> {
 		return this.hsm.currentState;
 	}
 	get ctxTypeName(): string {
 		return this.hsm.ctxTypeName;
 	}
-	set traceLevel(value: HsmTraceLevel) {
+	set traceLevel(value: TraceLevel) {
 		this.hsm.traceLevel = value;
 	}
-	get traceLevel(): HsmTraceLevel {
+	get traceLevel(): TraceLevel {
 		return this.hsm.traceLevel;
 	}
 	get topStateName(): string {
 		return this.hsm.topStateName;
 	}
-	get traceWriter(): HsmTraceWriter {
+	get traceWriter(): TraceWriter {
 		return this.hsm.traceWriter;
 	}
 	set traceWriter(value) {
@@ -198,7 +197,7 @@ export abstract class HsmTopState<Context = HsmAny, Protocol extends {} | undefi
 	set dispatchErrorCallback(value) {
 		this.hsm.dispatchErrorCallback = value;
 	}
-	transition(nextState: HsmStateClass<Context, Protocol>): void {
+	transition(nextState: StateClass<Context, Protocol>): void {
 		this.hsm.transition(nextState);
 	}
 	unhandled(): never {
@@ -207,13 +206,13 @@ export abstract class HsmTopState<Context = HsmAny, Protocol extends {} | undefi
 	sleep(millis: number): Promise<void> {
 		return this.hsm.sleep(millis);
 	}
-	post<EventName extends keyof Protocol>(eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void {
+	post<EventName extends keyof Protocol>(eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void {
 		this.hsm.post(eventName, ...eventPayload);
 	}
-	deferredPost<EventName extends keyof Protocol>(millis: number, eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void {
+	deferredPost<EventName extends keyof Protocol>(millis: number, eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void {
 		this.hsm.deferredPost(millis, eventName, ...eventPayload);
 	}
-	postNow<EventName extends keyof Protocol>(eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void {
+	postNow<EventName extends keyof Protocol>(eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void {
 		this.hsm.postNow(eventName, ...eventPayload);
 	}
 
@@ -221,20 +220,11 @@ export abstract class HsmTopState<Context = HsmAny, Protocol extends {} | undefi
 
 	onEntry(): Promise<void> | void {}
 
-	/**
-	 * Optional automatic hook after initialization or event dispatch completes (including
-	 * any scheduled transitions). Override on a **leaf** state class only — the empty
-	 * default is not inherited. May call {@link transition} to chain further steps.
-	 * Not part of {@link Protocol}; excluded from `post` / `call` typing.
-	 * @category State machine
-	 */
-	then(): Promise<void> | void {}
-
-	onError<EventName extends keyof Protocol>(error: HsmRuntimeError<Context, Protocol, EventName>): Promise<void> | void {
+	onError<EventName extends keyof Protocol>(error: RuntimeError<Context, Protocol, EventName>): Promise<void> | void {
 		throw error;
 	}
 
-	onUnhandled<EventName extends keyof Protocol>(error: HsmUnhandledEventError<Context, Protocol, EventName>): Promise<void> | void {
+	onUnhandled<EventName extends keyof Protocol>(error: UnhandledEventError<Context, Protocol, EventName>): Promise<void> | void {
 		throw error;
 	}
 }
@@ -244,17 +234,17 @@ export abstract class HsmTopState<Context = HsmAny, Protocol extends {} | undefi
  */
 export abstract class HsmError<Context, Protocol extends {} | undefined> extends Error {
 	name: string;
-	hsmTopStateName: string;
-	hsmStateName: string;
-	hsmContext: Context;
+	topStateName: string;
+	stateName: string;
+	context: Context;
 	cause?: Error;
 
-	protected constructor(name: string, hsm: HsmState<Context, Protocol>, message: string, cause?: Error) {
+	protected constructor(name: string, hsm: State<Context, Protocol>, message: string, cause?: Error) {
 		super(message);
 		this.name = name;
-		this.hsmTopStateName = hsm.topStateName;
-		this.hsmStateName = hsm.currentState.name;
-		this.hsmContext = hsm.ctx;
+		this.topStateName = hsm.topStateName;
+		this.stateName = hsm.currentStateName;
+		this.context = hsm.ctx;
 		this.cause = cause;
 	}
 }
@@ -262,48 +252,38 @@ export abstract class HsmError<Context, Protocol extends {} | undefined> extends
 /**
  * @category Error
  */
-export abstract class HsmRuntimeError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol> extends HsmError<Context, Protocol> {
-	eventName: HsmEventHandlerName<Protocol, EventName>;
-	eventPayload: HsmEventHandlerPayload<Protocol, EventName>;
+export abstract class RuntimeError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol> extends HsmError<Context, Protocol> {
+	eventName: PostedEvent<Protocol, EventName>;
+	eventPayload: EventPayload<Protocol, EventName>;
 
-	protected constructor(errorName: string, hsm: HsmState<Context, Protocol>, message: string, cause?: Error) {
+	protected constructor(errorName: string, hsm: State<Context, Protocol>, message: string, cause?: Error) {
 		super(errorName, hsm, message, cause);
-		this.eventName = hsm.eventName as HsmEventHandlerName<Protocol, EventName>;
-		this.eventPayload = hsm.eventPayload as HsmEventHandlerPayload<Protocol, EventName>;
+		this.eventName = hsm.eventName as PostedEvent<Protocol, EventName>;
+		this.eventPayload = hsm.eventPayload as EventPayload<Protocol, EventName>;
 	}
 }
 
 /**
  * @category Error
  */
-export class HsmTransitionError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol> extends HsmRuntimeError<Context, Protocol, EventName> {
+export class TransitionError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol> extends RuntimeError<Context, Protocol, EventName> {
 	constructor(
-		hsm: HsmState<Context, Protocol>,
+		hsm: State<Context, Protocol>,
 		cause: Error,
 		public failedStateName: string,
-		public failedCallback: 'onExit' | 'onEntry' | 'then',
+		public failedCallback: 'onExit' | 'onEntry',
 		public fromStateName: string,
 		public toStateName: string
 	) {
-		const phase = failedCallback === 'then' ? `${failedStateName}.${failedCallback}() has failed after entering state ${failedStateName}` : `${failedStateName}.${failedCallback}() has failed while executing a transition from ${fromStateName} to ${toStateName}`;
-		super('HsmTransitionError', hsm, phase, cause);
+		super('TransitionError', hsm, `${failedStateName}.${failedCallback}() has failed while executing a transition from ${fromStateName} to ${toStateName}`, cause);
 	}
 }
 
 /**
  * @category Error
  */
-export class HsmThenDepthError<Context, Protocol extends {} | undefined> extends HsmError<Context, Protocol> {
-	constructor(hsm: HsmState<Context, Protocol>) {
-		super('HsmThenDepthError', hsm, `then() chain exceeded the maximum of ${32} steps in state ${hsm.currentStateName}`);
-	}
-}
-
-/**
- * @category Error
- */
-export class HsmEventHandlerError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol> extends HsmRuntimeError<Context, Protocol, EventName> {
-	constructor(hsm: HsmState<Context, Protocol>, cause: Error) {
+export class EventHandlerError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol> extends RuntimeError<Context, Protocol, EventName> {
+	constructor(hsm: State<Context, Protocol>, cause: Error) {
 		super('EventHandlerError', hsm, `an error was thrown while executing event handler #${hsm.eventName} in state ${hsm.currentStateName}`, cause);
 	}
 }
@@ -311,44 +291,44 @@ export class HsmEventHandlerError<Context, Protocol extends {} | undefined, Even
 /**
  * @category Error
  */
-export class HsmUnhandledEventError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol> extends HsmRuntimeError<Context, Protocol, EventName> {
-	constructor(hsm: HsmState<Context, Protocol>) {
-		super('HsmUnhandledEventError', hsm, `event #${hsm.eventName} was unhandled in state ${hsm.currentStateName}`);
+export class UnhandledEventError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol> extends RuntimeError<Context, Protocol, EventName> {
+	constructor(hsm: State<Context, Protocol>) {
+		super('UnhandledEventError', hsm, `event #${hsm.eventName} was unhandled in state ${hsm.currentStateName}`);
 	}
 }
 
 /**
  * @category Error
  */
-export class HsmInitialStateError<Context, Protocol extends {} | undefined> extends Error {
+export class InitialStateError<Context, Protocol extends {} | undefined> extends Error {
 	targetStateName: string;
 
-	constructor(targetState: HsmStateClass<Context, Protocol>) {
-		super(`State '${Object.getPrototypeOf(targetState).constructor.name}' must not have more than one initial state`);
-		this.name = 'HsmInitialStateError';
-		this.targetStateName = targetState.name;
+	constructor(targetState: StateClass<Context, Protocol>) {
+		super(`State '${getStateName(Object.getPrototypeOf(targetState.prototype).constructor as StateClass<Context, Protocol>)}' must not have more than one initial state`);
+		this.name = 'InitialStateError';
+		this.targetStateName = getStateName(targetState);
 	}
 }
 
 /**
  * @category Error
  */
-export class HsmFatalError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol> extends HsmRuntimeError<Context, Protocol, EventName> {
-	constructor(hsm: HsmState<Context, Protocol>, cause: Error) {
-		super('HsmFatalError', hsm, `onError() has thrown ${quoteError(cause)}`, cause);
+export class FatalError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol> extends RuntimeError<Context, Protocol, EventName> {
+	constructor(hsm: State<Context, Protocol>, cause: Error) {
+		super('FatalError', hsm, `onError() has thrown ${quoteError(cause)}`, cause);
 	}
 }
 
 /**
  * @category Error
  */
-export class HsmInitializationError<Context, Protocol extends {} | undefined> extends HsmError<Context, Protocol> {
+export class InitializationError<Context, Protocol extends {} | undefined> extends HsmError<Context, Protocol> {
 	constructor(
-		hsm: HsmState<Context, Protocol>,
-		public failedState: HsmStateClass<Context, Protocol>,
+		hsm: State<Context, Protocol>,
+		public failedState: StateClass<Context, Protocol>,
 		cause: Error
 	) {
-		super('HsmInitializationError', hsm, `state ${failedState.name} has thrown ${quoteError(cause)} during initialization`, cause);
+		super('InitializationError', hsm, `state ${getStateName(failedState)} has thrown ${quoteError(cause)} during initialization`, cause);
 	}
 }
 
@@ -356,15 +336,18 @@ export class HsmInitializationError<Context, Protocol extends {} | undefined> ex
  * Terminal error state class used when the machine cannot recover.
  * @category State machine
  */
-export class HsmFatalErrorState<Context, Protocol extends {} | undefined> extends HsmTopState<Context, Protocol> {}
+export class FatalErrorState<Context, Protocol extends {} | undefined> extends TopState<Context, Protocol> {}
+
+defineStateNameInternal(TopState, 'TopState');
+defineStateNameInternal(FatalErrorState, 'FatalErrorState');
 
 /**
  * Marks `TargetState` as the initial substate of its parent composite state.
  * @category Factory
  */
-export function HsmInitialState<Context, Protocol extends {} | undefined>(TargetState: HsmStateClass<Context, Protocol>): void {
+export function InitialState<Context, Protocol extends {} | undefined>(TargetState: StateClass<Context, Protocol>): void {
 	const ParentOfTargetState = Object.getPrototypeOf(TargetState.prototype).constructor;
-	if (hasInitialState(ParentOfTargetState)) throw new HsmInitialStateError(TargetState);
+	if (hasInitialState(ParentOfTargetState)) throw new InitialStateError(TargetState);
 	Object.defineProperty(TargetState, '_isInitialState', {
 		value: true,
 		writable: false,
@@ -379,9 +362,72 @@ export function HsmInitialState<Context, Protocol extends {} | undefined>(Target
 	});
 }
 
+/**
+ * Assigns a stable display name to a state class.
+ *
+ * Minifiers (and browser production bundles) rewrite class names, so the
+ * built-in `Class.name` is unreliable in optimized builds. Registering an
+ * explicit name keeps {@link Properties.currentStateName},
+ * {@link Properties.topStateName}, trace output, and error messages stable in
+ * every environment (Node and minified browsers alike).
+ *
+ * The name is stored as a non-enumerable, non-inherited own property, so it is
+ * never accidentally shared with subclasses through the prototype chain.
+ *
+ * @example
+ * ```ts
+ * class Door extends TopState {}
+ * defineStateName(Door, 'Door');
+ * ```
+ * @category State machine
+ */
+export function defineStateName<Context, Protocol extends {} | undefined>(state: StateClass<Context, Protocol>, name: string): void {
+	defineStateNameInternal(state, name);
+}
+
+/**
+ * Registers stable display names for every state class found in an exports map,
+ * using the export key as the display name.
+ *
+ * This is the convenient way to make a whole machine module minification-safe:
+ * pass the module namespace (or an object literal of the state classes) and
+ * each state class gets its export key as its display name. Non state-class
+ * values (factory functions, interfaces compiled away, constants) are ignored.
+ *
+ * @example
+ * ```ts
+ * // machine.ts
+ * export class DoorTop extends TopState {}
+ * export class Open extends DoorTop {}
+ * export class Closed extends DoorTop {}
+ * registerStateNames({ DoorTop, Open, Closed });
+ * ```
+ * @example
+ * ```ts
+ * // from another module
+ * import * as machine from './machine';
+ * registerStateNames(machine);
+ * ```
+ * @category State machine
+ */
+export function registerStateNames(exports: Record<string, unknown>): void {
+	for (const [exportName, value] of Object.entries(exports)) {
+		if (isStateClass(value)) {
+			defineStateNameInternal(value, exportName);
+		}
+	}
+}
+
+/** @internal — structural guard: a constructor whose prototype derives from {@link TopState}. */
+function isStateClass(value: unknown): value is StateClass {
+	if (typeof value !== 'function') return false;
+	const prototype = (value as Function).prototype;
+	return typeof prototype === 'object' && prototype !== null && TopState.prototype.isPrototypeOf(prototype);
+}
+
 /** @internal */
-class ConsoleTraceWriter implements HsmTraceWriter {
-	write<Context, Protocol extends {} | undefined>(hsm: HsmProperties<Context, Protocol>, Message: any): void {
+class ConsoleTraceWriter implements TraceWriter {
+	write<Context, Protocol extends {} | undefined>(hsm: Properties<Context, Protocol>, Message: any): void {
 		if (typeof Message == 'string') {
 			console.log(`${hsm.traceHeader}${hsm.currentStateName}: ${Message}`);
 		} else {
@@ -390,7 +436,7 @@ class ConsoleTraceWriter implements HsmTraceWriter {
 	}
 }
 
-function defaultDispatchErrorCallback<Context, Protocol extends {} | undefined>(hsm: HsmBase<Context, Protocol>, err: Error): void {
+function defaultDispatchErrorCallback<Context, Protocol extends {} | undefined>(hsm: Base<Context, Protocol>, err: Error): void {
 	const writer = hsm.traceWriter;
 	writer.write(hsm, `An event dispatch has failed; error ${err.name}: ${err.message} has not been managed`);
 	writer.write(hsm, err);
@@ -398,7 +444,7 @@ function defaultDispatchErrorCallback<Context, Protocol extends {} | undefined>(
 }
 
 const defaultTraceWriter = new ConsoleTraceWriter();
-const defaultTraceLevel = HsmTraceLevel.DEBUG;
+const defaultTraceLevel = TraceLevel.DEBUG;
 const defaultInitialize = true;
 
 /**
@@ -406,13 +452,13 @@ const defaultInitialize = true;
  *
  * @param topState - Root state class
  * @param ctx - Mutable domain context
- * @param initialize - When `true`, walk `@HsmInitialState` chain, run `onEntry`, then `then()` on the initial leaf (default `true`)
- * @param traceLevel - Trace verbosity (default {@link HsmTraceLevel.DEBUG})
+ * @param initialize - When `true`, walk `@InitialState` chain and run `onEntry` on the path to the initial leaf (default `true`)
+ * @param traceLevel - Trace verbosity (default {@link TraceLevel.DEBUG})
  * @param traceWriter - Trace sink (default console logger)
  * @param dispatchErrorCallback - Hook when dispatch throws and is not recovered (default: log and rethrow)
  * @category Factory
  */
-export function makeHsm<Context, Protocol extends undefined | {}>(topState: HsmStateClass<Context, Protocol>, ctx: Context, initialize: boolean = defaultInitialize, traceLevel: HsmTraceLevel = defaultTraceLevel, traceWriter: HsmTraceWriter = defaultTraceWriter, dispatchErrorCallback: HsmDispatchErrorCallback<Context, Protocol> = defaultDispatchErrorCallback): Hsm<Context, Protocol> {
+export function makeHsm<Context, Protocol extends undefined | {}>(topState: StateClass<Context, Protocol>, ctx: Context, initialize: boolean = defaultInitialize, traceLevel: TraceLevel = defaultTraceLevel, traceWriter: TraceWriter = defaultTraceWriter, dispatchErrorCallback: DispatchErrorCallback<Context, Protocol> = defaultDispatchErrorCallback): Hsm<Context, Protocol> {
 	const instance: Instance<Context, Protocol> = {
 		hsm: undefined as unknown as HsmWithTracing<Context, Protocol>,
 		ctx: ctx,

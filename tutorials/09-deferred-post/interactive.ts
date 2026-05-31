@@ -1,9 +1,10 @@
 import { singleSenderTutorial } from '../shared/interactive-helpers';
-import { ReminderTop } from './machine';
+import * as machine from './machine';
 
 export const interactive = singleSenderTutorial({
 	title: 'Reminder machine',
-	topState: ReminderTop,
+	topState: machine.ReminderTop,
+	machineExports: machine,
 	initialCtx: { message: '' },
 	messages: [
 		{

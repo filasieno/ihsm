@@ -1,4 +1,5 @@
-import { makeHsm, HsmInitialState, HsmRejectCallback, HsmResolveCallback, HsmTopState } from '../../src';
+import * as ihsm from '../../src';
+import * as self from './machine';
 
 export interface WalletCtx {
 	balance: number;
@@ -6,29 +7,29 @@ export interface WalletCtx {
 
 export interface WalletProtocol {
 	deposit(amount: number): void;
-	getBalance(resolve: HsmResolveCallback<number>, reject: HsmRejectCallback): void;
-	fetchBalanceDelayed(resolve: HsmResolveCallback<number>, reject: HsmRejectCallback, delayMs: number): Promise<void>;
-	withdraw(resolve: HsmResolveCallback<number>, reject: HsmRejectCallback, amount: number): void;
+	getBalance(resolve: ihsm.ResolveCallback<number>, reject: ihsm.RejectCallback): void;
+	fetchBalanceDelayed(resolve: ihsm.ResolveCallback<number>, reject: ihsm.RejectCallback, delayMs: number): Promise<void>;
+	withdraw(resolve: ihsm.ResolveCallback<number>, reject: ihsm.RejectCallback, amount: number): void;
 }
 
-export class WalletTop extends HsmTopState<WalletCtx, WalletProtocol> implements WalletProtocol {
+export class WalletTop extends ihsm.TopState<WalletCtx, WalletProtocol> implements WalletProtocol {
 	deposit(amount: number): void {
 		this.ctx.balance += amount;
 	}
 
 	/** Sync service — call resolve (or reject) before the handler returns. */
-	getBalance(resolve: HsmResolveCallback<number>, _reject: HsmRejectCallback): void {
+	getBalance(resolve: ihsm.ResolveCallback<number>, _reject: ihsm.RejectCallback): void {
 		resolve(this.ctx.balance);
 	}
 
 	/** Async service — return a Promise; call resolve/reject after await. */
-	async fetchBalanceDelayed(resolve: HsmResolveCallback<number>, _reject: HsmRejectCallback, delayMs: number): Promise<void> {
+	async fetchBalanceDelayed(resolve: ihsm.ResolveCallback<number>, _reject: ihsm.RejectCallback, delayMs: number): Promise<void> {
 		await this.sleep(delayMs);
 		resolve(this.ctx.balance);
 	}
 
 	/** Sync service with reject — caller's Promise becomes a rejection. */
-	withdraw(resolve: HsmResolveCallback<number>, reject: HsmRejectCallback, amount: number): void {
+	withdraw(resolve: ihsm.ResolveCallback<number>, reject: ihsm.RejectCallback, amount: number): void {
 		if (amount > this.ctx.balance) {
 			reject(new Error('insufficient funds'));
 			return;
@@ -38,9 +39,11 @@ export class WalletTop extends HsmTopState<WalletCtx, WalletProtocol> implements
 	}
 }
 
-@HsmInitialState
+@ihsm.InitialState
 export class Open extends WalletTop {}
 
+ihsm.registerStateNames(self); // grabs every exported state automatically
+
 export function createWallet(initialBalance: number) {
-	return makeHsm(WalletTop, { balance: initialBalance });
+	return ihsm.makeHsm(WalletTop, { balance: initialBalance });
 }

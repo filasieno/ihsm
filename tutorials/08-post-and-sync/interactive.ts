@@ -1,9 +1,10 @@
 import { singleSenderTutorial } from '../shared/interactive-helpers';
-import { QueueTop } from './machine';
+import * as machine from './machine';
 
 export const interactive = singleSenderTutorial({
 	title: 'Queue machine',
-	topState: QueueTop,
+	topState: machine.QueueTop,
+	machineExports: machine,
 	initialCtx: { events: [] },
 	messages: [
 		{ id: 'start', label: 'start', kind: 'post' },

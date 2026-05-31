@@ -39,12 +39,12 @@ See the **Trace** panel on the [interactive docs site](https://filasieno.github.
 | 1 | LCA = **`DeepTop`** |
 | 2 | Exit west stack |
 | 3 | Path to `MidEast` still enters **`StackEast`** first (parent of `MidEast`) |
-| 4 | Enter **`MidEast`**, then `@HsmInitialState` **`LeafEastA`** |
+| 4 | Enter **`MidEast`**, then `@InitialState` **`LeafEastA`** |
 | 5 | Final leaf = **`LeafEastA`** |
 
 ## Same trace as case 08?
 
-When the **initial leaf chain** from the branch root matches, `transition(StackEast)` and `transition(MidEast)` produce the **same** exit/entry sequence. The requested target class matters for **cache keys** and documentation; the **active leaf** is determined by `@HsmInitialState` descent.
+When the **initial leaf chain** from the branch root matches, `transition(StackEast)` and `transition(MidEast)` produce the **same** exit/entry sequence. The requested target class matters for **cache keys** and documentation; the **active leaf** is determined by `@InitialState` descent.
 
 ## Code
 

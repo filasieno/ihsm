@@ -1,4 +1,4 @@
-import { makeHsm, HsmInitialState, HsmTopState } from '../../src';
+import * as ihsm from '../../src';
 
 export interface TraceCtx {
 	log: string[];
@@ -10,7 +10,7 @@ export interface TraceProtocol {
 }
 
 /** Shallow sibling chain — entry/exit order without deep nesting. */
-export class TraceTop extends HsmTopState<TraceCtx, TraceProtocol> implements TraceProtocol {
+export class TraceTop extends ihsm.TopState<TraceCtx, TraceProtocol> implements TraceProtocol {
 	onEntry(): void {
 		this.ctx.log.push('enter:Top');
 	}
@@ -25,7 +25,7 @@ export class TraceTop extends HsmTopState<TraceCtx, TraceProtocol> implements Tr
 	}
 }
 
-@HsmInitialState
+@ihsm.InitialState
 export class A extends TraceTop {
 	onEntry(): void {
 		this.ctx.log.push('enter:A');
@@ -51,5 +51,5 @@ export class C extends TraceTop {
 }
 
 export function createTracer() {
-	return makeHsm(TraceTop, { log: [] });
+	return ihsm.makeHsm(TraceTop, { log: [] });
 }

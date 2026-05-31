@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, HsmAny, HsmEventHandlerError, makeHsm, HsmFatalErrorState, HsmInitialState, HsmStateClass, HsmTopState } from '../';
+import { Hsm, Any, EventHandlerError, makeHsm, FatalErrorState, InitialState, StateClass, TopState } from '../';
 
 import { clearLastError, createTestDispatchErrorCallback, TRACE_LEVELS } from './spec.utils';
 
@@ -10,11 +10,11 @@ interface Protocol {
 	executeWithError03(): void;
 	executeWithError04(): void;
 	executeWithError05(): void;
-	transitionTo(s: HsmStateClass<HsmAny, Protocol>): void;
+	transitionTo(s: StateClass<Any, Protocol>): void;
 }
 
-class TopState extends HsmTopState<HsmAny, Protocol> {
-	transitionTo(s: HsmStateClass<HsmAny, Protocol>): void {
+class HsmTop extends TopState<Any, Protocol> {
+	transitionTo(s: StateClass<Any, Protocol>): void {
 		this.transition(s);
 	}
 
@@ -39,11 +39,11 @@ class TopState extends HsmTopState<HsmAny, Protocol> {
 	}
 }
 
-class NoRecovery extends TopState {}
+class NoRecovery extends HsmTop {}
 
-@HsmInitialState
-class Recovery extends TopState {
-	async onError<EventName extends keyof Protocol>(err: HsmEventHandlerError<HsmAny, Protocol, EventName>): Promise<void> {
+@InitialState
+class Recovery extends HsmTop {
+	async onError<EventName extends keyof Protocol>(err: EventHandlerError<Any, Protocol, EventName>): Promise<void> {
 		switch (err.eventName) {
 			case 'executeWithError01':
 				return;
@@ -82,7 +82,7 @@ for (const traceLevel of TRACE_LEVELS) {
 
 		beforeEach(async () => {
 			clearLastError();
-			sm = makeHsm(TopState, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
+			sm = makeHsm(HsmTop, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
 			await sm.sync();
 		});
 
@@ -104,21 +104,21 @@ for (const traceLevel of TRACE_LEVELS) {
 			expect(sm.currentState).equals(NoRecovery);
 			sm.post('executeWithError01');
 			await sm.sync();
-			expect(sm.currentState).equals(HsmFatalErrorState);
+			expect(sm.currentState).equals(FatalErrorState);
 		});
 
 		it(`it does not recover: Error in onError()`, async () => {
 			expect(sm.currentState).equals(Recovery);
 			sm.post('executeWithError03');
 			await sm.sync();
-			expect(sm.currentState).equals(HsmFatalErrorState);
+			expect(sm.currentState).equals(FatalErrorState);
 		});
 
 		it(`it does not recover: Error in a transition following onError()`, async () => {
 			expect(sm.currentState).equals(Recovery);
 			sm.post('executeWithError04');
 			await sm.sync();
-			expect(sm.currentState).equals(HsmFatalErrorState);
+			expect(sm.currentState).equals(FatalErrorState);
 		});
 
 		it(`it does not recover: another error is thrown while going to the FatalErrorState`, async () => {
@@ -126,7 +126,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			sm.post('transitionTo', D);
 			sm.post('executeWithError05');
 			await sm.sync();
-			expect(sm.currentState).equals(HsmFatalErrorState);
+			expect(sm.currentState).equals(FatalErrorState);
 		});
 	});
 }

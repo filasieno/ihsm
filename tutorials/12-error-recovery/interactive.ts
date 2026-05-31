@@ -1,9 +1,10 @@
 import { singleSenderTutorial } from '../shared/interactive-helpers';
-import { WorkerTop } from './machine';
+import * as machine from './machine';
 
 export const interactive = singleSenderTutorial({
 	title: 'Worker machine',
-	topState: WorkerTop,
+	topState: machine.WorkerTop,
+	machineExports: machine,
 	initialCtx: { failures: 0, recovered: 0 },
 	messages: [
 		{ id: 'risky', label: 'risky', kind: 'post' },

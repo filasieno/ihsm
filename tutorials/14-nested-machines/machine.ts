@@ -1,4 +1,5 @@
-import { Hsm, makeHsm, HsmInitialState, HsmTopState } from '../../src';
+import * as ihsm from '../../src';
+import * as self from './machine';
 
 /** Payment region */
 export interface PaymentCtx {
@@ -9,14 +10,14 @@ export interface PaymentProtocol {
 	markPaid(): void;
 }
 
-export class PaymentTop extends HsmTopState<PaymentCtx, PaymentProtocol> implements PaymentProtocol {
+export class PaymentTop extends ihsm.TopState<PaymentCtx, PaymentProtocol> implements PaymentProtocol {
 	markPaid(): void {
 		this.ctx.paid = true;
 		this.transition(PaymentDone);
 	}
 }
 
-@HsmInitialState
+@ihsm.InitialState
 export class PaymentPending extends PaymentTop {}
 
 export class PaymentDone extends PaymentTop {}
@@ -30,26 +31,26 @@ export interface ShippingProtocol {
 	markShipped(): void;
 }
 
-export class ShippingTop extends HsmTopState<ShippingCtx, ShippingProtocol> implements ShippingProtocol {
+export class ShippingTop extends ihsm.TopState<ShippingCtx, ShippingProtocol> implements ShippingProtocol {
 	markShipped(): void {
 		this.ctx.shipped = true;
 		this.transition(ShippingDone);
 	}
 }
 
-@HsmInitialState
+@ihsm.InitialState
 export class ShippingWaiting extends ShippingTop {}
 
 export class ShippingDone extends ShippingTop {}
 
 /** Coordinator — not an Hsm itself; owns two actors */
 export class OrderCoordinator {
-	readonly payment: Hsm<PaymentCtx, PaymentProtocol>;
-	readonly shipping: Hsm<ShippingCtx, ShippingProtocol>;
+	readonly payment: ihsm.Hsm<PaymentCtx, PaymentProtocol>;
+	readonly shipping: ihsm.Hsm<ShippingCtx, ShippingProtocol>;
 
 	constructor() {
-		this.payment = makeHsm(PaymentTop, { paid: false });
-		this.shipping = makeHsm(ShippingTop, { shipped: false });
+		this.payment = ihsm.makeHsm(PaymentTop, { paid: false });
+		this.shipping = ihsm.makeHsm(ShippingTop, { shipped: false });
 	}
 
 	async sync(): Promise<void> {
@@ -65,6 +66,8 @@ export class OrderCoordinator {
 		await this.shipping.sync();
 	}
 }
+
+ihsm.registerStateNames(self); // grabs every exported state automatically
 
 export function createOrderCoordinator() {
 	return new OrderCoordinator();

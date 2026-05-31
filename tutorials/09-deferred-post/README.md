@@ -37,7 +37,7 @@ export interface ReminderProtocol {
 `scheduleReminder` returns immediately; the timer enqueues `deliver` later:
 
 ```typescript
-export class ReminderTop extends HsmTopState<ReminderCtx, ReminderProtocol> implements ReminderProtocol {
+export class ReminderTop extends TopState<ReminderCtx, ReminderProtocol> implements ReminderProtocol {
 	scheduleReminder(text: string): void {
 		this.deferredPost(50, 'deliver', text); // arms timer → post('deliver', text)
 	}
@@ -47,7 +47,7 @@ export class ReminderTop extends HsmTopState<ReminderCtx, ReminderProtocol> impl
 	}
 }
 
-@HsmInitialState
+@InitialState
 export class Waiting extends ReminderTop {}
 ```
 
@@ -82,7 +82,7 @@ expect(sm.ctx.message).equals('hello later');
 
 ## Reading the trace
 
-With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
+With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 

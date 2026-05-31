@@ -1,17 +1,21 @@
-import type { Hsm, HsmStateClass } from '../../src';
+import type { Hsm, StateClass } from '../../src';
 import { CollectingTraceWriter, withTrace } from './trace';
-import type { InteractiveRuntime, SingleMachineRuntime, SingleSenderTutorialOptions, TutorialInteractiveMeta, TutorialMessage } from './interactive-types';
+import { registerStateNamesFromExports } from './state-names';
+import type { InteractiveRuntime, SingleHsmRuntime, SingleSenderTutorialOptions, TutorialInteractiveMeta, TutorialMessage } from './interactive-types';
 
 const DEFAULT_SENDER = 'machine';
 
 export function singleSenderTutorial<Context, Protocol extends {} | undefined>(options: SingleSenderTutorialOptions<Context, Protocol>): TutorialInteractiveMeta {
-	const { title, topState, initialCtx, initialize = true, messages, stateSummary, extraActions } = options;
+	const { title, topState, initialCtx, initialize = true, messages, stateSummary, extraActions, machineExports } = options;
 
 	return {
 		title,
 		senders: [{ id: DEFAULT_SENDER, label: title }],
 		messagesBySender: { [DEFAULT_SENDER]: messages },
 		createRuntime: () => {
+			if (machineExports) {
+				registerStateNamesFromExports(machineExports);
+			}
 			const { sm, writer } = withTrace(topState, initialCtx, initialize);
 			return { kind: 'single', sm, writer };
 		},
@@ -25,7 +29,7 @@ export function singleSenderTutorial<Context, Protocol extends {} | undefined>(o
 	};
 }
 
-export function getSenderMachine(runtime: InteractiveRuntime, senderId: string): Hsm<any, any> {
+export function getSenderHsm(runtime: InteractiveRuntime, senderId: string): Hsm<any, any> {
 	if (runtime.kind === 'single') {
 		return runtime.sm;
 	}
@@ -43,7 +47,7 @@ export function traceFromRuntime(runtime: InteractiveRuntime): string {
 }
 
 export async function dispatchMessage(runtime: InteractiveRuntime, senderId: string, message: TutorialMessage, fieldValues: Record<string, string>): Promise<string | undefined> {
-	const sm = getSenderMachine(runtime, senderId);
+	const sm = getSenderHsm(runtime, senderId);
 	const args = (message.fields ?? []).map(field => {
 		const raw = fieldValues[field.name] ?? String(field.default);
 		return field.type === 'number' ? Number(raw) : raw;
@@ -64,7 +68,7 @@ export async function dispatchMessage(runtime: InteractiveRuntime, senderId: str
 export function resetRuntime(meta: TutorialInteractiveMeta, runtime: InteractiveRuntime): InteractiveRuntime {
 	runtime.writer.clear();
 	if (runtime.kind === 'single') {
-		const fresh = meta.createRuntime() as SingleMachineRuntime<any, any>;
+		const fresh = meta.createRuntime() as SingleHsmRuntime<any, any>;
 		runtime.sm = fresh.sm;
 		runtime.writer = fresh.writer;
 		return runtime;
@@ -74,6 +78,6 @@ export function resetRuntime(meta: TutorialInteractiveMeta, runtime: Interactive
 	return runtime;
 }
 
-export function wrapWithTrace<Context, Protocol extends {} | undefined>(topState: HsmStateClass<Context, Protocol>, ctx: Context, initialize = true): { sm: Hsm<Context, Protocol>; writer: CollectingTraceWriter } {
+export function wrapWithTrace<Context, Protocol extends {} | undefined>(topState: StateClass<Context, Protocol>, ctx: Context, initialize = true): { sm: Hsm<Context, Protocol>; writer: CollectingTraceWriter } {
 	return withTrace(topState, ctx, initialize);
 }

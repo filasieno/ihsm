@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Public state-naming API** — `defineStateName(StateClass, name)` and
+  `registerStateNames(exports)` keep `currentStateName`, traces, and error
+  messages stable in **minified browser bundles** (where `Class.name` is
+  mangled). Documented in the reference manual (§6) and adopted by every
+  tutorial; exercised by the minified browser test suite.
 - **Genuine dual ESM + CommonJS build.** The package now ships native ESM
   (`lib/esm/`, real `import`/`export` with explicit `.js` extensions, Node-loadable
   and tree-shakeable) alongside CommonJS (`lib/cjs/`).
@@ -43,12 +48,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Generated `.d.ts` declarations no longer linger in `src/` / `tutorials/`; all
   TypeScript output is emitted to `lib/` and `.tsc/` and gitignored in source.
 - Reference page stub replaced with the full manual on GitHub Pages.
+- Spec state-class array types (`transition`, `error.transition`) now use the
+  public `StateClass<Context, Protocol>` alias instead of a bare `new () => TopState`,
+  fixing a construct-signature variance error surfaced by the toolchain upgrade.
+- `tutorials/12-error-recovery` now references `ihsm.EventHandlerError` /
+  `ihsm.UnhandledEventError` (previously unqualified, which broke `tsc -b`).
+- Added the missing `eslint-config-prettier` dev dependency required by
+  `eslint.config.mjs`, so `npm run lint` runs again; cleared the lint/type
+  warnings it then surfaced in the spec suite.
 
 ## [0.0.18] - 2026-05-31
 
 ### Added
 
-- **`makeHsm()`** factory — replaces manual `HsmTopState` subclassing for most use cases.
+- **`makeHsm()`** factory — replaces manual `TopState` subclassing for most use cases.
 - **`then()`** — decision pseudo-states with automatic follow-up transitions after handler completion.
 - **`postNow()`** — hi-priority extended transitions scheduled before normal mailbox posts from the same handler.
 - Tutorials **16 · then()** and **17 · postNow()**.

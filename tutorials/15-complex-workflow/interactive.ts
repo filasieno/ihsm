@@ -1,9 +1,10 @@
 import { singleSenderTutorial } from '../shared/interactive-helpers';
-import { CheckoutTop } from './machine';
+import * as machine from './machine';
 
 export const interactive = singleSenderTutorial({
 	title: 'Checkout workflow',
-	topState: CheckoutTop,
+	topState: machine.CheckoutTop,
+	machineExports: machine,
 	initialCtx: {
 		orderId: 'ORD-42',
 		amount: 120,

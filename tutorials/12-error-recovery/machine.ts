@@ -1,4 +1,5 @@
-import { HsmEventHandlerError, makeHsm, HsmInitialState, HsmTopState, HsmUnhandledEventError } from '../../src';
+import * as ihsm from '../../src';
+import * as self from './machine';
 
 export interface WorkerCtx {
 	failures: number;
@@ -10,7 +11,7 @@ export interface WorkerProtocol {
 	unknown(): void;
 }
 
-export class WorkerTop extends HsmTopState<WorkerCtx, WorkerProtocol> implements WorkerProtocol {
+export class WorkerTop extends ihsm.TopState<WorkerCtx, WorkerProtocol> implements WorkerProtocol {
 	risky(): void {
 		throw new Error('simulated failure');
 	}
@@ -20,18 +21,20 @@ export class WorkerTop extends HsmTopState<WorkerCtx, WorkerProtocol> implements
 	}
 }
 
-@HsmInitialState
+@ihsm.InitialState
 export class Working extends WorkerTop {
-	onError<EventName extends keyof WorkerProtocol>(_error: HsmEventHandlerError<WorkerCtx, WorkerProtocol, EventName>): void {
+	onError<EventName extends keyof WorkerProtocol>(_error: ihsm.EventHandlerError<WorkerCtx, WorkerProtocol, EventName>): void {
 		this.ctx.recovered += 1;
 		this.ctx.failures += 1;
 	}
 
-	onUnhandled<EventName extends keyof WorkerProtocol>(_error: HsmUnhandledEventError<WorkerCtx, WorkerProtocol, EventName>): void {
+	onUnhandled<EventName extends keyof WorkerProtocol>(_error: ihsm.UnhandledEventError<WorkerCtx, WorkerProtocol, EventName>): void {
 		this.ctx.failures += 1;
 	}
 }
 
+ihsm.registerStateNames(self); // grabs every exported state automatically
+
 export function createWorker() {
-	return makeHsm(WorkerTop, { failures: 0, recovered: 0 });
+	return ihsm.makeHsm(WorkerTop, { failures: 0, recovered: 0 });
 }

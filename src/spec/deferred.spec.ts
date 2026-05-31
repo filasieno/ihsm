@@ -1,23 +1,23 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { Hsm, HsmAny, makeHsm, HsmInitialState, HsmTopState } from '../';
+import { Hsm, Any, makeHsm, InitialState, TopState } from '../';
 
 import { TRACE_LEVELS } from './spec.utils';
 
 interface Protocol {
-	setValue(value: string, object: HsmAny): Promise<void>;
+	setValue(value: string, object: Any): Promise<void>;
 }
 
-class TopState extends HsmTopState<HsmAny, Protocol> implements Protocol {
-	async setValue(value: string, object: HsmAny): Promise<void> {
+class HsmTop extends TopState<Any, Protocol> implements Protocol {
+	async setValue(value: string, object: Any): Promise<void> {
 		object.value = value;
 		console.log(`new value = ${value}`);
 	}
 }
 
-@HsmInitialState
-class A extends TopState {}
+@InitialState
+class A extends HsmTop {}
 
 async function sleep(millis: number): Promise<void> {
 	return new Promise((resolve: () => void) => {
@@ -27,16 +27,16 @@ async function sleep(millis: number): Promise<void> {
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Deferred post (traceLevel = ${traceLevel})`, function (): void {
-		let sm: Hsm<HsmAny, Protocol>;
+		let sm: Hsm<Any, Protocol>;
 
 		beforeEach(async () => {
-			sm = makeHsm(TopState, {}, true, traceLevel);
+			sm = makeHsm(HsmTop, {}, true, traceLevel);
 			await sm.sync();
 		});
 
 		it(`executes a deferred post`, async () => {
 			expect(sm.currentState).equals(A);
-			const obj: HsmAny = { value: '' };
+			const obj: Any = { value: '' };
 			sm.deferredPost(600, 'setValue', 'first', obj);
 			sm.deferredPost(10, 'setValue', 'second', obj);
 			await sleep(1500);

@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { Hsm, HsmAny, HsmBase, makeHsm, HsmFatalErrorState, HsmInitialState, HsmTopState } from '../';
+import { Hsm, Any, Base, makeHsm, FatalErrorState, InitialState, TopState } from '../';
 
 import { clearLastError, TRACE_LEVELS } from './spec.utils';
 
@@ -10,46 +10,46 @@ interface Protocol {
 	switchCallback(): void;
 }
 
-class TopState extends HsmTopState<HsmAny, Protocol> implements Protocol {
+class HsmTop extends TopState<Any, Protocol> implements Protocol {
 	executeWithError01(): void {
 		throw new Error('This will result in a fatal error');
 	}
 
 	async switchCallback(): Promise<void> {
 		const defaultCallback = this.dispatchErrorCallback;
-		this.dispatchErrorCallback = (hsm: HsmBase<HsmAny, Protocol>, msg: any): void => {
+		this.dispatchErrorCallback = (hsm: Base<Any, Protocol>, msg: any): void => {
 			try {
 				defaultCallback(hsm, msg);
 			} catch (error) {
-				console.log(`Error ${error.name} has escaped`);
+				console.log(`Error ${(error as Error).name} has escaped`);
 			}
 		};
 	}
 }
 
-@HsmInitialState
-class A extends TopState {}
+@InitialState
+class A extends HsmTop {}
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Error dispatch (traceLevel = ${traceLevel})`, function (): void {
-		let sm: Hsm<HsmAny, Protocol>;
+		let sm: Hsm<Any, Protocol>;
 		let flag = false;
-		let defaultCallback: (hsm: HsmBase<HsmAny, Protocol>, msg: any) => void;
-		let dispatchErrorCallback: (hsm: HsmBase<HsmAny, Protocol>, msg: any) => void;
+		let defaultCallback: (hsm: Base<Any, Protocol>, msg: any) => void;
+		let dispatchErrorCallback: (hsm: Base<Any, Protocol>, msg: any) => void;
 
 		beforeEach(async () => {
-			defaultCallback = makeHsm(TopState, {}, true, traceLevel).dispatchErrorCallback;
-			dispatchErrorCallback = (hsm: HsmBase<HsmAny, Protocol>, msg: any): void => {
+			defaultCallback = makeHsm(HsmTop, {}, true, traceLevel).dispatchErrorCallback;
+			dispatchErrorCallback = (hsm: Base<Any, Protocol>, msg: any): void => {
 				try {
 					defaultCallback(hsm, msg);
 				} catch (error) {
 					flag = true;
-					console.log(`Error: ${error.name}`);
+					console.log(`Error: ${(error as Error).name}`);
 				}
 			};
 			clearLastError();
 			flag = false;
-			sm = makeHsm(TopState, {}, true, traceLevel, undefined, dispatchErrorCallback);
+			sm = makeHsm(HsmTop, {}, true, traceLevel, undefined, dispatchErrorCallback);
 			await sm.sync();
 		});
 
@@ -58,7 +58,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			sm.post('executeWithError01');
 			await sm.sync();
 			expect(sm.dispatchErrorCallback).equals(dispatchErrorCallback);
-			expect(sm.currentState).equals(HsmFatalErrorState);
+			expect(sm.currentState).equals(FatalErrorState);
 			expect(flag).eq(true);
 			sm.dispatchErrorCallback = defaultCallback;
 			flag = false;
@@ -67,7 +67,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			sm.post('switchCallback');
 			sm.post('executeWithError01');
 			await sm.sync();
-			expect(sm.currentState).equals(HsmFatalErrorState);
+			expect(sm.currentState).equals(FatalErrorState);
 			expect(flag).eq(false);
 		});
 	});

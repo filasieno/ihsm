@@ -1,9 +1,10 @@
 import { singleSenderTutorial } from '../shared/interactive-helpers';
-import { CounterTop } from './machine';
+import * as machine from './machine';
 
 export const interactive = singleSenderTutorial({
 	title: 'Counter machine',
-	topState: CounterTop,
+	topState: machine.CounterTop,
+	machineExports: machine,
 	initialCtx: { value: 0, step: 1 },
 	messages: [
 		{ id: 'increment', label: 'increment', kind: 'post' },

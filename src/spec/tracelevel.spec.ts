@@ -1,60 +1,60 @@
 import { expect } from 'chai';
 import 'mocha';
-import { makeHsm, Hsm, HsmInitialState, HsmTopState, HsmTraceLevel, HsmAny, HsmTraceWriter } from '../';
+import { makeHsm, Hsm, InitialState, TopState, TraceLevel, Any, TraceWriter } from '../';
 import * as ihsm from '../index';
 
 interface Protocol {
-	switchTraceWriter(tw: HsmTraceWriter): Promise<void>;
-	switchTraceLevel(tl: HsmTraceLevel): Promise<void>;
+	switchTraceWriter(tw: TraceWriter): Promise<void>;
+	switchTraceLevel(tl: TraceLevel): Promise<void>;
 	hello(): void;
 }
 
-class TopState extends HsmTopState<HsmAny, Protocol> {
-	async switchTraceWriter(tw: HsmTraceWriter): Promise<void> {
+class HsmTop extends TopState<Any, Protocol> {
+	async switchTraceWriter(tw: TraceWriter): Promise<void> {
 		this.traceWriter = tw;
 	}
-	async switchTraceLevel(tl: HsmTraceLevel): Promise<void> {
-		console.log(`new trace level = ${HsmTraceLevel[tl]}`);
+	async switchTraceLevel(tl: TraceLevel): Promise<void> {
+		console.log(`new trace level = ${TraceLevel[tl]}`);
 		this.traceLevel = tl;
 	}
 
 	hello(): void {
-		console.log(`Hello: TraceLevel = ${HsmTraceLevel[this.traceLevel]}`);
+		console.log(`Hello: TraceLevel = ${TraceLevel[this.traceLevel]}`);
 	}
 }
 
-class TestTraceWriter implements ihsm.HsmTraceWriter {
+class TestTraceWriter implements ihsm.TraceWriter {
 	lines: string[] = [];
-	write<Context, Protocol>(hsm: ihsm.HsmProperties<Context, Protocol>, msg: any): void {
+	write<Context, Protocol extends {} | undefined>(hsm: ihsm.Properties<Context, Protocol>, msg: any): void {
 		this.lines.push(`TEST: ${msg}`);
 	}
 }
 
-@HsmInitialState
-class A extends TopState {}
-@HsmInitialState
+@InitialState
+class A extends HsmTop {}
+@InitialState
 class B extends A {}
-@HsmInitialState
+@InitialState
 class C extends B {}
-@HsmInitialState
+@InitialState
 class D extends C {}
-@HsmInitialState
+@InitialState
 class E extends D {}
-@HsmInitialState
+@InitialState
 class F extends E {}
 
 describe(`Switch TraceLevel`, function (): void {
-	let sm: Hsm<HsmAny, Protocol>;
+	let sm: Hsm<Any, Protocol>;
 
 	beforeEach(async () => {
-		sm = makeHsm(TopState, {}, true, HsmTraceLevel.VERBOSE_DEBUG);
+		sm = makeHsm(HsmTop, {}, true, TraceLevel.VERBOSE_DEBUG);
 		await sm.sync();
 	});
 
 	it(`trace level switch`, async () => {
 		expect(sm.currentState).eqls(F);
 
-		sm.post('switchTraceLevel', HsmTraceLevel.VERBOSE_DEBUG);
+		sm.post('switchTraceLevel', TraceLevel.VERBOSE_DEBUG);
 		await sm.sync();
 
 		console.log('>>>');
@@ -62,7 +62,7 @@ describe(`Switch TraceLevel`, function (): void {
 		await sm.sync();
 		console.log('<<<');
 
-		sm.post('switchTraceLevel', HsmTraceLevel.DEBUG);
+		sm.post('switchTraceLevel', TraceLevel.DEBUG);
 		await sm.sync();
 
 		console.log('>>>');
@@ -70,7 +70,7 @@ describe(`Switch TraceLevel`, function (): void {
 		await sm.sync();
 		console.log('<<<');
 
-		sm.post('switchTraceLevel', HsmTraceLevel.PRODUCTION);
+		sm.post('switchTraceLevel', TraceLevel.PRODUCTION);
 		await sm.sync();
 
 		console.log('>>>');

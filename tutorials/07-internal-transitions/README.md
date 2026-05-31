@@ -26,7 +26,7 @@ No exit or entry on `dim` / `brighten` — internal transitions on `On`.
 Track whether entry ran via a counter in ctx:
 
 ```typescript
-export class LampTop extends HsmTopState<LampCtx, LampProtocol> implements LampProtocol {
+export class LampTop extends TopState<LampCtx, LampProtocol> implements LampProtocol {
 	onEntry(): void {
 		this.ctx.entryCount += 1; // only bumps on real entry
 	}
@@ -56,7 +56,7 @@ await lamp.sync();
 
 ## Reading the trace
 
-With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
+With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 

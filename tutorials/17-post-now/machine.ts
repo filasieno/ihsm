@@ -1,4 +1,5 @@
-import { makeHsm, HsmInitialState, HsmTopState } from '../../src';
+import * as ihsm from '../../src';
+import * as self from './machine';
 
 export interface CheckoutCtx {
 	steps: string[];
@@ -13,7 +14,7 @@ export interface CheckoutProtocol {
 	cancel(): void;
 }
 
-export class CheckoutTop extends HsmTopState<CheckoutCtx, CheckoutProtocol> implements CheckoutProtocol {
+export class CheckoutTop extends ihsm.TopState<CheckoutCtx, CheckoutProtocol> implements CheckoutProtocol {
 	confirm(): void {
 		this.ctx.steps.push('confirm-start');
 		// Extended transition: critical steps must finish before any normal follow-up
@@ -42,11 +43,13 @@ export class CheckoutTop extends HsmTopState<CheckoutCtx, CheckoutProtocol> impl
 
 export class Confirmed extends CheckoutTop {}
 
-@HsmInitialState
+@ihsm.InitialState
 export class Draft extends CheckoutTop {}
 
+ihsm.registerStateNames(self); // grabs every exported state automatically
+
 export function createCheckout() {
-	return makeHsm(CheckoutTop, {
+	return ihsm.makeHsm(CheckoutTop, {
 		steps: [],
 		committed: false,
 		cancelled: false,

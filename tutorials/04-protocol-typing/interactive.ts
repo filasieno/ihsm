@@ -1,9 +1,10 @@
 import { singleSenderTutorial } from '../shared/interactive-helpers';
-import { ThermostatTop } from './machine';
+import * as machine from './machine';
 
 export const interactive = singleSenderTutorial({
 	title: 'Thermostat machine',
-	topState: ThermostatTop,
+	topState: machine.ThermostatTop,
+	machineExports: machine,
 	initialCtx: { celsius: 18 },
 	messages: [
 		{

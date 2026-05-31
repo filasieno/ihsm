@@ -1,4 +1,4 @@
-import type { Hsm, HsmStateClass } from '../../src';
+import type { Hsm, StateClass } from '../../src';
 import type { CollectingTraceWriter } from './trace';
 
 export type TutorialFieldType = 'number' | 'string';
@@ -22,7 +22,7 @@ export interface TutorialSender {
 	label: string;
 }
 
-export interface SingleMachineRuntime<Context, Protocol extends {} | undefined> {
+export interface SingleHsmRuntime<Context, Protocol extends {} | undefined> {
 	kind: 'single';
 	sm: Hsm<Context, Protocol>;
 	writer: CollectingTraceWriter;
@@ -39,7 +39,7 @@ export interface CoordinatorRuntime {
 	writer: CollectingTraceWriter;
 }
 
-export type InteractiveRuntime = SingleMachineRuntime<any, any> | CoordinatorRuntime;
+export type InteractiveRuntime = SingleHsmRuntime<any, any> | CoordinatorRuntime;
 
 export interface TutorialExtraAction {
 	id: string;
@@ -58,10 +58,12 @@ export interface TutorialInteractiveMeta {
 
 export interface SingleSenderTutorialOptions<Context, Protocol extends {} | undefined> {
 	title: string;
-	topState: HsmStateClass<Context, Protocol>;
+	topState: StateClass<Context, Protocol>;
 	initialCtx: Context;
 	initialize?: boolean;
 	messages: TutorialMessage[];
 	stateSummary: (sm: Hsm<Context, Protocol>) => string;
 	extraActions?: TutorialExtraAction[];
+	/** Pass `import * as machine from './machine'` so state names survive production minification. */
+	machineExports?: Record<string, unknown>;
 }

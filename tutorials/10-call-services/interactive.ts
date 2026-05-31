@@ -1,9 +1,10 @@
 import { singleSenderTutorial } from '../shared/interactive-helpers';
-import { WalletTop } from './machine';
+import * as machine from './machine';
 
 export const interactive = singleSenderTutorial({
 	title: 'Wallet machine',
-	topState: WalletTop,
+	topState: machine.WalletTop,
+	machineExports: machine,
 	initialCtx: { balance: 100 },
 	messages: [
 		{

@@ -6,7 +6,7 @@ You need visibility into dispatch and transitions in development, without paying
 
 ## Solution
 
-Set **`HsmTraceLevel`** on the factory and inject a custom **`HsmTraceWriter`**. Use **`VERBOSE_DEBUG`** while learning; switch to **`PRODUCTION`** in hot paths.
+Set **`TraceLevel`** on the factory and inject a custom **`TraceWriter`**. Use **`VERBOSE_DEBUG`** while learning; switch to **`PRODUCTION`** in hot paths.
 
 ## UML statechart
 
@@ -25,7 +25,7 @@ Tracing is orthogonal to state structure — same chart with observability layer
 Shared collector (used in specs under `tutorials/`) lives in `tutorials/shared/trace.ts`:
 
 ```typescript
-export class CollectingTraceWriter implements HsmTraceWriter {
+export class CollectingTraceWriter implements TraceWriter {
 	readonly lines: string[] = [];
 	write(hsm: { traceHeader: string; currentStateName: string }, msg: unknown): void {
 		if (typeof msg === 'string') {
@@ -39,7 +39,7 @@ Wire **`VERBOSE_DEBUG`** and the writer on the factory:
 
 ```typescript
 export function createTracedPing(writer: CollectingTraceWriter) {
-	return makeHsm(PingTop, { pings: 0 }, true, HsmTraceLevel.VERBOSE_DEBUG, writer);
+	return makeHsm(PingTop, { pings: 0 }, true, TraceLevel.VERBOSE_DEBUG, writer);
 }
 ```
 
@@ -58,7 +58,7 @@ Each line is **`domain|…|StateName: message`**:
 
 | Part | Meaning |
 | ---- | ------- |
-| `initialize\|` | Init descent through `@HsmInitialState` chain |
+| `initialize\|` | Init descent through `@InitialState` chain |
 | `#eventName\|` | One mailbox dispatch for that event |
 | `lookup\|` | VERBOSE: find handler on prototype chain |
 | `execute\|` | Handler body running |
@@ -74,7 +74,7 @@ Each line is **`domain|…|StateName: message`**:
 
 ## Reading the trace
 
-ihsm logs every dispatch step when `HsmTraceLevel.VERBOSE_DEBUG` is set and a custom `HsmTraceWriter` collects lines.
+ihsm logs every dispatch step when `TraceLevel.VERBOSE_DEBUG` is set and a custom `TraceWriter` collects lines.
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 

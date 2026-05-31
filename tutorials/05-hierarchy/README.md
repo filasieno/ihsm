@@ -6,11 +6,11 @@ Hierarchy alone does not explain **when** `onEntry` and `onExit` run. Crossing b
 
 ## Solution
 
-Call `this.transition(Destination)`. ihsm finds the **lowest common ancestor** on the class prototype chain, runs **`onExit`** from the current leaf up to (not including) the LCA, then **`onEntry`** down toward the target — following `@HsmInitialState` chains when the target is a composite.
+Call `this.transition(Destination)`. ihsm finds the **lowest common ancestor** on the class prototype chain, runs **`onExit`** from the current leaf up to (not including) the LCA, then **`onEntry`** down toward the target — following `@InitialState` chains when the target is a composite.
 
 Two machines in this topic:
 
-| Machine | File | Purpose |
+| Hsm | File | Purpose |
 | ------- | ---- | ------- |
 | Shallow siblings `A → B → C` | [`trace-sibling.ts`](./trace-sibling.ts) | Entry/exit order, sibling LCA |
 | Two deep stacks | [`machine.ts`](./machine.ts) | Every transition topology |
@@ -42,7 +42,7 @@ External transitions only (arrows). Handlers that stay in the same state use in-
 ### Handler (state machine)
 
 ```typescript
-export class TraceTop extends HsmTopState<TraceCtx, TraceProtocol> implements TraceProtocol {
+export class TraceTop extends TopState<TraceCtx, TraceProtocol> implements TraceProtocol {
 	onEntry(): void {
 		this.ctx.log.push('enter:Top');
 	}
@@ -57,7 +57,7 @@ export class TraceTop extends HsmTopState<TraceCtx, TraceProtocol> implements Tr
 	}
 }
 
-@HsmInitialState
+@InitialState
 export class A extends TraceTop {
 	onEntry(): void { this.ctx.log.push('enter:A'); }
 	onExit(): void { this.ctx.log.push('exit:A'); }
@@ -92,13 +92,13 @@ All cases share [`machine.ts`](./machine.ts) — one actor, two symmetric stacks
 
 ```
 DeepTop                          ← root / LCA for cross-stack moves
-├── StackWest  (@HsmInitialState)  ← west stack (4 levels)
-│   └── MidWest (@HsmInitialState)
-│       ├── LeafWestA (@HsmInitialState)  ← default after create()
+├── StackWest  (@InitialState)  ← west stack (4 levels)
+│   └── MidWest (@InitialState)
+│       ├── LeafWestA (@InitialState)  ← default after create()
 │       └── LeafWestB
 └── StackEast                      ← east stack (4 levels)
-    └── MidEast (@HsmInitialState)
-        ├── LeafEastA (@HsmInitialState)
+    └── MidEast (@InitialState)
+        ├── LeafEastA (@InitialState)
         └── LeafEastB
 ```
 
@@ -145,9 +145,9 @@ When exercising the deep stacks below, use the embedded playground on the [docum
 ## How ihsm applies a transition
 
 1. Handler calls `this.transition(TargetStateClass)`.
-2. Runtime finds the **LCA** on the class prototype chain (`HsmTopState` is not part of your hierarchy).
+2. Runtime finds the **LCA** on the class prototype chain (`TopState` is not part of your hierarchy).
 3. **`onExit`** from the current leaf **up to but not including** the LCA.
-4. **`onEntry`** from the LCA **down toward** the target; if the target is a **composite**, follow each `@HsmInitialState` until the deepest leaf.
+4. **`onEntry`** from the LCA **down toward** the target; if the target is a **composite**, follow each `@InitialState` until the deepest leaf.
 5. Active state is always a **leaf class**.
 
 Transition paths are **cached** keyed by `FromState=>ToState`.

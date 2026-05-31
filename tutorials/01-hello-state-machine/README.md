@@ -35,18 +35,18 @@ export interface DoorProtocol {
 }
 ```
 
-The **root state** inherits mailbox machinery from `HsmTopState`. It anchors the hierarchy; behavior lives in substates.
+The **root state** inherits mailbox machinery from `TopState`. It anchors the hierarchy; behavior lives in substates.
 
 ```typescript
-export class DoorTop extends HsmTopState<DoorCtx, DoorProtocol> {}
+export class DoorTop extends TopState<DoorCtx, DoorProtocol> {}
 ```
 
-Mark the **initial state** with `@HsmInitialState`. After `makeHsm`, the runtime descends here.
+Mark the **initial state** with `@InitialState`. After `makeHsm`, the runtime descends here.
 
 ### Handler — `Closed` state
 
 ```typescript
-@HsmInitialState
+@InitialState
 export class Closed extends DoorTop {
 	open(): void {
 		this.ctx.openCount += 1;
@@ -73,7 +73,7 @@ Create the machine with `makeHsm` (or the tutorial helper `createDoor()`):
 import { makeHsm } from 'ihsm';
 
 const door = makeHsm(DoorTop, { openCount: 0 });
-await door.sync();           // wait for init (onEntry chain + then() if defined)
+await door.sync();           // wait for init (onEntry chain on initial state)
 ```
 
 The client never calls `open()` directly — it enqueues the event by name:
@@ -106,7 +106,7 @@ See [Post and sync](../08-post-and-sync/README.md) for handler-side chaining and
 
 ## Reading the trace
 
-With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
+With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 

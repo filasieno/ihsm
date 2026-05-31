@@ -1,14 +1,14 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { Hsm, HsmAny, makeHsm, HsmInitialState, HsmRejectCallback, HsmResolveCallback, HsmTopState, HsmTraceLevel } from '../';
+import { Hsm, Any, makeHsm, InitialState, RejectCallback, ResolveCallback, TopState, TraceLevel } from '../';
 
 interface Protocol {
 	getResult(resolve: (result: string) => void, reject: (error: Error) => void, value: string): void;
 }
 
-class TopState extends HsmTopState<HsmAny, Protocol> implements Protocol {
-	async getResult(resolve: HsmResolveCallback<string>, reject: HsmRejectCallback, value: string): Promise<void> {
+class HsmTop extends TopState<Any, Protocol> implements Protocol {
+	async getResult(resolve: ResolveCallback<string>, reject: RejectCallback, value: string): Promise<void> {
 		if (value.startsWith('ok:')) {
 			resolve(value);
 		} else {
@@ -17,14 +17,14 @@ class TopState extends HsmTopState<HsmAny, Protocol> implements Protocol {
 	}
 }
 
-@HsmInitialState
-class A extends TopState {}
+@InitialState
+class A extends HsmTop {}
 
 describe(`call`, function (): void {
-	let sm: Hsm<HsmAny, Protocol>;
+	let sm: Hsm<Any, Protocol>;
 
 	beforeEach(async () => {
-		sm = makeHsm(TopState, {}, true, HsmTraceLevel.VERBOSE_DEBUG);
+		sm = makeHsm(HsmTop, {}, true, TraceLevel.VERBOSE_DEBUG);
 		await sm.sync();
 		expect(sm.currentState).equals(A);
 	});
@@ -40,7 +40,7 @@ describe(`call`, function (): void {
 		try {
 			await sm.call('getResult', value);
 		} catch (error) {
-			expect(error.message).equals(value);
+			expect((error as Error).message).equals(value);
 		}
 	});
 });

@@ -1,20 +1,20 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { HsmState, HsmTopState, HsmTransitionError, HsmUnhandledEventError, makeHsm, HsmFatalErrorState, HsmInitialState } from '../';
-import { clearLastError, createTestDispatchErrorCallback, getLastError, TRACE_LEVELS } from './spec.utils';
+import { State, TopState, TransitionError, UnhandledEventError, makeHsm, FatalErrorState, InitialState } from '../';
+import { clearLastError, createTestDispatchErrorCallback, getLastError, TRACE_LEVELS, registerSpecStateNames } from './spec.utils';
 
 interface Protocol {
 	trigger(): void;
 	boom(): void;
 }
 
-function transitionError(hsm: HsmState<Record<string, never>, Protocol>, phase: 'onEntry' | 'onExit' | 'then' = 'onEntry'): HsmTransitionError<Record<string, never>, Protocol, 'trigger'> {
+function transitionError(hsm: State<Record<string, never>, Protocol>, phase: 'onEntry' | 'onExit' = 'onEntry'): TransitionError<Record<string, never>, Protocol, 'trigger'> {
 	const stateName = hsm.currentStateName;
-	return new HsmTransitionError(hsm, new Error('transition failed'), stateName, phase, stateName, 'Target');
+	return new TransitionError(hsm, new Error('transition failed'), stateName, phase, stateName, 'Target');
 }
 
-class Top extends HsmTopState<Record<string, never>, Protocol> implements Protocol {
+class Top extends TopState<Record<string, never>, Protocol> implements Protocol {
 	trigger(): void {}
 	boom(): void {}
 }
@@ -40,7 +40,7 @@ class HandlerThrowsTransition extends Top {
 }
 
 for (const traceLevel of TRACE_LEVELS) {
-	describe(`handler throws HsmTransitionError (traceLevel = ${traceLevel})`, () => {
+	describe(`handler throws TransitionError (traceLevel = ${traceLevel})`, () => {
 		beforeEach(() => clearLastError());
 
 		it('surfaces the transition error through dispatch', async () => {
@@ -48,7 +48,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			await sm.sync();
 			sm.post('trigger');
 			await sm.sync();
-			expect(getLastError()).instanceOf(HsmTransitionError);
+			expect(getLastError()).instanceOf(TransitionError);
 		});
 	});
 }
@@ -64,7 +64,7 @@ class OnErrorRethrowsTransition extends Top {
 }
 
 for (const traceLevel of TRACE_LEVELS) {
-	describe(`onError rethrows HsmTransitionError (traceLevel = ${traceLevel})`, () => {
+	describe(`onError rethrows TransitionError (traceLevel = ${traceLevel})`, () => {
 		beforeEach(() => clearLastError());
 
 		it('does not recover', async () => {
@@ -72,7 +72,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			await sm.sync();
 			sm.post('trigger');
 			await sm.sync();
-			expect(getLastError()).satisfies((err: Error) => err instanceof HsmTransitionError || err.name === 'HsmFatalError');
+			expect(getLastError()).satisfies((err: Error) => err instanceof TransitionError || err.name === 'FatalError');
 		});
 	});
 }
@@ -82,13 +82,13 @@ class OnUnhandledRethrowsTransition extends Top {
 		this.unhandled();
 	}
 
-	onUnhandled<EventName extends keyof Protocol>(_error: HsmUnhandledEventError<Record<string, never>, Protocol, EventName>): void {
+	onUnhandled<EventName extends keyof Protocol>(_error: UnhandledEventError<Record<string, never>, Protocol, EventName>): void {
 		throw transitionError(this);
 	}
 }
 
 for (const traceLevel of TRACE_LEVELS) {
-	describe(`onUnhandled rethrows HsmTransitionError (traceLevel = ${traceLevel})`, () => {
+	describe(`onUnhandled rethrows TransitionError (traceLevel = ${traceLevel})`, () => {
 		beforeEach(() => clearLastError());
 
 		it('moves to fatal state', async () => {
@@ -96,14 +96,14 @@ for (const traceLevel of TRACE_LEVELS) {
 			await sm.sync();
 			sm.post('trigger');
 			await sm.sync();
-			expect(sm.currentState).equals(HsmFatalErrorState);
+			expect(sm.currentState).equals(FatalErrorState);
 		});
 	});
 }
 
-class InitTransitionTop extends HsmTopState<Record<string, never>, Protocol> {}
+class InitTransitionTop extends TopState<Record<string, never>, Protocol> {}
 
-@HsmInitialState
+@InitialState
 class InitOnEntryThrowsTransition extends InitTransitionTop {
 	onEntry(): void {
 		throw transitionError(this.hsm);
@@ -113,13 +113,13 @@ class InitOnEntryThrowsTransition extends InitTransitionTop {
 void InitOnEntryThrowsTransition;
 
 for (const traceLevel of TRACE_LEVELS) {
-	describe(`init onEntry throws HsmTransitionError (traceLevel = ${traceLevel})`, () => {
+	describe(`init onEntry throws TransitionError (traceLevel = ${traceLevel})`, () => {
 		beforeEach(() => clearLastError());
 
 		it('rethrows the transition error', async () => {
 			makeHsm(InitTransitionTop, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
 			await new Promise(resolve => setTimeout(resolve, 50));
-			expect(getLastError()).instanceOf(HsmTransitionError);
+			expect(getLastError()).instanceOf(TransitionError);
 		});
 	});
 }
@@ -151,7 +151,7 @@ class AsyncOnUnhandledRecovery extends Top {
 		this.unhandled();
 	}
 
-	async onUnhandled<EventName extends keyof Protocol>(_error: HsmUnhandledEventError<Record<string, never>, Protocol, EventName>): Promise<void> {
+	async onUnhandled<EventName extends keyof Protocol>(_error: UnhandledEventError<Record<string, never>, Protocol, EventName>): Promise<void> {
 		await this.sleep(1);
 	}
 }
@@ -168,8 +168,8 @@ for (const traceLevel of TRACE_LEVELS) {
 	});
 }
 
-class MissingHandlerTop extends HsmTopState {
-	onUnhandled<EventName extends keyof Protocol>(_error: HsmUnhandledEventError<Record<string, never>, Protocol, EventName>): void {
+class MissingHandlerTop extends TopState<Record<string, never>, Protocol> {
+	onUnhandled<EventName extends keyof Protocol>(_error: UnhandledEventError<Record<string, never>, Protocol, EventName>): void {
 		throw new Error('onUnhandled failed');
 	}
 }
@@ -193,10 +193,23 @@ class BoomUnhandled extends Top {
 		this.unhandled();
 	}
 
-	onUnhandled<EventName extends keyof Protocol>(_error: HsmUnhandledEventError<Record<string, never>, Protocol, EventName>): void {
+	onUnhandled<EventName extends keyof Protocol>(_error: UnhandledEventError<Record<string, never>, Protocol, EventName>): void {
 		throw new Error('nested unhandled recovery failed');
 	}
 }
+
+registerSpecStateNames({
+	Top,
+	HandlerThrowsTransition,
+	OnErrorRethrowsTransition,
+	OnUnhandledRethrowsTransition,
+	InitTransitionTop,
+	InitOnEntryThrowsTransition,
+	AsyncOnErrorRecovery,
+	AsyncOnUnhandledRecovery,
+	MissingHandlerTop,
+	BoomUnhandled,
+});
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`unhandled() with failing onUnhandled (traceLevel = ${traceLevel})`, () => {

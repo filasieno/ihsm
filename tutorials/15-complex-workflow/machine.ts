@@ -1,4 +1,5 @@
-import { makeHsm, HsmInitialState, HsmRejectCallback, HsmResolveCallback, HsmTopState } from '../../src';
+import * as ihsm from '../../src';
+import * as self from './machine';
 
 export type OrderPhase = 'draft' | 'validating' | 'approved' | 'rejected' | 'completed';
 
@@ -12,13 +13,14 @@ export interface CheckoutCtx {
 
 export interface CheckoutProtocol {
 	submit(): Promise<void>;
+	applyValidation(): void;
 	approve(): Promise<void>;
 	reject(reason: string): void;
-	getStatus(resolve: HsmResolveCallback<OrderPhase>, reject: HsmRejectCallback): void;
+	getStatus(resolve: ihsm.ResolveCallback<OrderPhase>, reject: ihsm.RejectCallback): void;
 }
 
-export class CheckoutTop extends HsmTopState<CheckoutCtx, CheckoutProtocol> {
-	getStatus(resolve: HsmResolveCallback<OrderPhase>, _reject: HsmRejectCallback): void {
+export class CheckoutTop extends ihsm.TopState<CheckoutCtx, CheckoutProtocol> {
+	getStatus(resolve: ihsm.ResolveCallback<OrderPhase>, _reject: ihsm.RejectCallback): void {
 		resolve(this.ctx.phase);
 	}
 
@@ -27,7 +29,7 @@ export class CheckoutTop extends HsmTopState<CheckoutCtx, CheckoutProtocol> {
 	}
 }
 
-@HsmInitialState
+@ihsm.InitialState
 export class Draft extends CheckoutTop {
 	async submit(): Promise<void> {
 		this.ctx.phase = 'validating';
@@ -37,9 +39,13 @@ export class Draft extends CheckoutTop {
 	}
 }
 
-/** Decision pseudo state — guard runs in `then()` after async validation. */
+/** Decision pseudo state — guard runs via `postNow` after entry. */
 export class Validating extends CheckoutTop {
-	then(): void {
+	onEntry(): void {
+		this.postNow('applyValidation');
+	}
+
+	applyValidation(): void {
 		if (this.ctx.amount <= this.ctx.limit) {
 			this.transition(Approved);
 		} else {
@@ -66,8 +72,10 @@ export class Completing extends CheckoutTop {
 	}
 }
 
+ihsm.registerStateNames(self); // grabs every exported state automatically
+
 export function createCheckout(orderId: string, amount: number, limit: number) {
-	return makeHsm(CheckoutTop, {
+	return ihsm.makeHsm(CheckoutTop, {
 		orderId,
 		amount,
 		limit,

@@ -1,4 +1,5 @@
-import { makeHsm, HsmInitialState, HsmTopState } from '../../src';
+import * as ihsm from '../../src';
+import * as self from './machine';
 
 export interface ThermostatCtx {
 	celsius: number;
@@ -10,7 +11,7 @@ export interface ThermostatProtocol {
 	readTarget(): number;
 }
 
-export class ThermostatTop extends HsmTopState<ThermostatCtx, ThermostatProtocol> implements ThermostatProtocol {
+export class ThermostatTop extends ihsm.TopState<ThermostatCtx, ThermostatProtocol> implements ThermostatProtocol {
 	setTarget(celsius: number): void {
 		this.ctx.celsius = celsius;
 	}
@@ -20,11 +21,13 @@ export class ThermostatTop extends HsmTopState<ThermostatCtx, ThermostatProtocol
 	}
 }
 
-@HsmInitialState
+@ihsm.InitialState
 export class Idle extends ThermostatTop {}
 
+ihsm.registerStateNames(self); // grabs every exported state automatically
+
 export function createThermostat(initialCelsius: number) {
-	return makeHsm(ThermostatTop, { celsius: initialCelsius });
+	return ihsm.makeHsm(ThermostatTop, { celsius: initialCelsius });
 }
 
 // Compile-time examples (uncomment to verify the compiler rejects mistakes):

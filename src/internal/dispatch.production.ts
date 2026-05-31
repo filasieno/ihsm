@@ -1,17 +1,16 @@
-import { HsmTopState, HsmEventHandlerError, HsmEventHandlerName, HsmEventHandlerPayload, HsmThenDepthError, HsmFatalErrorState, HsmInitializationError, HsmFatalError, HsmStateClass, HsmTransitionError, HsmUnhandledEventError } from '../';
+import { TopState, EventHandlerError, PostedEvent, EventPayload, FatalErrorState, InitializationError, FatalError, StateClass, TransitionError, UnhandledEventError } from '../';
 
 import { DoneCallback, HsmWithTracing, Task, Transition } from './defs.private';
-import { scheduleThenStep } from './dispatch-then';
-import { getInitialState, getTransitionKey, hasInitialState, asError } from './utils';
+import { getInitialState, getTransitionKey, hasInitialState, asError, getStateName } from './utils';
 
 class ProductionTransition<Context, Protocol extends {} | undefined> implements Transition<Context, Protocol> {
 	constructor(
-		private exitList: Array<HsmStateClass<Context, Protocol>>,
-		private entryList: Array<HsmStateClass<Context, Protocol>>,
-		private finalState?: HsmStateClass<Context, Protocol>
+		private exitList: Array<StateClass<Context, Protocol>>,
+		private entryList: Array<StateClass<Context, Protocol>>,
+		private finalState?: StateClass<Context, Protocol>
 	) {}
 
-	async execute(hsm: HsmWithTracing<Context, Protocol>, srcState: HsmStateClass<Context, Protocol>, dstState: HsmStateClass<Context, Protocol>): Promise<void> {
+	async execute(hsm: HsmWithTracing<Context, Protocol>, srcState: StateClass<Context, Protocol>, dstState: StateClass<Context, Protocol>): Promise<void> {
 		// Execute exit
 		for (const state of this.exitList) {
 			try {
@@ -20,7 +19,7 @@ class ProductionTransition<Context, Protocol extends {} | undefined> implements 
 					await res;
 				}
 			} catch (cause) {
-				throw new HsmTransitionError(hsm, asError(cause), state.name, 'onExit', srcState.name, dstState.name);
+				throw new TransitionError(hsm, asError(cause), getStateName(state), 'onExit', getStateName(srcState), getStateName(dstState));
 			}
 		}
 
@@ -32,7 +31,7 @@ class ProductionTransition<Context, Protocol extends {} | undefined> implements 
 					await res;
 				}
 			} catch (cause) {
-				throw new HsmTransitionError(hsm, asError(cause), state.name, 'onEntry', srcState.name, dstState.name);
+				throw new TransitionError(hsm, asError(cause), getStateName(state), 'onEntry', getStateName(srcState), getStateName(dstState));
 			}
 		}
 
@@ -42,14 +41,14 @@ class ProductionTransition<Context, Protocol extends {} | undefined> implements 
 	}
 }
 
-function createTransition<Context, Protocol extends {} | undefined>(srcState: HsmStateClass<Context, Protocol>, destState: HsmStateClass<Context, Protocol>): Transition<Context, Protocol> {
-	const src: HsmStateClass<Context, Protocol> = srcState;
-	let dst: HsmStateClass<Context, Protocol> = destState;
-	let srcPath: HsmStateClass<Context, Protocol>[] = [];
-	const end: HsmStateClass<Context, Protocol> = HsmTopState;
-	const srcIndex: Map<HsmStateClass<Context, Protocol>, number> = new Map();
-	let dstPath: HsmStateClass<Context, Protocol>[] = [];
-	let cur: HsmStateClass<Context, Protocol> = src;
+function createTransition<Context, Protocol extends {} | undefined>(srcState: StateClass<Context, Protocol>, destState: StateClass<Context, Protocol>): Transition<Context, Protocol> {
+	const src: StateClass<Context, Protocol> = srcState;
+	let dst: StateClass<Context, Protocol> = destState;
+	let srcPath: StateClass<Context, Protocol>[] = [];
+	const end: StateClass<Context, Protocol> = TopState;
+	const srcIndex: Map<StateClass<Context, Protocol>, number> = new Map();
+	let dstPath: StateClass<Context, Protocol>[] = [];
+	let cur: StateClass<Context, Protocol> = src;
 	let i = 0;
 
 	while (cur !== end) {
@@ -75,7 +74,7 @@ function createTransition<Context, Protocol extends {} | undefined>(srcState: Hs
 		dstPath.push(dst);
 	}
 
-	let finalState: HsmStateClass<Context, Protocol> | undefined;
+	let finalState: StateClass<Context, Protocol> | undefined;
 	if (dstPath.length !== 0) {
 		finalState = dstPath[dstPath.length - 1];
 	} else if (srcPath.length !== 0) {
@@ -104,7 +103,7 @@ async function doTransition<Context, Protocol extends {} | undefined>(hsm: HsmWi
 			try {
 				await tr.execute(hsm, srcState, destState);
 			} catch (transitionError) {
-				hsm.currentState = HsmFatalErrorState;
+				hsm.currentState = FatalErrorState;
 				throw transitionError;
 			}
 		} finally {
@@ -113,36 +112,41 @@ async function doTransition<Context, Protocol extends {} | undefined>(hsm: HsmWi
 	}
 }
 
+async function completePendingTransitions<Context, Protocol extends {} | undefined>(hsm: HsmWithTracing<Context, Protocol>, onComplete: () => void): Promise<void> {
+	await doTransition(hsm);
+	onComplete();
+}
+
 async function doError<Context, Protocol extends {} | undefined>(hsm: HsmWithTracing<Context, Protocol>, err: Error, onComplete: () => void): Promise<void> {
 	hsm._transitionState = undefined; // clear next state
 	const messageHandler = hsm.currentState.prototype.onError;
 	try {
-		const result = messageHandler.call(hsm._instance, new HsmEventHandlerError(hsm, err));
+		const result = messageHandler.call(hsm._instance, new EventHandlerError(hsm, err));
 		if (result) {
 			await result;
 		}
-		scheduleThenStep(hsm, doTransition, undefined, 0, onComplete);
+		await completePendingTransitions(hsm, onComplete);
 	} catch (recoveryErr) {
-		if (recoveryErr instanceof HsmTransitionError || recoveryErr instanceof HsmThenDepthError) {
-			throw new HsmFatalError(hsm, recoveryErr);
+		if (recoveryErr instanceof TransitionError) {
+			throw new FatalError(hsm, recoveryErr);
 		}
 		const err = asError(recoveryErr);
-		hsm.transition(HsmFatalErrorState);
-		scheduleThenStep(hsm, doTransition, undefined, 0, onComplete);
-		throw new HsmFatalError(hsm, err);
+		hsm.transition(FatalErrorState);
+		await completePendingTransitions(hsm, onComplete);
+		throw new FatalError(hsm, err);
 	}
 }
 
-async function doUnhandledEvent<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, error: HsmUnhandledEventError<Context, Protocol, EventName>, onComplete: () => void): Promise<void> {
+async function doUnhandledEvent<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, error: UnhandledEventError<Context, Protocol, EventName>, onComplete: () => void): Promise<void> {
 	try {
 		const result = hsm.currentState.prototype.onUnhandled.call(hsm._instance, error);
 		if (result) {
 			await result;
 		}
-		scheduleThenStep(hsm, doTransition, undefined, 0, onComplete);
+		await completePendingTransitions(hsm, onComplete);
 	} catch (recoveryErr) {
-		if (recoveryErr instanceof HsmTransitionError || recoveryErr instanceof HsmThenDepthError) {
-			hsm.currentState = HsmFatalErrorState;
+		if (recoveryErr instanceof TransitionError) {
+			hsm.currentState = FatalErrorState;
 			throw recoveryErr;
 		}
 		await doError(hsm, asError(recoveryErr), onComplete);
@@ -150,7 +154,7 @@ async function doUnhandledEvent<Context, Protocol extends {} | undefined, EventN
 }
 
 async function executeInit<Context, Protocol extends {} | undefined>(hsm: HsmWithTracing<Context, Protocol>): Promise<void> {
-	let currState: HsmStateClass<Context, Protocol> = hsm.topState;
+	let currState: StateClass<Context, Protocol> = hsm.topState;
 	try {
 		while (true) {
 			const proto = currState.prototype;
@@ -163,11 +167,11 @@ async function executeInit<Context, Protocol extends {} | undefined>(hsm: HsmWit
 		}
 		hsm.currentState = currState;
 	} catch (cause) {
-		if (cause instanceof HsmTransitionError || cause instanceof HsmThenDepthError) {
+		if (cause instanceof TransitionError) {
 			throw cause;
 		}
-		hsm.currentState = HsmFatalErrorState;
-		throw new HsmInitializationError(hsm, currState, asError(cause));
+		hsm.currentState = FatalErrorState;
+		throw new InitializationError(hsm, currState, asError(cause));
 	}
 }
 
@@ -176,23 +180,23 @@ function finishEventDispatch<Context, Protocol extends {} | undefined>(hsm: HsmW
 	hsm._currentEventPayload = undefined;
 }
 
-async function dispatchEvent<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): Promise<void> {
+async function dispatchEvent<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): Promise<void> {
 	hsm._currentEventName = String(eventName);
 	hsm._currentEventPayload = eventPayload;
 	try {
 		const eventHandler = hsm.currentState.prototype[eventName];
 		if (!eventHandler) {
-			await doUnhandledEvent(hsm, new HsmUnhandledEventError(hsm), () => finishEventDispatch(hsm));
+			await doUnhandledEvent(hsm, new UnhandledEventError(hsm), () => finishEventDispatch(hsm));
 			return;
 		}
 		try {
 			const result = eventHandler.call(hsm._instance, ...eventPayload);
 			if (result) await result;
-			scheduleThenStep(hsm, doTransition, undefined, 0, () => finishEventDispatch(hsm));
+			await completePendingTransitions(hsm, () => finishEventDispatch(hsm));
 		} catch (recoveryErr) {
-			if (recoveryErr instanceof HsmUnhandledEventError) {
+			if (recoveryErr instanceof UnhandledEventError) {
 				await doUnhandledEvent(hsm, recoveryErr, () => finishEventDispatch(hsm));
-			} else if (recoveryErr instanceof HsmTransitionError || recoveryErr instanceof HsmThenDepthError) {
+			} else if (recoveryErr instanceof TransitionError) {
 				finishEventDispatch(hsm);
 				throw recoveryErr;
 			} else {
@@ -213,8 +217,8 @@ async function dispatchEvent<Context, Protocol extends {} | undefined, EventName
 export function createInitTask<DispatchContext, DispatchProtocol extends {} | undefined>(hsm: HsmWithTracing<DispatchContext, DispatchProtocol>): Task {
 	return (done: DoneCallback): void => {
 		executeInit(hsm)
-			.then(() => {
-				scheduleThenStep(hsm, doTransition, undefined, 0, () => {});
+			.then(async () => {
+				await doTransition(hsm);
 				done();
 			})
 			.catch((err: unknown) => {
@@ -225,7 +229,7 @@ export function createInitTask<DispatchContext, DispatchProtocol extends {} | un
 }
 
 /** @internal */
-export function createEventDispatchTask<DispatchContext, DispatchProtocol extends {} | undefined, EventName extends keyof DispatchProtocol>(hsm: HsmWithTracing<DispatchContext, DispatchProtocol>, eventName: HsmEventHandlerName<DispatchProtocol, EventName>, ...eventPayload: HsmEventHandlerPayload<DispatchProtocol, EventName>): Task {
+export function createEventDispatchTask<DispatchContext, DispatchProtocol extends {} | undefined, EventName extends keyof DispatchProtocol>(hsm: HsmWithTracing<DispatchContext, DispatchProtocol>, eventName: PostedEvent<DispatchProtocol, EventName>, ...eventPayload: EventPayload<DispatchProtocol, EventName>): Task {
 	return (done: DoneCallback): void => {
 		dispatchEvent(hsm, eventName, ...eventPayload)
 			.catch((err: unknown) => hsm.dispatchErrorCallback(hsm, asError(err)))

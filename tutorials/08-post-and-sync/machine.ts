@@ -1,4 +1,5 @@
-import { makeHsm, HsmInitialState, HsmTopState } from '../../src';
+import * as ihsm from '../../src';
+import * as self from './machine';
 
 export interface QueueCtx {
 	events: string[];
@@ -10,7 +11,7 @@ export interface QueueProtocol {
 	done(): void;
 }
 
-export class QueueTop extends HsmTopState<QueueCtx, QueueProtocol> implements QueueProtocol {
+export class QueueTop extends ihsm.TopState<QueueCtx, QueueProtocol> implements QueueProtocol {
 	start(): void {
 		this.ctx.events.push('start');
 		this.post('tick');
@@ -27,9 +28,11 @@ export class QueueTop extends HsmTopState<QueueCtx, QueueProtocol> implements Qu
 	}
 }
 
-@HsmInitialState
+@ihsm.InitialState
 export class Idle extends QueueTop {}
 
+ihsm.registerStateNames(self); // grabs every exported state automatically
+
 export function createQueueMachine() {
-	return makeHsm(QueueTop, { events: [] });
+	return ihsm.makeHsm(QueueTop, { events: [] });
 }

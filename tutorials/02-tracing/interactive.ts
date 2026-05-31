@@ -1,9 +1,10 @@
 import { singleSenderTutorial } from '../shared/interactive-helpers';
-import { PingTop } from './machine';
+import * as machine from './machine';
 
 export const interactive = singleSenderTutorial({
 	title: 'Traced ping machine',
-	topState: PingTop,
+	topState: machine.PingTop,
+	machineExports: machine,
 	initialCtx: { pings: 0 },
 	messages: [{ id: 'ping', label: 'ping', kind: 'post' }],
 	stateSummary: sm => `State: ${sm.currentStateName} · pings: ${sm.ctx.pings}`,

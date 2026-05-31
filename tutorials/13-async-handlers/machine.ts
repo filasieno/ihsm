@@ -1,4 +1,5 @@
-import { makeHsm, HsmInitialState, HsmTopState } from '../../src';
+import * as ihsm from '../../src';
+import * as self from './machine';
 
 export interface FileCtx {
 	sourcePath: string;
@@ -31,9 +32,9 @@ async function close(_fd: number): Promise<void> {
 	await Promise.resolve();
 }
 
-export class FileTop extends HsmTopState<FileCtx, FileProtocol> {}
+export class FileTop extends ihsm.TopState<FileCtx, FileProtocol> {}
 
-@HsmInitialState
+@ihsm.InitialState
 export class Idle extends FileTop {
 	/**
 	 * Entire open → read → write → close pipeline in **one handler**, **one state**.
@@ -68,8 +69,10 @@ export class Idle extends FileTop {
 
 export class Done extends FileTop {}
 
+ihsm.registerStateNames(self); // grabs every exported state automatically
+
 export function createFileActor() {
-	return makeHsm(FileTop, {
+	return ihsm.makeHsm(FileTop, {
 		sourcePath: '',
 		destPath: '',
 		bytesWritten: 0,

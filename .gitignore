@@ -84,6 +84,8 @@ result*/
 # Misc
 *.tmp.txt
 .npmtoken
+.test-browser/
+/test/browser/entries/*.ts
 
 # Local review notes (not for commit)
 .TODO

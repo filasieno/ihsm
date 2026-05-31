@@ -1,27 +1,28 @@
-import { HsmDispatchErrorCallback, HsmEventHandlerName, HsmEventHandlerPayload, HsmServiceResponse, HsmServiceName, HsmServiceRequest, HsmStateClass, HsmTraceLevel, HsmTraceWriter, HsmUnhandledEventError } from '../';
+import { DispatchErrorCallback, PostedEvent, EventPayload, ServiceResponse, ServiceName, ServiceRequest, StateClass, TraceLevel, TraceWriter, UnhandledEventError } from '../';
 import { HsmWithTracing, Instance, Task, Transition } from './defs.private';
 import { createEventDispatchTask as createEventDispatchVerboseDebug, createInitTask as createInitVerboseDebug } from './dispatch.trace';
 import { createEventDispatchTask as createEventDispatchDebug, createInitTask as createInitTaskDebug } from './dispatch.debug';
 import { createEventDispatchTask as createEventDispatchProduction, createInitTask as createInitTaskProduction } from './dispatch.production';
+import { getStateName } from './utils';
 
-function mapInitTaskFactory(traceLevel: HsmTraceLevel): <DispatchContext, DispatchProtocol extends {} | undefined>(hsm: HsmWithTracing<DispatchContext, DispatchProtocol>) => Task {
+function mapInitTaskFactory(traceLevel: TraceLevel): <DispatchContext, DispatchProtocol extends {} | undefined>(hsm: HsmWithTracing<DispatchContext, DispatchProtocol>) => Task {
 	switch (traceLevel) {
-		case HsmTraceLevel.PRODUCTION:
+		case TraceLevel.PRODUCTION:
 			return createInitTaskProduction;
-		case HsmTraceLevel.DEBUG:
+		case TraceLevel.DEBUG:
 			return createInitTaskDebug;
-		case HsmTraceLevel.VERBOSE_DEBUG:
+		case TraceLevel.VERBOSE_DEBUG:
 			return createInitVerboseDebug;
 	}
 }
 
-function mapEventDispatchTaskFactory(traceLevel: HsmTraceLevel): <DispatchContext, DispatchProtocol extends {} | undefined, EventName extends keyof DispatchProtocol>(hsm: HsmWithTracing<DispatchContext, DispatchProtocol>, eventName: HsmEventHandlerName<DispatchProtocol, EventName>, ...eventPayload: HsmEventHandlerPayload<DispatchProtocol, EventName>) => Task {
+function mapEventDispatchTaskFactory(traceLevel: TraceLevel): <DispatchContext, DispatchProtocol extends {} | undefined, EventName extends keyof DispatchProtocol>(hsm: HsmWithTracing<DispatchContext, DispatchProtocol>, eventName: PostedEvent<DispatchProtocol, EventName>, ...eventPayload: EventPayload<DispatchProtocol, EventName>) => Task {
 	switch (traceLevel) {
-		case HsmTraceLevel.PRODUCTION:
+		case TraceLevel.PRODUCTION:
 			return createEventDispatchProduction;
-		case HsmTraceLevel.DEBUG:
+		case TraceLevel.DEBUG:
 			return createEventDispatchDebug;
-		case HsmTraceLevel.VERBOSE_DEBUG:
+		case TraceLevel.VERBOSE_DEBUG:
 			return createEventDispatchVerboseDebug;
 	}
 }
@@ -30,32 +31,32 @@ function mapEventDispatchTaskFactory(traceLevel: HsmTraceLevel): <DispatchContex
 // prettier-ignore
 export class HsmObject<Context, Protocol extends {} | undefined> implements HsmWithTracing<Context, Protocol> {
 
-	public topState: HsmStateClass<Context, Protocol>;
+	public topState: StateClass<Context, Protocol>;
 	public topStateName: string;
 	public readonly ctxTypeName: string;
-	public traceWriter: HsmTraceWriter;
+	public traceWriter: TraceWriter;
 
 	public _instance: Instance<Context, Protocol>;
 	public _transitionCache: Map<string, Transition<Context, Protocol>> = new Map();
 	public _jobs: Task[];
 	public _hiPriorityJobs: Task[];
 	private _isRunning = false;
-	public _transitionState?: HsmStateClass<Context, Protocol>;
+	public _transitionState?: StateClass<Context, Protocol>;
 
 	public _currentEventName?: string;
 	public _currentEventPayload?: any[];
-	public dispatchErrorCallback: HsmDispatchErrorCallback<Context, Protocol>;
-	private _traceLevel: HsmTraceLevel;
+	public dispatchErrorCallback: DispatchErrorCallback<Context, Protocol>;
+	private _traceLevel: TraceLevel;
 	private _traceDomainStack: string[];
 	public _createInitTask: <DispatchContext, DispatchProtocol extends {} | undefined>(hsm: HsmWithTracing<DispatchContext, DispatchProtocol>) => Task;
-	public _createEventDispatchTask: <DispatchContext, DispatchProtocol extends {} | undefined, EventName extends keyof DispatchProtocol>(hsm: HsmWithTracing<DispatchContext, DispatchProtocol>, eventName: HsmEventHandlerName<DispatchProtocol, EventName>, ...eventPayload: HsmEventHandlerPayload<DispatchProtocol, EventName>) => Task;
+	public _createEventDispatchTask: <DispatchContext, DispatchProtocol extends {} | undefined, EventName extends keyof DispatchProtocol>(hsm: HsmWithTracing<DispatchContext, DispatchProtocol>, eventName: PostedEvent<DispatchProtocol, EventName>, ...eventPayload: EventPayload<DispatchProtocol, EventName>) => Task;
 
 	constructor(
-		TopState: HsmStateClass<Context, Protocol>,
+		TopState: StateClass<Context, Protocol>,
 		instance: Instance<Context, Protocol>,
-		traceWriter: HsmTraceWriter,
-		traceLevel: HsmTraceLevel,
-		dispatchErrorCallback: HsmDispatchErrorCallback<Context, Protocol>,
+		traceWriter: TraceWriter,
+		traceLevel: TraceLevel,
+		dispatchErrorCallback: DispatchErrorCallback<Context, Protocol>,
 		initialize: boolean
 	) {
 		this._instance = instance;
@@ -73,7 +74,7 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 
 
 		this.topState = TopState;
-		this.topStateName = TopState.name;
+		this.topStateName = getStateName(TopState);
 		this.ctxTypeName = Object.getPrototypeOf(instance.ctx).constructor.name;
 		this.currentState = TopState;
 		this.traceWriter = traceWriter;
@@ -95,25 +96,25 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 	get eventName(): string { return this._currentEventName!; }
 	 
 	get eventPayload(): any[] { return this._currentEventPayload!; }
-	get currentStateName(): string { return Object.getPrototypeOf(this._instance).constructor.name; }
-	get currentState(): HsmStateClass<Context, Protocol> { return Object.getPrototypeOf(this._instance).constructor; }
-	set currentState(newState: HsmStateClass<Context, Protocol>) { Object.setPrototypeOf(this._instance, newState.prototype); }
-	post<EventName extends keyof Protocol>(eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void { this.pushTask(this._createEventDispatchTask(this, eventName, ...eventPayload)); }
-	postNow<EventName extends keyof Protocol>(eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void { this.pushHiPriorityTask(this._createEventDispatchTask(this, eventName, ...eventPayload)); }
-	deferredPost<EventName extends keyof Protocol>(millis: number, eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void {
+	get currentStateName(): string { return getStateName(Object.getPrototypeOf(this._instance).constructor); }
+	get currentState(): StateClass<Context, Protocol> { return Object.getPrototypeOf(this._instance).constructor; }
+	set currentState(newState: StateClass<Context, Protocol>) { Object.setPrototypeOf(this._instance, newState.prototype); }
+	post<EventName extends keyof Protocol>(eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void { this.pushTask(this._createEventDispatchTask(this, eventName, ...eventPayload)); }
+	postNow<EventName extends keyof Protocol>(eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void { this.pushHiPriorityTask(this._createEventDispatchTask(this, eventName, ...eventPayload)); }
+	deferredPost<EventName extends keyof Protocol>(millis: number, eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void {
 		setTimeout(
 			() => this.pushTask(this._createEventDispatchTask(this, eventName, ...eventPayload)),
 			millis);
 	}
-	transition(nextState: HsmStateClass<Context, Protocol>): void { this._transitionState = nextState; }
-	unhandled(): never { throw new HsmUnhandledEventError(this); }
+	transition(nextState: StateClass<Context, Protocol>): void { this._transitionState = nextState; }
+	unhandled(): never { throw new UnhandledEventError(this); }
 	sleep(millis: number): Promise<void> { return new Promise(resolve => setTimeout(() => resolve(), millis)); }
 
-	get traceLevel(): HsmTraceLevel {
+	get traceLevel(): TraceLevel {
 		return this._traceLevel;
 	}
 
-	set traceLevel(traceLevel: HsmTraceLevel) {
+	set traceLevel(traceLevel: TraceLevel) {
 		this._createInitTask = mapInitTaskFactory(traceLevel);
 		this._createEventDispatchTask = mapEventDispatchTaskFactory(traceLevel);
 		this._traceLevel = traceLevel;
@@ -150,7 +151,7 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 		this.dequeue();
 	}
 
-	public restore(state: HsmStateClass<Context, Protocol>, ctx: Context): void {
+	public restore(state: StateClass<Context, Protocol>, ctx: Context): void {
 		this.currentState = state;
 		this.ctx = ctx;
 	}
@@ -207,9 +208,9 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 		return `${this._traceDomainStack.length === 0 ? '' : this._traceDomainStack.join('|') + '|'}`;
 	}
 
-	call<EventName extends keyof Protocol>(eventName: HsmServiceName<Protocol, EventName>, ...eventPayload: HsmServiceRequest<Protocol, EventName>): Promise<HsmServiceResponse<Protocol, EventName>> {
-		return new Promise<HsmServiceResponse<Protocol, EventName>>((resolve: (result: HsmServiceResponse<Protocol, EventName>) => void, reject: (error: Error) => void) => {
-			const taskFactory: (hsm: any, name: HsmServiceName<Protocol, EventName>, ...payload: any[]) => Task = this._createEventDispatchTask as any;
+	call<EventName extends keyof Protocol>(eventName: ServiceName<Protocol, EventName>, ...eventPayload: ServiceRequest<Protocol, EventName>): Promise<ServiceResponse<Protocol, EventName>> {
+		return new Promise<ServiceResponse<Protocol, EventName>>((resolve: (result: ServiceResponse<Protocol, EventName>) => void, reject: (error: Error) => void) => {
+			const taskFactory: (hsm: any, name: ServiceName<Protocol, EventName>, ...payload: any[]) => Task = this._createEventDispatchTask as any;
 			this.pushTask(taskFactory(this, eventName, ...[resolve, reject, ...eventPayload]));
 		});
 	}

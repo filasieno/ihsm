@@ -1,4 +1,5 @@
-import { makeHsm, HsmInitialState, HsmTopState } from '../../src';
+import * as ihsm from '../../src';
+import * as self from './machine';
 
 export interface LampCtx {
 	brightness: number;
@@ -10,7 +11,7 @@ export interface LampProtocol {
 	brighten(delta: number): void;
 }
 
-export class LampTop extends HsmTopState<LampCtx, LampProtocol> implements LampProtocol {
+export class LampTop extends ihsm.TopState<LampCtx, LampProtocol> implements LampProtocol {
 	onEntry(): void {
 		this.ctx.entryCount += 1;
 	}
@@ -25,9 +26,11 @@ export class LampTop extends HsmTopState<LampCtx, LampProtocol> implements LampP
 	}
 }
 
-@HsmInitialState
+@ihsm.InitialState
 export class On extends LampTop {}
 
+ihsm.registerStateNames(self); // grabs every exported state automatically
+
 export function createLamp(brightness: number) {
-	return makeHsm(LampTop, { brightness, entryCount: 0 });
+	return ihsm.makeHsm(LampTop, { brightness, entryCount: 0 });
 }

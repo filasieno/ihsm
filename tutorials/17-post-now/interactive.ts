@@ -1,9 +1,10 @@
 import { singleSenderTutorial } from '../shared/interactive-helpers';
-import { CheckoutTop } from './machine';
+import * as machine from './machine';
 
 export const interactive = singleSenderTutorial({
 	title: 'Checkout postNow',
-	topState: CheckoutTop,
+	topState: machine.CheckoutTop,
+	machineExports: machine,
 	initialCtx: { steps: [], committed: false, cancelled: false },
 	messages: [
 		{ id: 'confirm', label: 'confirm', kind: 'post' },

@@ -39,7 +39,7 @@ See the **Trace** panel on the [interactive docs site](https://filasieno.github.
 | ---- | ------ |
 | 1 | LCA = **`DeepTop`** — exit west stack completely |
 | 2 | Enter **`StackEast`** |
-| 3 | Target is composite → follow `@HsmInitialState` chain: **`MidEast` → `LeafEastA`** |
+| 3 | Target is composite → follow `@InitialState` chain: **`MidEast` → `LeafEastA`** |
 | 4 | Final leaf = **`LeafEastA`** (initial east leaf, not `LeafEastB`) |
 
 You call `transition(StackEast)`; ihsm always activates a **leaf**.

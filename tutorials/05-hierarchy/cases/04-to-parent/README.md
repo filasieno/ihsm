@@ -31,7 +31,7 @@ See the **Trace** panel on the [interactive docs site](https://filasieno.github.
 | ---- | ------ |
 | 1 | LCA = **`MidWest`** |
 | 2 | Exit **`LeafWestA`** |
-| 3 | Enter path toward `MidWest`; `MidWest` has `@HsmInitialState LeafWestA` |
+| 3 | Enter path toward `MidWest`; `MidWest` has `@InitialState LeafWestA` |
 | 4 | Runtime **descends** again → enter **`LeafWestA`** |
 | 5 | Final leaf = **`LeafWestA`** (same class, but exit+entry ran) |
 

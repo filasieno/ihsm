@@ -15,11 +15,10 @@ import { interactive as t12 } from '../12-error-recovery/interactive';
 import { interactive as t13 } from '../13-async-handlers/interactive';
 import { interactive as t14 } from '../14-nested-machines/interactive';
 import { interactive as t15 } from '../15-complex-workflow/interactive';
-import { interactive as t16 } from '../16-then/interactive';
 import { interactive as t17 } from '../17-post-now/interactive';
 import { dispatchMessage, traceFromRuntime } from './interactive-helpers';
 
-const all = [t01, t02, t03, t04, t05, t07, t08, t09, t10, t11, t12, t13, t14, t15, t16, t17];
+const all = [t01, t02, t03, t04, t05, t07, t08, t09, t10, t11, t12, t13, t14, t15, t17];
 
 describe('Interactive tutorial metadata', () => {
 	for (const [index, meta] of all.entries()) {
@@ -29,7 +28,10 @@ describe('Interactive tutorial metadata', () => {
 				expect(meta.messagesBySender[sender.id]?.length ?? 0).to.be.greaterThan(0);
 			}
 			const runtime = meta.createRuntime();
-			expect(meta.stateSummary(runtime)).to.be.a('string');
+			const summary = meta.stateSummary(runtime);
+			expect(summary).to.be.a('string');
+			expect(summary.length).to.be.greaterThan(0);
+			expect(summary).to.match(/State:|Payment:/);
 		});
 	}
 
@@ -39,5 +41,27 @@ describe('Interactive tutorial metadata', () => {
 		const message = t01.messagesBySender[sender][0];
 		await dispatchMessage(runtime, sender, message, {});
 		expect(traceFromRuntime(runtime)).to.match(/open/);
+	});
+
+	it('tutorial 01 state summary uses export names, not minified class names', async () => {
+		const runtime = t01.createRuntime();
+		if (runtime.kind !== 'single') {
+			throw new Error('expected single-machine runtime');
+		}
+		await runtime.sm.sync();
+		const summary = t01.stateSummary(runtime);
+		expect(summary).to.include('Closed');
+		expect(summary).to.not.match(/State: [a-z] ·/);
+	});
+
+	it('tutorial 01 trace uses export names, not minified class names', async () => {
+		const runtime = t01.createRuntime();
+		if (runtime.kind !== 'single') {
+			throw new Error('expected single-machine runtime');
+		}
+		await runtime.sm.sync();
+		const trace = traceFromRuntime(runtime);
+		expect(trace).to.include('Closed');
+		expect(trace).to.match(/initialize\|.*Closed/);
 	});
 });

@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, HsmAny, makeHsm, HsmFatalErrorState, HsmInitialState, HsmRuntimeError, HsmStateClass, HsmTopState, HsmUnhandledEventError } from '../';
+import { Hsm, Any, makeHsm, FatalErrorState, InitialState, RuntimeError, StateClass, TopState, UnhandledEventError } from '../';
 import { clearLastError, createTestDispatchErrorCallback, getLastError, TRACE_LEVELS } from './spec.utils';
 
 interface Protocol {
@@ -8,10 +8,10 @@ interface Protocol {
 	transitionTo(s: State): void;
 }
 
-type State = HsmStateClass<HsmAny, Protocol>;
+type State = StateClass<Any, Protocol>;
 
-class TopState extends HsmTopState<HsmAny, Protocol> {
-	onUnhandled<EventName extends keyof Protocol>(error: HsmUnhandledEventError<HsmAny, Protocol, EventName>): Promise<void> | void {
+class HsmTop extends TopState<Any, Protocol> {
+	onUnhandled<EventName extends keyof Protocol>(error: UnhandledEventError<Any, Protocol, EventName>): Promise<void> | void {
 		console.log(`${error}`);
 		if (this.currentState === A) {
 			this.transition(B);
@@ -24,72 +24,76 @@ class TopState extends HsmTopState<HsmAny, Protocol> {
 		}
 	}
 
-	transitionTo(s: HsmStateClass<HsmAny, Protocol>): void {
+	transitionTo(s: StateClass<Any, Protocol>): void {
 		this.transition(s);
 	}
 }
 
-class A extends TopState {
+class A extends HsmTop {
 	hello(): void {
 		this.unhandled();
 	}
 }
 
-class C extends TopState {
-	onUnhandled<EventName extends keyof Protocol>(error: HsmUnhandledEventError<HsmAny, Protocol, EventName>): Promise<void> | void {
+class C extends HsmTop {
+	onUnhandled<EventName extends keyof Protocol>(error: UnhandledEventError<Any, Protocol, EventName>): Promise<void> | void {
 		console.log(`error: ${error}`);
 		throw new Error('Unhandled throws');
 	}
 }
 
-class E extends TopState {
+class E extends HsmTop {
 	onEntry(): Promise<void> | void {
 		throw new Error('Unhandled throws in a transition');
 	}
 }
 
-class F extends TopState {}
+class F extends HsmTop {}
 
-class G extends TopState {
-	onError<EventName extends keyof Protocol>(error: HsmRuntimeError<HsmAny, Protocol, EventName>): Promise<void> | void {
+class G extends HsmTop {
+	onError<EventName extends keyof Protocol>(error: RuntimeError<Any, Protocol, EventName>): Promise<void> | void {
 		console.log(`error: ${error}`);
 		console.log('recovered');
 	}
 
-	async onUnhandled<EventName extends keyof Protocol>(error: HsmUnhandledEventError<HsmAny, Protocol, EventName>): Promise<void> {
+	async onUnhandled<EventName extends keyof Protocol>(error: UnhandledEventError<Any, Protocol, EventName>): Promise<void> {
 		console.log(`error: ${error}`);
 		throw new Error('Error to recover');
 	}
 }
 
-class H extends TopState {
+class H extends HsmTop {
 	hello(): void {
 		this.unhandled();
 	}
 
-	onError<EventName extends keyof Protocol>(error: HsmRuntimeError<HsmAny, Protocol, EventName>): Promise<void> | void {
+	onError<EventName extends keyof Protocol>(error: RuntimeError<Any, Protocol, EventName>): Promise<void> | void {
 		console.log(`${error}`);
 		throw new Error('Fail now');
 	}
 
-	onUnhandled<EventName extends keyof Protocol>(error: HsmUnhandledEventError<HsmAny, Protocol, EventName>): Promise<void> | void {
+	onUnhandled<EventName extends keyof Protocol>(error: UnhandledEventError<Any, Protocol, EventName>): Promise<void> | void {
 		console.log(`${error}`);
 		throw new Error('Error to recover');
 	}
 }
 
-@HsmInitialState
-class B extends TopState {}
+@InitialState
+class B extends HsmTop {}
 
-class EmptyTopState extends HsmTopState {}
+class EmptyTopState extends TopState<Any, Protocol> {
+	transitionTo(s: StateClass<Any, Protocol>): void {
+		this.transition(s);
+	}
+}
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`An unhandled event (traceLevel = ${traceLevel})`, function (): void {
-		let sm: Hsm<HsmAny, Protocol>;
+		let sm: Hsm<Any, Protocol>;
 
 		beforeEach(async () => {
 			clearLastError();
-			sm = makeHsm(TopState, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
+			sm = makeHsm(HsmTop, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
 			await sm.sync();
 		});
 
@@ -110,16 +114,16 @@ for (const traceLevel of TRACE_LEVELS) {
 			sm.post('transitionTo', C);
 			sm.post('hello');
 			await sm.sync();
-			expect(sm.currentState).equals(HsmFatalErrorState);
-			expect(getLastError()).instanceOf(HsmRuntimeError);
+			expect(sm.currentState).equals(FatalErrorState);
+			expect(getLastError()).instanceOf(RuntimeError);
 		});
 
 		it(`throws in a transition after onUnhandled()`, async () => {
 			sm.post('transitionTo', F);
 			sm.post('hello');
 			await sm.sync();
-			expect(sm.currentState).equals(HsmFatalErrorState);
-			expect(getLastError()).instanceOf(HsmRuntimeError);
+			expect(sm.currentState).equals(FatalErrorState);
+			expect(getLastError()).instanceOf(RuntimeError);
 		});
 
 		it(`throws and recovers`, async () => {
@@ -134,16 +138,16 @@ for (const traceLevel of TRACE_LEVELS) {
 			sm.post('transitionTo', H);
 			sm.post('hello');
 			await sm.sync();
-			expect(sm.currentState).equals(HsmFatalErrorState);
-			expect(getLastError()).instanceOf(HsmRuntimeError);
+			expect(sm.currentState).equals(FatalErrorState);
+			expect(getLastError()).instanceOf(RuntimeError);
 		});
 
 		it(`the standard onUnhandled throws`, async () => {
 			const sm = makeHsm(EmptyTopState, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
 			sm.post('hello');
 			await sm.sync();
-			expect(sm.currentState).equals(HsmFatalErrorState);
-			expect(getLastError()).instanceOf(HsmRuntimeError);
+			expect(sm.currentState).equals(FatalErrorState);
+			expect(getLastError()).instanceOf(RuntimeError);
 		});
 	});
 }

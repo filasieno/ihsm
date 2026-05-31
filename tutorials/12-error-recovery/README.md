@@ -26,7 +26,7 @@ Recovery keeps the machine in `Working` when hooks swallow the failure.
 `risky` simulates a fault; `unknown` triggers unhandled:
 
 ```typescript
-export class WorkerTop extends HsmTopState<WorkerCtx, WorkerProtocol> implements WorkerProtocol {
+export class WorkerTop extends TopState<WorkerCtx, WorkerProtocol> implements WorkerProtocol {
 	risky(): void {
 		throw new Error('simulated failure');
 	}
@@ -39,17 +39,17 @@ export class WorkerTop extends HsmTopState<WorkerCtx, WorkerProtocol> implements
 `Working` recovers without leaving:
 
 ```typescript
-@HsmInitialState
+@InitialState
 export class Working extends WorkerTop {
 	onError<EventName extends keyof WorkerProtocol>(
-		_error: HsmEventHandlerError<WorkerCtx, WorkerProtocol, EventName>
+		_error: EventHandlerError<WorkerCtx, WorkerProtocol, EventName>
 	): void {
 		this.ctx.recovered += 1; // ← swallow, stay in Working
 		this.ctx.failures += 1;
 	}
 
 	onUnhandled<EventName extends keyof WorkerProtocol>(
-		_error: HsmUnhandledEventError<WorkerCtx, WorkerProtocol, EventName>
+		_error: UnhandledEventError<WorkerCtx, WorkerProtocol, EventName>
 	): void {
 		this.ctx.failures += 1;
 	}
@@ -64,7 +64,7 @@ await worker.sync();
 
 ## Reading the trace
 
-With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
+With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 

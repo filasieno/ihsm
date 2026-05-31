@@ -6,7 +6,7 @@ Production flows combine hierarchy, async validation, guards, services, and mult
 
 ## Solution
 
-Compose hierarchy, async validation, a **`then()`** decision pseudo state, and `call()` in one **checkout workflow**. See [then()](../16-then/README.md) for the choice pattern in isolation.
+Compose hierarchy, async validation, a **`postNow()`** decision pseudo state, and `call()` in one **checkout workflow**. See [postNow()](../17-post-now/README.md) for hi-priority internal orchestration.
 
 ## UML statechart
 
@@ -29,7 +29,7 @@ state CheckoutTop {
 @enduml
 ```
 
-`submit` runs async validation, then enters `Validating`. The guard runs in **`then()`** — not inline in the handler.
+`submit` runs async validation, then enters `Validating`. The guard runs via **`postNow('applyValidation')`** in `onEntry` — not inline in the handler.
 
 Context tracks phase and audit trail:
 
@@ -46,7 +46,7 @@ export interface CheckoutCtx {
 Async `submit` hands off to the decision state:
 
 ```typescript
-@HsmInitialState
+@InitialState
 export class Draft extends CheckoutTop {
 	async submit(): Promise<void> {
 		this.ctx.phase = 'validating';
@@ -57,11 +57,15 @@ export class Draft extends CheckoutTop {
 }
 ```
 
-Decision pseudo state — guard in `then()`:
+Decision pseudo state — guard via `postNow`:
 
 ```typescript
 export class Validating extends CheckoutTop {
-	then(): void {
+	onEntry(): void {
+		this.postNow('applyValidation');
+	}
+
+	applyValidation(): void {
 		if (this.ctx.amount <= this.ctx.limit) {
 			this.transition(Approved);
 		} else {
@@ -101,13 +105,13 @@ For extended transitions that must run internal events before other mailbox work
 
 ## Reading the trace
 
-With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
+With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
-Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y` → `then`.
+Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
 On the [documentation page](https://filasieno.github.io/ihsm/tutorials/15-complex-workflow), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:tutorials` headlessly.
 
-**What to notice:** Async `#submit` finishes validation, enters `Validating`, then `Validating.then()` schedules the transition to `Approved` or `Rejected` in the same dispatch.
+**What to notice:** Async `#submit` finishes validation, enters `Validating`, then `#applyValidation` (via `postNow`) runs in the same dispatch before `end event dispatch`.
 
 ## Verify
 

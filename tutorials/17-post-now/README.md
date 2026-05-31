@@ -6,7 +6,7 @@ During a handler you sometimes need **internal** follow-up events (inventory loc
 
 ## Solution
 
-**`postNow(event, …args)`** enqueues on the **hi-priority** mailbox. After the current handler and its transitions/`then()` chain finish, the runtime drains all hi-priority jobs before normal posts from that handler or the next external `post`.
+**`postNow(event, …args)`** enqueues on the **hi-priority** mailbox. After the current handler and its transitions finish, the runtime drains all hi-priority jobs before normal posts from that handler or the next external `post`.
 
 Only available **inside** handlers (`this.postNow`). The client uses ordinary `post`.
 
@@ -88,21 +88,13 @@ Compare with [Post & sync](../08-post-and-sync/README.md): plain `this.post` fro
 
 ---
 
-## vs `then()`
-
-| | `postNow('event')` | `then()` |
-| --- | --- | --- |
-| Mechanism | Protocol event on hi-priority queue | Lifecycle hook on state class |
-| Reusable handlers | Yes — shared events | No — per-state override |
-| Client can trigger | Yes — `post('event')` | No |
-
-Use **`postNow`** to reuse existing protocol handlers as internal orchestration steps. Use **`then()`** for choice pseudo states ([then()](../16-then/README.md)).
+Use **`postNow`** to run internal protocol handlers in the same dispatch turn — for example choice pseudo states after entry ([Complex workflow](../15-complex-workflow/README.md)) or extended transitions like this tutorial.
 
 ---
 
 ## Reading the trace
 
-With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
+With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 On the [documentation page](https://filasieno.github.io/ihsm/tutorials/17-post-now), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:tutorials` headlessly.
 

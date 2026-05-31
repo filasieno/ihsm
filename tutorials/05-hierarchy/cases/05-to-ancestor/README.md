@@ -33,7 +33,7 @@ See the **Trace** panel on the [interactive docs site](https://filasieno.github.
 | 1 | LCA = **`StackWest`** |
 | 2 | Exit **`LeafWestB`**, then **`MidWest`** — stop before `StackWest` |
 | 3 | **`DeepTop` is not exited** — still an ancestor of both source and target |
-| 4 | Re-enter **`MidWest`** → `@HsmInitialState` **`LeafWestA`** |
+| 4 | Re-enter **`MidWest`** → `@InitialState` **`LeafWestA`** |
 | 5 | Final leaf = **`LeafWestA`** |
 
 ## Code

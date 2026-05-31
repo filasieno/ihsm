@@ -1,9 +1,10 @@
 import { singleSenderTutorial } from '../shared/interactive-helpers';
-import { FileTop } from './machine';
+import * as machine from './machine';
 
 export const interactive = singleSenderTutorial({
 	title: 'File transfer machine',
-	topState: FileTop,
+	topState: machine.FileTop,
+	machineExports: machine,
 	initialCtx: { sourcePath: '', destPath: '', bytesWritten: 0, steps: [] },
 	messages: [
 		{

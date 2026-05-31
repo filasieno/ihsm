@@ -1,4 +1,5 @@
-import { Hsm, makeHsm, HsmInitialState, HsmTopState } from '../../src';
+import * as ihsm from '../../src';
+import * as self from './machine';
 
 export interface SessionCtx {
 	userId: string;
@@ -11,13 +12,13 @@ export interface SessionProtocol {
 	navigate(page: string): void;
 }
 
-export class SessionTop extends HsmTopState<SessionCtx, SessionProtocol> implements SessionProtocol {
+export class SessionTop extends ihsm.TopState<SessionCtx, SessionProtocol> implements SessionProtocol {
 	navigate(page: string): void {
 		this.ctx.lastPage = page;
 	}
 }
 
-@HsmInitialState
+@ihsm.InitialState
 export class Anonymous extends SessionTop {
 	onEntry(): void {
 		this.ctx.entryLog.push('Anonymous');
@@ -47,11 +48,13 @@ export interface PersistedSession {
 /** In-memory stand-in for disk / DB (session id → JSON payload). */
 export const sessionDb = new Map<string, string>();
 
+ihsm.registerStateNames(self); // grabs every exported state automatically
+
 export function createSession(userId: string) {
-	return makeHsm(SessionTop, { userId, lastPage: 'home', entryLog: [] });
+	return ihsm.makeHsm(SessionTop, { userId, lastPage: 'home', entryLog: [] });
 }
 
-function stateNameOf(sm: Hsm<SessionCtx, SessionProtocol>): SessionStateName {
+function stateNameOf(sm: ihsm.Hsm<SessionCtx, SessionProtocol>): SessionStateName {
 	for (const [name, stateClass] of Object.entries(SESSION_STATES) as [SessionStateName, typeof Anonymous][]) {
 		if (sm.currentState === stateClass) {
 			return name;
@@ -61,7 +64,7 @@ function stateNameOf(sm: Hsm<SessionCtx, SessionProtocol>): SessionStateName {
 }
 
 /** Serialize active state + ctx to a JSON string (file or DB column). */
-export function suspendSession(sm: Hsm<SessionCtx, SessionProtocol>): string {
+export function suspendSession(sm: ihsm.Hsm<SessionCtx, SessionProtocol>): string {
 	const payload: PersistedSession = {
 		stateName: stateNameOf(sm),
 		ctx: { ...sm.ctx, entryLog: [...sm.ctx.entryLog] },
@@ -73,12 +76,12 @@ export function suspendSession(sm: Hsm<SessionCtx, SessionProtocol>): string {
 export function resumeSession(json: string) {
 	const { stateName, ctx } = JSON.parse(json) as PersistedSession;
 	const stateClass = SESSION_STATES[stateName];
-	const sm = makeHsm(SessionTop, { userId: '', lastPage: '', entryLog: [] }, false);
+	const sm = ihsm.makeHsm(SessionTop, { userId: '', lastPage: '', entryLog: [] }, false);
 	sm.restore(stateClass, ctx);
 	return sm;
 }
 
-export function suspendSessionToDb(sessionId: string, sm: Hsm<SessionCtx, SessionProtocol>): void {
+export function suspendSessionToDb(sessionId: string, sm: ihsm.Hsm<SessionCtx, SessionProtocol>): void {
 	sessionDb.set(sessionId, suspendSession(sm));
 }
 

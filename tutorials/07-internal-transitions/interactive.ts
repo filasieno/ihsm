@@ -1,9 +1,10 @@
 import { singleSenderTutorial } from '../shared/interactive-helpers';
-import { LampTop } from './machine';
+import * as machine from './machine';
 
 export const interactive = singleSenderTutorial({
 	title: 'Lamp machine',
-	topState: LampTop,
+	topState: machine.LampTop,
+	machineExports: machine,
 	initialCtx: { brightness: 50, entryCount: 0 },
 	messages: [
 		{

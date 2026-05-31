@@ -40,7 +40,7 @@ export interface ThermostatProtocol {
 Generics wire context and protocol through the hierarchy:
 
 ```typescript
-export class ThermostatTop extends HsmTopState<ThermostatCtx, ThermostatProtocol>
+export class ThermostatTop extends TopState<ThermostatCtx, ThermostatProtocol>
 	implements ThermostatProtocol {
 	setTarget(celsius: number): void {
 		this.ctx.celsius = celsius; // ← payload type enforced at post()
@@ -60,7 +60,7 @@ t.post('setTarget', 22);   // ✓
 
 ## Reading the trace
 
-With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
+With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 

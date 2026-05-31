@@ -25,6 +25,26 @@
 			"problemMatcher": []
 		},
 		{
+			"label": "test:browser",
+			"type": "shell",
+			"command": "npm run test:browser",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "test",
+			"problemMatcher": []
+		},
+		{
+			"label": "test:all",
+			"type": "shell",
+			"command": "npm run test:all",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "test",
+			"problemMatcher": []
+		},
+		{
 			"label": "test:tutorials",
 			"type": "shell",
 			"command": "npm run test:tutorials",

@@ -56,7 +56,7 @@ export interface QueueProtocol {
 ### Handler (state machine)
 
 ```typescript
-export class QueueTop extends HsmTopState<QueueCtx, QueueProtocol> implements QueueProtocol {
+export class QueueTop extends TopState<QueueCtx, QueueProtocol> implements QueueProtocol {
 	tick(): void {
 		this.ctx.events.push('tick');
 	}
@@ -106,7 +106,7 @@ await sm.sync();
 `start` schedules follow-ups **after** it returns — they are not re-entrant:
 
 ```typescript
-export class QueueTop extends HsmTopState<QueueCtx, QueueProtocol> implements QueueProtocol {
+export class QueueTop extends TopState<QueueCtx, QueueProtocol> implements QueueProtocol {
 	start(): void {
 		this.ctx.events.push('start');
 		this.post('tick');  // queued for after start() completes
@@ -141,7 +141,7 @@ When the client needs a **return value**, use `call` — not `post` + `sync`. Se
 ### Handler (service on state class)
 
 ```typescript
-getBalance(resolve: HsmResolveCallback<number>, _reject: HsmRejectCallback): void {
+getBalance(resolve: ResolveCallback<number>, _reject: RejectCallback): void {
 	resolve(this.ctx.balance);
 }
 ```
@@ -159,7 +159,7 @@ await wallet.sync();          // optional: wait for deposit side effect only
 
 ## Reading the trace
 
-With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
+With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 

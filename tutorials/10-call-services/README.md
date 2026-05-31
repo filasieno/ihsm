@@ -41,17 +41,17 @@ state WalletTop {
 export interface WalletProtocol {
 	deposit(amount: number): void;
 	getBalance(
-		resolve: HsmResolveCallback<number>,
-		reject: HsmRejectCallback
+		resolve: ResolveCallback<number>,
+		reject: RejectCallback
 	): void;
 	fetchBalanceDelayed(
-		resolve: HsmResolveCallback<number>,
-		reject: HsmRejectCallback,
+		resolve: ResolveCallback<number>,
+		reject: RejectCallback,
 		delayMs: number
 	): Promise<void>;
 	withdraw(
-		resolve: HsmResolveCallback<number>,
-		reject: HsmRejectCallback,
+		resolve: ResolveCallback<number>,
+		reject: RejectCallback,
 		amount: number
 	): void;
 }
@@ -88,7 +88,7 @@ await wallet.sync();         // optional: wait for balance update
 ### Handler (state machine)
 
 ```typescript
-getBalance(resolve: HsmResolveCallback<number>, _reject: HsmRejectCallback): void {
+getBalance(resolve: ResolveCallback<number>, _reject: RejectCallback): void {
 	resolve(this.ctx.balance);
 }
 ```
@@ -110,7 +110,7 @@ No `sync()` needed — `await call(...)` blocks until the handler calls `resolve
 ### Handler (state machine)
 
 ```typescript
-withdraw(resolve: HsmResolveCallback<number>, reject: HsmRejectCallback, amount: number): void {
+withdraw(resolve: ResolveCallback<number>, reject: RejectCallback, amount: number): void {
 	if (amount > this.ctx.balance) {
 		reject(new Error('insufficient funds'));
 		return;
@@ -140,8 +140,8 @@ const remaining = await wallet.call('withdraw', 40); // → 60
 
 ```typescript
 async fetchBalanceDelayed(
-	resolve: HsmResolveCallback<number>,
-	_reject: HsmRejectCallback,
+	resolve: ResolveCallback<number>,
+	_reject: RejectCallback,
 	delayMs: number
 ): Promise<void> {
 	await this.sleep(delayMs);
@@ -173,7 +173,7 @@ Batching posts: [Post and sync](../08-post-and-sync/README.md).
 
 ## Reading the trace
 
-With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
+With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 

@@ -69,7 +69,7 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 	});
 
 	describe('04 to parent composite', () => {
-		it('LeafWestA → MidWest: re-enters @HsmInitialState leaf', async () => {
+		it('LeafWestA → MidWest: re-enters @InitialState leaf', async () => {
 			const sm = createDeepMachine();
 			await sm.sync();
 			const base = sm.ctx.trace.length;
@@ -213,7 +213,7 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 	});
 
 	describe('14 errors', () => {
-		it('onExit throw → HsmFatalErrorState', async () => {
+		it('onExit throw → FatalErrorState', async () => {
 			const sm = createDeepMachine();
 			await sm.sync();
 
@@ -222,17 +222,17 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 			sm.post('goCrossToLeafEastB');
 			await sm.sync();
 
-			expect(sm.currentState.name).equals('HsmFatalErrorState');
+			expect(sm.currentState.name).equals('FatalErrorState');
 		});
 
-		it('unhandled event → HsmFatalErrorState', async () => {
+		it('unhandled event → FatalErrorState', async () => {
 			const sm = createDeepMachine();
 			await sm.sync();
 
 			sm.post('notInProtocol' as 'tick');
 			await sm.sync();
 
-			expect(sm.currentState.name).equals('HsmFatalErrorState');
+			expect(sm.currentState.name).equals('FatalErrorState');
 		});
 	});
 });

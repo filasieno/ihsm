@@ -1,12 +1,14 @@
 import type { TutorialInteractiveMeta } from '../shared/interactive-types';
 import { singleSenderTutorial } from '../shared/interactive-helpers';
-import { resumeSessionFromDb, SessionTop, suspendSessionToDb } from './machine';
+import * as machine from './machine';
+import { resumeSessionFromDb, suspendSessionToDb } from './machine';
 
 const SESSION_ID = 'interactive-demo';
 
 const base = singleSenderTutorial({
 	title: 'Session machine',
-	topState: SessionTop,
+	topState: machine.SessionTop,
+	machineExports: machine,
 	initialCtx: { userId: 'guest', lastPage: 'home', entryLog: [] },
 	messages: [
 		{
