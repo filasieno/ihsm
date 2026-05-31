@@ -43,9 +43,9 @@ CI enforces full coverage on every push (`nix flake check`).
 
 | Resource | Link |
 |----------|------|
-| **Documentation site** | [filasieno.github.io/ihsm](https://filasieno.github.io/ihsm/) |
-| **Reference manual** | [reference/REFERENCE.md](./reference/REFERENCE.md) · [published](https://filasieno.github.io/ihsm/reference/) |
-| **Tutorials** | [tutorials/](./tutorials/) · [published](https://filasieno.github.io/ihsm/tutorials/) |
+| **Documentation site** | [filasieno.github.io/ihsm](https://filasieno.github.io/ihsm/) — reference manual + interactive tutorials |
+| Reference (source) | [reference/REFERENCE.md](./reference/REFERENCE.md) |
+| Tutorials (source) | [tutorials/](./tutorials/) |
 | Examples | [`src/spec/`](./src/spec/) |
 | Code of conduct | [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) |
 | Security | [SECURITY.md](./SECURITY.md) |
@@ -74,12 +74,33 @@ git clone https://github.com/filasieno/ihsm.git
 cd ihsm
 ```
 
-| Command | What it builds / runs |
-| ------- | --------------------- |
-| `nix flake check` | Library compile, unit tests, tutorial tests, lint, docs site (full CI gate) |
-| `nix build` | Library → `result/lib/` |
-| `nix build .#lint` | ESLint, Prettier, tutorial typecheck |
-| `nix build .#docs` | Documentation site → `result/share/doc/ihsm/` |
+### Development environment
+
+**Always use the Nix dev shell** before running npm scripts. It provides Node 22,
+PlantUML, Graphviz, and a store-pinned `node_modules` symlink (same lockfile as CI).
+
+```shell
+nix develop
+# or: direnv allow    # .envrc → use flake; auto-enters the shell in supported terminals
+```
+
+Run npm commands **inside** that shell, or prefix each one with `nix develop --command`:
+
+```shell
+nix develop --command npm test
+```
+
+If you see `remove local node_modules/ to use Nix store deps`, delete a plain
+`npm install` tree: `rm -rf node_modules` and enter `nix develop` again.
+
+### Nix commands (CI parity)
+
+| Command | Purpose |
+| ------- | ------- |
+| `nix flake check` | Full CI gate: library compile, unit + tutorial tests, lint, docs site |
+| `nix build` | Compile library and run tests → `result/lib/` |
+| `nix build .#lint` | TypeScript (full solution), ESLint, Prettier |
+| `nix build .#docs` | Production documentation site → `result/share/doc/ihsm/` |
 
 Full check before opening a PR:
 
@@ -87,28 +108,53 @@ Full check before opening a PR:
 nix flake check
 ```
 
-### Documentation site
-
-| Command | Purpose |
-| ------- | ------- |
-| `nix build .#docs` | Production static site |
-| `nix develop --command npm run doc:preview` | Local preview at [localhost:3000/ihsm/](http://localhost:3000/ihsm/) |
-| `nix develop --command npm run doc:site` | Production build → `docs-build/` |
-| `nix develop --command npm run verify:doc` | Verify production site output |
-
 After `nix build .#docs`, copy artifacts from `result/share/doc/ihsm/` or run
 `bash scripts/verify-docs-site.sh result/share/doc/ihsm`.
 
-### Library and tests
+### npm scripts
+
+All commands below assume **`nix develop`** (interactive shell) or
+**`nix develop --command …`** (one-shot). See [website/README.md](./website/README.md)
+for docs-site layout and generated output.
+
+#### Build
 
 | Command | Purpose |
 | ------- | ------- |
-| `nix build` | Compile TypeScript → `lib/`, run unit + tutorial tests |
-| `nix develop --command npm test` | Unit tests + coverage report |
-| `nix develop --command npm run test:tutorials` | Tutorial specs only |
-| `nix develop --command npm run test:all` | Both test suites |
-| `nix develop --command npm run lint` | ESLint + Prettier |
-| `nix develop --command npm run build` | Compile TypeScript → `lib/` |
+| `npm run build` | Compile the publishable library → `lib/` (Node + browser entries) |
+| `npm run build-node` | Compile the Node entry only → `lib/` |
+| `npm run build-browser` | Compile the browser entry only → `lib/index.browser.js` |
+| `npm run clean` | Remove generated artifacts (`lib/`, `.tsc/`, coverage, `docs-build/`, `website/docs/`, …) |
+| `npm run dist` | Clean, then build library and documentation site (maintainer bundle) |
+
+#### Test
+
+| Command | Purpose |
+| ------- | ------- |
+| `npm test` | Run unit tests in `src/spec/` with NYC coverage |
+| `npm run test:tutorials` | Run Mocha specs for all tutorials under `tutorials/` |
+| `npm run test:all` | Run `npm test`, then `npm run test:tutorials` |
+| `npm run coverage` | Print an LCOV coverage report from the last `npm test` run |
+
+#### Quality
+
+| Command | Purpose |
+| ------- | ------- |
+| `npm run typecheck` | Type-check the full project graph (lib, browser, tutorials, website); runs `sync:docs` first |
+| `npm run lint` | Guard against tracked generated files, then typecheck, ESLint, and Prettier check |
+| `npm run prettier` | Auto-format TypeScript sources (`src/`, `tutorials/`, `website/`) |
+| `npm run verify:generated` | Fail if git tracks generated output (`lib/`, `website/docs/`, …) |
+| `npm run release:check` | Local release gate: `test:all`, lint, build, doc, and `verify:doc` |
+
+#### Documentation
+
+| Command | Purpose |
+| ------- | ------- |
+| `npm run sync:docs` | Generate gitignored site inputs: `website/docs/`, `website/sidebars.ts`, PlantUML SVGs |
+| `npm run doc` | `sync:docs`, then production Docusaurus build (website workspace) |
+| `npm run doc:preview` | `sync:docs`, then Docusaurus dev server at [localhost:3010/ihsm/](http://localhost:3010/ihsm/) |
+| `npm run doc:site` | `sync:docs`, then static site → `docs-build/` |
+| `npm run verify:doc` | Sanity-check `docs-build/` (links, assets, tutorial pages) |
 
 Release process: [RELEASING.md](./RELEASING.md).
 
@@ -121,6 +167,8 @@ Contributions are welcome — bug reports, docs, and code.
 - Security → [GitHub Security Advisories](https://github.com/filasieno/ihsm/security/advisories/new) (not public issues)
 
 Please follow [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md). New behavior needs tests in `src/spec/`; tutorial changes need matching specs under `tutorials/`.
+
+**Generated output is never committed** — only sources (`src/`, `tutorials/`, `reference/`, `website/docs-src/`). CI runs `scripts/verify-no-generated-tracked.sh`. Build artifacts (`lib/`, `website/docs/`, `docs-build/`, …) are gitignored and produced by Nix/npm.
 
 ## License
 

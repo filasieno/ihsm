@@ -12,7 +12,7 @@
 		"lib"
 	],
 	"workspaces": [
-		"tutorials/_site"
+		"website"
 	],
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
@@ -32,13 +32,9 @@
 	"homepage": "https://filasieno.github.io/ihsm/",
 	"keywords": [
 		"hsm",
-		"hierarchical",
 		"fsm",
 		"state machine",
 		"hierarchical state machine",
-		"sm",
-		"qp",
-		"samek",
 		"statechart"
 	],
 	"license": "MIT",
@@ -59,31 +55,32 @@
 		"url": "https://github.com/filasieno/ihsm.git"
 	},
 	"scripts": {
-		"build-browser": "tsc --build tsconfig.browser.json",
-		"build-node": "tsc --build tsconfig.json",
-		"build": "npm run build-node && npm run build-browser",
-		"clean": "rm -rf ./lib ./.tsc ./.tsc.browser ./.nyc_output ./coverage ./docs-build tutorials/_site/.docusaurus",
+		"build-browser": "tsc -b tsconfig.browser.json",
+		"build-node": "tsc -b tsconfig.lib.json",
+		"build": "tsc -b tsconfig.lib.json tsconfig.browser.json",
+		"clean": "rm -rf ./lib ./.tsc ./.nyc_output ./coverage ./docs-build website/.docusaurus website/docs website/sidebars.ts",
 		"coverage": "nyc report --reporter=text-lcov",
 		"dist": "npm run build-node && npm run doc",
 		"doc": "npm run sync:docs && npm run build -w ihsm-site",
-		"sync:docs": "npm run sync:tutorials && npm run sync:reference",
-		"sync:tutorials": "node scripts/generate-tutorial-mdx.mjs",
-		"sync:reference": "node scripts/generate-reference-mdx.mjs",
-		"doc:preview": "npm run sync:docs && npm run start -w ihsm-site",
+		"sync:docs": "node scripts/prepare-website-docs.mjs",
+		"doc:preview": "npm run sync:docs && npm run start -w ihsm-site -- --port 3010",
 		"doc:site": "npm run sync:docs && npm run build -w ihsm-site",
 		"verify:doc": "bash scripts/verify-docs-site.sh docs-build",
-		"lint": "eslint . && prettier --check 'src/**/*.ts' 'tutorials/**/*.ts' 'tutorials/_site/**/*.{ts,tsx}'",
-		"prebuild-browser": "rm -f ./.tsc",
-		"prebuild-node": "rm -f ./.tsc",
+		"verify:generated": "bash scripts/verify-no-generated-tracked.sh",
+		"lint": "npm run verify:generated && npm run typecheck && eslint --max-warnings 0 'src/**/*.ts' 'tutorials/**/*.ts' && prettier --check 'src/**/*.ts' 'tutorials/**/*.ts' 'website/**/*.{ts,tsx}'",
+		"prebuild-browser": "rm -rf ./.tsc/browser.tsbuildinfo",
+		"prebuild-node": "rm -rf ./.tsc/lib.tsbuildinfo",
 		"predist": "npm run clean",
-		"prettier": "prettier --write 'src/**/*.ts' 'tutorials/**/*.ts' 'tutorials/_site/**/*.{ts,tsx}'",
+		"prettier": "prettier --write 'src/**/*.ts' 'tutorials/**/*.ts' 'website/**/*.{ts,tsx}'",
 		"release:check": "npm run test:all && npm run lint && npm run build && npm run doc && npm run verify:doc",
 		"prepublishOnly": "npm run test:all && npm run build",
-		"test": "nyc mocha",
-		"test:tutorials": "mocha --config .mocharc.tutorials.json",
+		"test": "TS_NODE_PROJECT=tsconfig.lib.json nyc mocha",
+		"test:tutorials": "TS_NODE_PROJECT=tsconfig.tutorials.json mocha --config .mocharc.tutorials.json",
 		"test:all": "npm test && npm run test:tutorials",
-		"typecheck:tutorials": "tsc --project tsconfig.tutorials.json --noEmit",
-		"typecheck:site": "npm run typecheck -w ihsm-site"
+		"typecheck": "tsc -b",
+		"prepare:types": "tsc -b tsconfig.lib.json tsconfig.tutorials.json",
+		"prepare:ide": "npm run sync:docs && npm run prepare:types",
+		"pretypecheck": "npm run prepare:ide"
 	},
 	"types": "./lib/index.d.ts",
 	"version": "0.0.19"

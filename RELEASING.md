@@ -13,6 +13,7 @@
 Run locally on **`dev`**, then merge to **`master`** when green:
 
 ```shell
+bash scripts/verify-no-generated-tracked.sh
 nix flake check
 nix build .#docs
 bash scripts/verify-docs-site.sh docs-build
@@ -22,11 +23,8 @@ Confirm `package.json` **`version`** matches the tag you will push (`v0.0.19` â†
 
 Update **`CHANGELOG.md`** for the new version.
 
-Sync generated docs before commit:
-
-```shell
-npm run sync:docs
-```
+**Do not** run `npm run sync:docs` for commit â€” generated docs are built in CI/Nix only.
+Edit sources: `tutorials/`, `reference/REFERENCE.md`, `website/docs-src/`.
 
 ## Publish
 

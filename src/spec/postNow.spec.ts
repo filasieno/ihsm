@@ -15,6 +15,7 @@ interface Protocol {
 	enqueueBoth(): void;
 }
 
+@HsmInitialState
 class TopState extends HsmTopState<Ctx, Protocol> implements Protocol {
 	run(): void {
 		this.ctx.order.push('run');
@@ -32,9 +33,6 @@ class TopState extends HsmTopState<Ctx, Protocol> implements Protocol {
 		this.ctx.order.push('enqueue-end');
 	}
 }
-
-@HsmInitialState
-class A extends TopState {}
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`postNow (traceLevel = ${traceLevel})`, () => {

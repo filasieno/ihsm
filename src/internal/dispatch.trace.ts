@@ -33,13 +33,13 @@ function scheduleCompleteTransitions<Context, Protocol extends {} | undefined>(h
 }
 
 /** @internal */
-class TraceTransition<Context, Protocol extends {} | undefined, EventName extends keyof Protocol> implements Transition<Context, Protocol> {
+class TraceTransition<Context, Protocol extends {} | undefined> implements Transition<Context, Protocol> {
 	constructor(
 		private exitList: Array<HsmStateClass<Context, Protocol>>,
 		private entryList: Array<HsmStateClass<Context, Protocol>>
 	) {}
 
-	async execute<EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, srcState: HsmStateClass<Context, Protocol>, dstState: HsmStateClass<Context, Protocol>): Promise<void> {
+	async execute(hsm: HsmWithTracing<Context, Protocol>, srcState: HsmStateClass<Context, Protocol>, dstState: HsmStateClass<Context, Protocol>): Promise<void> {
 		hsm._tracePush(`transition from ${srcState.name} to ${dstState.name}`, `started transition from ${srcState.name} to ${dstState.name} `);
 
 		for (const state of this.exitList) {
@@ -93,7 +93,7 @@ class TraceTransition<Context, Protocol extends {} | undefined, EventName extend
 }
 
 /** @internal */
-function createTransition<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(srcState: HsmStateClass<Context, Protocol>, destState: HsmStateClass<Context, Protocol>): Transition<Context, Protocol> {
+function createTransition<Context, Protocol extends {} | undefined>(srcState: HsmStateClass<Context, Protocol>, destState: HsmStateClass<Context, Protocol>): Transition<Context, Protocol> {
 	const src: HsmStateClass<Context, Protocol> = srcState;
 	let dst: HsmStateClass<Context, Protocol> = destState;
 	let srcPath: HsmStateClass<Context, Protocol>[] = [];
@@ -126,7 +126,7 @@ function createTransition<Context, Protocol extends {} | undefined, EventName ex
 		dstPath.push(dst);
 	}
 
-	return new TraceTransition<Context, Protocol, EventName>(srcPath, dstPath);
+	return new TraceTransition<Context, Protocol>(srcPath, dstPath);
 }
 
 /** @internal */
@@ -178,7 +178,7 @@ function lookupErrorHandler<Context, Protocol extends {} | undefined, EventName 
 }
 
 /** @internal */
-async function doError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, err: Error, onComplete: () => void): Promise<void> {
+async function doError<Context, Protocol extends {} | undefined>(hsm: HsmWithTracing<Context, Protocol>, err: Error, onComplete: () => void): Promise<void> {
 	hsm._transitionState = undefined;
 	hsm._tracePush(`error recovery`, `started error recovery`);
 	const messageHandler = lookupErrorHandler(hsm);
@@ -286,7 +286,7 @@ function lookupEventHandler<Context, Protocol extends {} | undefined, EventName 
 }
 
 /** @internal */
-async function executeInit<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>): Promise<void> {
+async function executeInit<Context, Protocol extends {} | undefined>(hsm: HsmWithTracing<Context, Protocol>): Promise<void> {
 	hsm._traceWrite('begin initialization');
 	try {
 		let currState: HsmStateClass<Context, Protocol> = hsm.topState;

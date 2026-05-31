@@ -5,3 +5,11 @@
 .markdown h1:first-child {
 	margin-bottom: 1rem;
 }
+
+/* PlantUML diagrams (generated SVGs under /img/plantuml/) */
+.markdown img[src*='/img/plantuml/'] {
+	display: block;
+	max-width: 100%;
+	height: auto;
+	margin: 1rem auto;
+}

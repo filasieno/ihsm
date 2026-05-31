@@ -1,4 +1,4 @@
-import { singleSenderTutorial } from '../_shared/interactive-helpers';
+import { singleSenderTutorial } from '../shared/interactive-helpers';
 import { CounterTop } from './machine';
 
 export const interactive = singleSenderTutorial({

@@ -1,5 +1,5 @@
-import type { TutorialInteractiveMeta } from '../_shared/interactive-types';
-import { singleSenderTutorial } from '../_shared/interactive-helpers';
+import type { TutorialInteractiveMeta } from '../shared/interactive-types';
+import { singleSenderTutorial } from '../shared/interactive-helpers';
 import { resumeSessionFromDb, SessionTop, suspendSessionToDb } from './machine';
 
 const SESSION_ID = 'interactive-demo';

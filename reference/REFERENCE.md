@@ -48,7 +48,7 @@ parallel regions, or deep frontend/Stately integration. See
 8. [Error model](#_8-error-model)
 9. [Async handlers](#_9-async-handlers)
 10. [then()](#_10-then)
-11. [makeHsm](#_11-make-hsm)
+11. [makeHsm](#_11-makehsm)
 12. [Zero dependencies](#_12-zero-dependencies)
 13. [Code coverage](#_13-code-coverage)
 14. [Comparison with XState](#_14-comparison-with-xstate)
@@ -931,7 +931,7 @@ interface HsmTraceWriter {
 
 Default logs to `console` as `domain|…|StateName: message`. Inject a custom
 writer for structured logging or tests (`CollectingTraceWriter` in
-`tutorials/_shared/trace.ts`).
+`tutorials/shared/trace.ts`).
 
 Inside states: `this.traceHeader`, `this.traceWriter`, `this.traceLevel`.
 

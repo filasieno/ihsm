@@ -1,5 +1,5 @@
 import { makeHsm, HsmInitialState, HsmTopState, HsmTraceLevel } from '../../src';
-import { CollectingTraceWriter } from '../_shared/trace';
+import { CollectingTraceWriter } from '../shared/trace';
 
 export interface PingCtx {
 	pings: number;

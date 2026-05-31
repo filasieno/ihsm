@@ -1,0 +1,16 @@
+{
+	"recommendations": [
+		"dbaeumer.vscode-eslint",
+		"esbenp.prettier-vscode",
+		"editorconfig.editorconfig",
+		"mkhl.direnv",
+		"jnoortheen.nix-ide",
+		"unifiedjs.vscode-mdx",
+		"github.vscode-github-actions",
+		"redhat.vscode-yaml"
+	],
+	"unwantedRecommendations": [
+		"hookyqr.beautify",
+		"ms-vscode.vscode-typescript-tslint-plugin"
+	]
+}

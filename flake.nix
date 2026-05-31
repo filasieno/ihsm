@@ -19,15 +19,18 @@
 
       # Regenerate when package-lock.json changes:
       #   nix run nixpkgs#prefetch-npm-deps -- package-lock.json
-      npmDepsHash = "sha256-bd6XVVZStFrrGsU6kKkz2hfLfXFX2D4bp+CBaAxRhCE=";
+      npmDepsHash = "sha256-ThdTsiuclLWrs5aiK37DOdXBaOuY9AMAU83vdpvMXgM=";
 
       nixpkgsRev = (builtins.fromJSON (builtins.readFile ./flake.lock)).nodes.nixpkgs.locked.rev;
 
+      supportedSystems = lib.filter (system: system != "x86_64-darwin") (import systems);
+
       forEachSystem =
         f:
-        lib.genAttrs (import systems) (
+        lib.genAttrs supportedSystems (
           system:
           f {
+            inherit system;
             pkgs = import nixpkgs {
               inherit system;
               config.allowUnfree = false;
@@ -48,13 +51,18 @@
             lib.cleanSourceFilter path type
             && base != "lib"
             && base != "node_modules"
+            && base != "node_modules.bak"
             && !(lib.hasPrefix "result" base && (type == "directory" || type == "symlink"))
             && base != "coverage"
             && base != ".nyc_output"
             && base != ".tsc"
+            && !(lib.hasInfix "/.tsc/" path)
             && base != ".eslintcache"
             && !(lib.hasInfix "/docs-build" path)
-            && !(lib.hasInfix "/tutorials/_site/.docusaurus" path);
+            && !(lib.hasInfix "/website/docs/" path)
+            && !(lib.hasInfix "/website/.docusaurus" path)
+            && !(lib.hasSuffix "/website/sidebars.ts" path)
+            && base != "_config.yml";
         };
 
       nodejs = pkgs: pkgs.nodejs_22;
@@ -69,7 +77,7 @@
       };
 
       npmPreBuild = ''
-        rm -rf lib .tsc .tsc.browser docs-build tutorials/_site/.docusaurus .nyc_output coverage
+        rm -rf lib .tsc docs-build website/.docusaurus website/docs website/sidebars.ts .nyc_output coverage
       '';
 
       mkNpmEnv =
@@ -90,9 +98,8 @@
           installPhase = ''
             runHook preInstall
             npm ci --offline --ignore-scripts --no-audit --no-fund
-            mkdir -p "$out/tutorials"
-            cp -r tutorials/_site "$out/tutorials/_site"
             mkdir -p "$out"
+            cp -r website "$out/website"
             mv node_modules "$out/"
             runHook postInstall
           '';
@@ -123,6 +130,7 @@
       packages = forEachSystem (
         {
           pkgs,
+          ...
         }:
         let
           src = mkSrc null;
@@ -183,14 +191,20 @@
               ;
             pname = "ihsm-lint";
 
+            nativeBuildInputs = [
+              (nodejs pkgs)
+              pkgs.plantuml
+              pkgs.graphviz
+            ];
+
             npmScript = "build";
+            dontNpmBuild = true;
 
             doCheck = true;
             checkPhase = ''
               runHook preCheck
+              bash scripts/verify-no-generated-in-source.sh
               npm run lint
-              npm run typecheck:tutorials
-              npm run typecheck:site
               runHook postCheck
             '';
 
@@ -212,11 +226,16 @@
               ;
             pname = "ihsm-docs";
 
+            nativeBuildInputs = [
+              (nodejs pkgs)
+              pkgs.plantuml
+              pkgs.graphviz
+            ];
+
             buildPhase = ''
               runHook preBuild
+              bash scripts/verify-no-generated-in-source.sh
               npm run build
-              node scripts/generate-tutorial-mdx.mjs
-              node scripts/generate-reference-mdx.mjs
               npm run build -w ihsm-site
               test -f docs-build/index.html
               bash scripts/verify-docs-site.sh docs-build
@@ -246,9 +265,10 @@
       devShells = forEachSystem (
         {
           pkgs,
+          system,
         }:
         let
-          node_modules = self.packages.${pkgs.system}.node_modules;
+          node_modules = self.packages.${system}.node_modules;
         in
         {
           default = pkgs.mkShell {
@@ -256,6 +276,8 @@
               (nodejs pkgs)
               bash
               git
+              plantuml
+              graphviz
             ];
 
             shellHook = ''
@@ -288,7 +310,7 @@
               echo ""
               echo "Build (deterministic, sandboxed):"
               echo "  nix build              library + unit/tutorial tests"
-              echo "  nix build .#lint       eslint, prettier, tutorial typecheck"
+              echo "  nix build .#lint       TypeScript, ESLint, Prettier"
               echo "  nix flake check        library + lint (CI gate)"
               echo "  bash scripts/verify-reproducible.sh .#docs"
               echo ""
@@ -306,9 +328,10 @@
       checks = forEachSystem (
         {
           pkgs,
+          system,
         }:
         let
-          packages = self.packages.${pkgs.system};
+          packages = self.packages.${system};
         in
         {
           inherit (packages) default lint docs;
@@ -316,6 +339,6 @@
         }
       );
 
-      formatter = forEachSystem ({ pkgs }: pkgs.nixfmt-rfc-style);
+      formatter = forEachSystem ({ pkgs, ... }: pkgs.nixfmt);
     };
 }

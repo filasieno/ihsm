@@ -23,11 +23,13 @@ lib-cov
 
 # Dependencies
 node_modules/
+node_modules.bak/
 jspm_packages/
 
-# TypeScript
+# TypeScript — compiled library + project-reference cache (never commit)
+/lib/
+/.tsc/
 *.tsbuildinfo
-.tsc
 .t
 
 # Caches
@@ -52,32 +54,24 @@ jspm_packages/
 *.tgz
 .yarn-integrity
 
-# Build output
-/lib
-/build
-/types
-dist
-**.map
-/lib/**/*.js
+
+# Compiled JS next to sources (lib/ is the only publishable JS output)
 /src/**/*.js
-**.d.ts
-!tutorials/_site/**/*
+**.map
 
 # Nix build symlinks (nix build -o result, result-2, …)
 result*/
 **/result*/
 
-# Documentation (generated — Docusaurus static site + cache)
+# Docusaurus — generated site (sources: website/docs-src/, tutorials/, reference/)
 /docs-build/
-/tutorials/_site/.docusaurus/
+/website/docs/
+/website/.docusaurus/
+/website/sidebars.ts
+/website/static/img/plantuml/
 
-# Legacy generated docs (local only)
-/docs/
-/.typedoc-out/
-
-# IDE
-.idea
-/.vscode/
+# IDE — .vscode/ is committed; ignore other local editor files
+.idea/
 *.code-workspace
 
 # Misc

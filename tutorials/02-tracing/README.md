@@ -22,7 +22,7 @@ state PingTop {
 
 Tracing is orthogonal to state structure — same chart with observability layered on.
 
-Shared collector (used in specs under `tutorials/`) lives in `tutorials/_shared/trace.ts`:
+Shared collector (used in specs under `tutorials/`) lives in `tutorials/shared/trace.ts`:
 
 ```typescript
 export class CollectingTraceWriter implements HsmTraceWriter {

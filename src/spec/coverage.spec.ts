@@ -110,6 +110,8 @@ class InitOnEntryThrowsTransition extends InitTransitionTop {
 	}
 }
 
+void InitOnEntryThrowsTransition;
+
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`init onEntry throws HsmTransitionError (traceLevel = ${traceLevel})`, () => {
 		beforeEach(() => clearLastError());

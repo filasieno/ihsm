@@ -1,4 +1,4 @@
-import { singleSenderTutorial } from '../_shared/interactive-helpers';
+import { singleSenderTutorial } from '../shared/interactive-helpers';
 import { DeepTop } from './machine';
 
 const transitionMessages = ['tick', 'goSiblingWest', 'goParentWest', 'goAncestorWest', 'goRoot', 'goSelfWest', 'goCrossToLeafEastB', 'goCrossToBranchEast', 'goCrossToMidEast', 'goSiblingEast', 'goCrossToLeafWestB', 'goAsyncCrossEast', 'armFailExit'] as const;

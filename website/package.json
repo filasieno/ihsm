@@ -3,9 +3,10 @@
 	"private": true,
 	"version": "0.0.19",
 	"scripts": {
+		"prebuild": "node ../scripts/prepare-website-docs.mjs",
+		"prestart": "node ../scripts/prepare-website-docs.mjs",
 		"start": "docusaurus start",
-		"build": "docusaurus build --out-dir ../../docs-build",
-		"typecheck": "tsc --noEmit"
+		"build": "docusaurus build --out-dir ../docs-build"
 	},
 	"dependencies": {
 		"@docusaurus/core": "^3.10.1",
@@ -16,11 +17,9 @@
 	},
 	"devDependencies": {
 		"@docusaurus/module-type-aliases": "^3.10.1",
-		"@docusaurus/tsconfig": "^3.10.1",
 		"@docusaurus/types": "^3.10.1",
 		"@types/react": "^19.2.15",
 		"@types/react-dom": "^19.2.3",
-		"swc-loader": "^0.2.7",
-		"typescript": "^6.0.3"
+		"swc-loader": "^0.2.7"
 	}
 }

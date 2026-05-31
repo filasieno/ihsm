@@ -1,4 +1,4 @@
-import { singleSenderTutorial } from '../_shared/interactive-helpers';
+import { singleSenderTutorial } from '../shared/interactive-helpers';
 import { ReminderTop } from './machine';
 
 export const interactive = singleSenderTutorial({

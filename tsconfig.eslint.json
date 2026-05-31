@@ -1,5 +1,10 @@
 {
-	"extends": "./tsconfig.json",
-	"include": ["src/**/*"],
-	"exclude": ["lib", "node_modules", "docs"]
+	"extends": "./tsconfig.base.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"lib": ["ES2022"],
+		"types": ["node", "mocha"]
+	},
+	"include": ["src/**/*.ts", "tutorials/**/*.ts"],
+	"exclude": ["lib", "node_modules", "website", "docs-build", ".tsc"]
 }

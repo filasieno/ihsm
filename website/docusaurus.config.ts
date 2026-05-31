@@ -6,8 +6,8 @@ import type { Config, LoadContext, Plugin } from '@docusaurus/types';
 
 const require = createRequire(import.meta.url);
 const siteDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.join(siteDir, '../..');
-const tutorialsDir = path.join(siteDir, '..');
+const repoRoot = path.join(siteDir, '..');
+const tutorialsDir = path.join(repoRoot, 'tutorials');
 
 function ihsmSourcesPlugin(_context: LoadContext): Plugin {
 	return {
@@ -28,6 +28,9 @@ function ihsmSourcesPlugin(_context: LoadContext): Plugin {
 							use: {
 								loader: require.resolve('swc-loader'),
 								options: {
+									// Chained after Docusaurus babel-loader in dev; emit maps babel accepts.
+									parseMap: true,
+									sourceMaps: true,
 									jsc: {
 										parser: {
 											syntax: 'typescript',
@@ -67,7 +70,12 @@ const config: Config = {
 	organizationName: 'filasieno',
 	projectName: 'ihsm',
 	onBrokenLinks: 'throw',
-	onBrokenMarkdownLinks: 'warn',
+	onBrokenAnchors: 'throw',
+	markdown: {
+		hooks: {
+			onBrokenMarkdownLinks: 'throw',
+		},
+	},
 	i18n: { defaultLocale: 'en', locales: ['en'] },
 	presets: [
 		[
@@ -77,7 +85,7 @@ const config: Config = {
 					path: 'docs',
 					routeBasePath: '/',
 					sidebarPath: './sidebars.ts',
-					editUrl: 'https://github.com/filasieno/ihsm/tree/master/tutorials/_site/',
+					editUrl: 'https://github.com/filasieno/ihsm/tree/master/website/',
 				},
 				blog: false,
 				theme: {
@@ -92,8 +100,12 @@ const config: Config = {
 			title: 'ihsm',
 			items: [
 				{ to: '/', label: 'Home', position: 'left' },
-				{ to: '/reference', label: 'Reference', position: 'left' },
-				{ to: '/tutorials', label: 'Tutorials', position: 'left' },
+				{
+					type: 'docSidebar',
+					sidebarId: 'docs',
+					position: 'left',
+					label: 'Documentation',
+				},
 				{
 					href: 'https://github.com/filasieno/ihsm',
 					label: 'GitHub',

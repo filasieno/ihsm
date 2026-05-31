@@ -1,19 +1,24 @@
 {
-	"extends": "./tsconfig.json",
+	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
+		"composite": true,
+		"declaration": true,
+		"emitDeclarationOnly": true,
+		"declarationMap": false,
+		"outDir": "./.tsc/tutorials",
+		"rootDir": ".",
+		"tsBuildInfoFile": "./.tsc/tutorials.tsbuildinfo",
 		"module": "commonjs",
 		"moduleResolution": "bundler",
-		"noEmit": true,
-		"rootDir": ".",
 		"types": ["mocha", "node"]
 	},
 	"include": [
 		"tutorials/**/machine.ts",
 		"tutorials/**/interactive.ts",
 		"tutorials/**/trace-*.ts",
-		"tutorials/_shared/trace.ts",
-		"tutorials/_shared/interactive-helpers.ts",
-		"tutorials/_shared/interactive-types.ts"
+		"tutorials/shared/trace.ts",
+		"tutorials/shared/interactive-helpers.ts",
+		"tutorials/shared/interactive-types.ts"
 	],
-	"exclude": ["./lib", "node_modules", "benchmark", "src/spec"]
+	"references": [{ "path": "./tsconfig.lib.json" }]
 }

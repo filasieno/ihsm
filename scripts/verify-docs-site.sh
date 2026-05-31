@@ -13,5 +13,13 @@ test -f "$DIST/tutorials/17-post-now/index.html"
 grep -q 'Reading the trace' "$DIST/tutorials/01-hello-state-machine/index.html"
 grep -q 'Key concepts' "$DIST/reference/index.html"
 grep -q 'makeHsm' "$DIST/reference/index.html"
+grep -q 'UML state diagram' "$DIST/tutorials/01-hello-state-machine/index.html"
+grep -q 'UML state diagram' "$DIST/reference/index.html"
+if grep -q '@startuml' "$DIST/tutorials/01-hello-state-machine/index.html"; then
+	echo "ERROR: PlantUML source leaked into HTML — diagrams were not rendered" >&2
+	exit 1
+fi
+test -f "$DIST/img/plantuml/01-hello-state-machine-0.svg"
+test -f "$DIST/img/plantuml/reference-0.svg"
 
 echo "Documentation site output OK ($DIST)"

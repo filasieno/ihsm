@@ -9,19 +9,26 @@ export default tseslint.config(
 	{
 		ignores: [
 			'lib/**',
+			'.tsc/**',
 			'coverage/**',
 			'.typedoc-out/**',
+			'docs-build/**',
 			'node_modules/**',
+			'node_modules.bak/**',
 			'scripts/**',
-			'tutorials/_site/**',
+			'website/docs/**',
+			'website/**',
 		],
 	},
 	{
-		files: ['**/*.ts'],
+		files: ['src/**/*.ts', 'tutorials/**/*.ts'],
 		rules: {
 			'@typescript-eslint/no-explicit-any': 'off',
 			'@typescript-eslint/explicit-function-return-type': 'off',
-			'@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+			'@typescript-eslint/no-unused-vars': [
+				'warn',
+				{ argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+			],
 			'@typescript-eslint/no-empty-object-type': 'off',
 			'@typescript-eslint/no-unsafe-function-type': 'off',
 			'no-prototype-builtins': 'off',

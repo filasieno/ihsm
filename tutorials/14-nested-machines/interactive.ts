@@ -1,6 +1,6 @@
 import { HsmTraceLevel } from '../../src';
-import type { CoordinatorRuntime, TutorialInteractiveMeta } from '../_shared/interactive-types';
-import { CollectingTraceWriter } from '../_shared/trace';
+import type { CoordinatorRuntime, TutorialInteractiveMeta } from '../shared/interactive-types';
+import { CollectingTraceWriter } from '../shared/trace';
 import { createOrderCoordinator } from './machine';
 
 function createCoordinatorRuntime(): CoordinatorRuntime {

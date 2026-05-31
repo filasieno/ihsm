@@ -1,9 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, makeHsm, HsmInitialState, HsmStateClass, HsmTopState, HsmTraceLevel, HsmTraceWriter } from '../';
+import { Hsm, makeHsm, HsmInitialState, HsmTopState } from '../';
 import { clearLastError, TRACE_LEVELS } from './spec.utils';
-
-type State = HsmStateClass<Report>;
 
 class Report {
 	steps: string[] = [];

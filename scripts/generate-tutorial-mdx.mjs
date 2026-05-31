@@ -1,39 +1,30 @@
 #!/usr/bin/env node
 /**
  * Merge tutorial README prose with an embedded InteractiveTutorial on each docs page.
- * Source: tutorials/NN-name/README.md → tutorials/_site/docs/tutorials/NN-name.mdx
+ * Source: tutorials/NN-name/README.md → website/docs/tutorials/NN-name.mdx
+ * Also regenerates website/sidebars.ts tutorial items.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { plantumlAssetDir, plantumlUrlPrefix, renderPlantumlInMarkdown } from './render-plantuml.mjs';
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tutorialsDir = path.join(repoRoot, 'tutorials');
-const outDir = path.join(tutorialsDir, '_site/docs/tutorials');
-
-/** @type {Record<string, string>} */
-const titles = {
-	'01-hello-state-machine': '01 · Hello state machine',
-	'02-tracing': '02 · Tracing',
-	'03-context': '03 · Context',
-	'04-protocol-typing': '04 · Protocol typing',
-	'05-hierarchy': '05 · Hierarchy',
-	'07-internal-transitions': '07 · Internal transitions',
-	'08-post-and-sync': '08 · post and sync',
-	'09-deferred-post': '09 · deferredPost',
-	'10-call-services': '10 · call services',
-	'11-restore': '11 · restore',
-	'12-error-recovery': '12 · Error recovery',
-	'13-async-handlers': '13 · Async handlers',
-	'14-nested-machines': '14 · Nested machines',
-	'15-complex-workflow': '15 · Complex workflow',
-	'16-then': '16 · then()',
-	'17-post-now': '17 · postNow()',
-};
+const outDir = path.join(repoRoot, 'website/docs/tutorials');
+const sidebarsPath = path.join(repoRoot, 'website/sidebars.ts');
 
 const playgroundBlock = `
 <InteractiveTutorial meta={interactive} />
 `;
+
+function titleFromReadme(readmeBody, tutorialId) {
+	const match = readmeBody.match(/^#\s+(.+)\s*$/m);
+	if (!match) {
+		throw new Error(`${tutorialId}: README.md missing level-1 heading`);
+	}
+	return match[1].trim();
+}
 
 function transformMarkdown(body, tutorialId) {
 	let text = body;
@@ -68,25 +59,29 @@ function transformMarkdown(body, tutorialId) {
 		''
 	);
 
+	text = text.replace(/tutorials\/_shared\//g, 'tutorials/shared/');
+
 	if (text.includes('## Reading the trace')) {
 		text = text.replace(/^## Reading the trace\n/m, `## Reading the trace\n${playgroundBlock}\n`);
 	} else {
 		text = text.replace(/^## Verify\n/m, `## Try it\n${playgroundBlock}\n## Verify\n`);
 	}
 
+	text = renderPlantumlInMarkdown(text, {
+		assetDir: plantumlAssetDir(repoRoot),
+		urlPrefix: plantumlUrlPrefix,
+		fileBase: tutorialId,
+	});
+
 	return text.trimEnd() + '\n';
 }
 
 function generateMdx(tutorialId, readmeBody) {
-	const title = titles[tutorialId];
-	if (!title) {
-		throw new Error(`Missing title mapping for ${tutorialId}`);
-	}
-
+	const title = titleFromReadme(readmeBody, tutorialId);
 	const body = transformMarkdown(readmeBody, tutorialId);
 
 	return `---
-title: "${title}"
+title: "${title.replace(/"/g, '\\"')}"
 id: ${tutorialId}
 slug: /tutorials/${tutorialId}
 ---
@@ -97,6 +92,59 @@ import { interactive } from '@tutorials/${tutorialId}/interactive';
 # ${title}
 
 ${body}`;
+}
+
+function writeSidebars(tutorialIds) {
+	const items = tutorialIds.map(id => `'tutorials/${id}'`).join(', ');
+	const content = `import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
+
+// GENERATED — unified docs sidebar (reference + tutorials)
+const sidebars: SidebarsConfig = {
+\tdocs: [
+\t\t'intro',
+\t\t{
+\t\t\ttype: 'category',
+\t\t\tlabel: 'Documentation',
+\t\t\tcollapsed: false,
+\t\t\titems: [
+\t\t\t\t'reference/reference',
+\t\t\t\t{
+\t\t\t\t\ttype: 'category',
+\t\t\t\t\tlabel: 'Tutorials',
+\t\t\t\t\tlink: { type: 'doc', id: 'tutorials/tutorial-index' },
+\t\t\t\t\titems: [${items}],
+\t\t\t\t},
+\t\t\t],
+\t\t},
+\t],
+};
+
+export default sidebars;
+`;
+	fs.writeFileSync(sidebarsPath, content);
+	console.log(`wrote ${path.relative(repoRoot, sidebarsPath)}`);
+}
+
+function updateTutorialIndex(tutorialIds) {
+	const indexPath = path.join(repoRoot, 'website/docs/tutorials/index.mdx');
+	const marker = '<!-- TUTORIAL_TABLE -->';
+	let content = fs.readFileSync(indexPath, 'utf8');
+	if (!content.includes(marker)) {
+		throw new Error(`${indexPath} missing ${marker}`);
+	}
+
+	const rows = tutorialIds.map(id => {
+		const readmePath = path.join(tutorialsDir, id, 'README.md');
+		const readmeBody = fs.readFileSync(readmePath, 'utf8');
+		const num = id.slice(0, 2);
+		const title = titleFromReadme(readmeBody, id);
+		return `| ${num} | [${title}](/tutorials/${id}) |`;
+	});
+
+	const table = ['| # | Tutorial |', '| --- | -------- |', ...rows].join('\n');
+	content = content.replace(marker, table);
+	fs.writeFileSync(indexPath, content);
+	console.log(`updated ${path.relative(repoRoot, indexPath)}`);
 }
 
 const tutorialDirs = fs
@@ -118,3 +166,6 @@ for (const tutorialId of tutorialDirs) {
 	fs.writeFileSync(outPath, mdx);
 	console.log(`wrote ${path.relative(repoRoot, outPath)}`);
 }
+
+writeSidebars(tutorialDirs);
+updateTutorialIndex(tutorialDirs);

@@ -37,6 +37,6 @@ describe('@HsmInitialState decorator', function () {
 			// eslint-disable-next-line @typescript-eslint/no-unused-vars
 			class B extends TopState {}
 			expect.fail('Should have failed');
-		} catch (e) {}
+		} catch (_e) {}
 	});
 });

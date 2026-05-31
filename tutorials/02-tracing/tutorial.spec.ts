@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { CollectingTraceWriter, expectTraceMatching } from '../_shared/trace';
+import { CollectingTraceWriter, expectTraceMatching } from '../shared/trace';
 import { Ready, createTracedPing } from './machine';
 
 describe('Tutorial 02: tracing', () => {

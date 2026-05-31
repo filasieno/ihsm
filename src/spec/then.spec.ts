@@ -130,6 +130,10 @@ class SelfLoop extends SelfLoopTop {
 	}
 }
 
+/** Retain @HsmInitialState classes for makeHsm top-state discovery (static analysis). */
+const initialStatesForDiscovery = [Boot, StepOne, BadThen, SelfLoop] as const;
+void initialStatesForDiscovery;
+
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`then (traceLevel = ${traceLevel})`, function () {
 		beforeEach(() => {

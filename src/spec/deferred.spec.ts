@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { Hsm, HsmAny, makeHsm, HsmInitialState, HsmTopState, HsmTraceLevel } from '../';
+import { Hsm, HsmAny, makeHsm, HsmInitialState, HsmTopState } from '../';
 
 import { TRACE_LEVELS } from './spec.utils';
 

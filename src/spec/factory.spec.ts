@@ -24,6 +24,6 @@ describe(`changeTraceLevelTest`, function () {
 		try {
 			new TopState();
 			expect.fail('States cannot be instantiated');
-		} catch (error) {}
+		} catch (_error) {}
 	});
 });

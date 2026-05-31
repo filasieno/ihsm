@@ -4,14 +4,14 @@ import { DoneCallback, HsmWithTracing, Task, Transition } from './defs.private';
 import { scheduleThenStep } from './dispatch-then';
 import { getInitialState, getTransitionKey, hasInitialState, asError } from './utils';
 
-class ProductionTransition<Context, Protocol extends {} | undefined, EventName extends keyof Protocol> implements Transition<Context, Protocol> {
+class ProductionTransition<Context, Protocol extends {} | undefined> implements Transition<Context, Protocol> {
 	constructor(
 		private exitList: Array<HsmStateClass<Context, Protocol>>,
 		private entryList: Array<HsmStateClass<Context, Protocol>>,
 		private finalState?: HsmStateClass<Context, Protocol>
 	) {}
 
-	async execute<EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, srcState: HsmStateClass<Context, Protocol>, dstState: HsmStateClass<Context, Protocol>): Promise<void> {
+	async execute(hsm: HsmWithTracing<Context, Protocol>, srcState: HsmStateClass<Context, Protocol>, dstState: HsmStateClass<Context, Protocol>): Promise<void> {
 		// Execute exit
 		for (const state of this.exitList) {
 			try {
@@ -42,7 +42,7 @@ class ProductionTransition<Context, Protocol extends {} | undefined, EventName e
 	}
 }
 
-function createTransition<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(srcState: HsmStateClass<Context, Protocol>, destState: HsmStateClass<Context, Protocol>): Transition<Context, Protocol> {
+function createTransition<Context, Protocol extends {} | undefined>(srcState: HsmStateClass<Context, Protocol>, destState: HsmStateClass<Context, Protocol>): Transition<Context, Protocol> {
 	const src: HsmStateClass<Context, Protocol> = srcState;
 	let dst: HsmStateClass<Context, Protocol> = destState;
 	let srcPath: HsmStateClass<Context, Protocol>[] = [];
@@ -87,7 +87,7 @@ function createTransition<Context, Protocol extends {} | undefined, EventName ex
 	srcPath = srcPath.filter(value => !value.hasOwnProperty('onExit'));
 	dstPath = dstPath.filter(value => !value.hasOwnProperty('onEntry'));
 
-	return new ProductionTransition<Context, Protocol, EventName>(srcPath, dstPath, finalState);
+	return new ProductionTransition<Context, Protocol>(srcPath, dstPath, finalState);
 }
 
 async function doTransition<Context, Protocol extends {} | undefined>(hsm: HsmWithTracing<Context, Protocol>): Promise<void> {
@@ -113,7 +113,7 @@ async function doTransition<Context, Protocol extends {} | undefined>(hsm: HsmWi
 	}
 }
 
-async function doError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, err: Error, onComplete: () => void): Promise<void> {
+async function doError<Context, Protocol extends {} | undefined>(hsm: HsmWithTracing<Context, Protocol>, err: Error, onComplete: () => void): Promise<void> {
 	hsm._transitionState = undefined; // clear next state
 	const messageHandler = hsm.currentState.prototype.onError;
 	try {
@@ -149,7 +149,7 @@ async function doUnhandledEvent<Context, Protocol extends {} | undefined, EventN
 	}
 }
 
-async function executeInit<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>): Promise<void> {
+async function executeInit<Context, Protocol extends {} | undefined>(hsm: HsmWithTracing<Context, Protocol>): Promise<void> {
 	let currState: HsmStateClass<Context, Protocol> = hsm.topState;
 	try {
 		while (true) {

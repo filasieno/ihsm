@@ -1,0 +1,26 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"composite": true,
+		"declaration": true,
+		"emitDeclarationOnly": true,
+		"declarationMap": false,
+		"outDir": "../.tsc/website",
+		"rootDir": ".",
+		"tsBuildInfoFile": "../.tsc/website.tsbuildinfo",
+		"allowJs": true,
+		"jsx": "preserve",
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"lib": ["ES2022", "DOM"],
+		"types": ["node", "@docusaurus/module-type-aliases"],
+		"paths": {
+			"@site/*": ["./src/*"],
+			"@ihsm/*": ["../src/*"],
+			"@tutorials/*": ["../tutorials/*"]
+		}
+	},
+	"include": ["src/**/*", "*.ts"],
+	"exclude": [".docusaurus", "../docs-build"],
+	"references": [{ "path": "../tsconfig.lib.json" }, { "path": "../tsconfig.tutorials.json" }]
+}
