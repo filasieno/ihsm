@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, HsmFactory, HsmInitialState, HsmStateClass, HsmTopState, HsmTraceLevel, HsmTraceWriter } from '../';
+import { Hsm, makeHsm, HsmInitialState, HsmStateClass, HsmTopState, HsmTraceLevel, HsmTraceWriter } from '../';
 import { clearLastError, TRACE_LEVELS } from './spec.utils';
 
 type State = HsmStateClass<Report>;
@@ -54,16 +54,13 @@ class End extends TopState {
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Process(traceLevel = ${traceLevel})`, () => {
 		let sm: Hsm;
-		const factory = new HsmFactory(TopState);
-		factory.traceLevel = traceLevel;
-
 		beforeEach(async () => {
 			clearLastError();
 		});
 
 		it(`run a process`, async () => {
 			const ctx = new Report();
-			sm = factory.create(ctx);
+			sm = makeHsm(TopState, ctx, true, traceLevel);
 			await sm.sync();
 			expect(sm.currentState).eq(A);
 			sm.post('start');

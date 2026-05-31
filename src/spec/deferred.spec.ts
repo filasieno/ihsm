@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { Hsm, HsmAny, HsmFactory, HsmInitialState, HsmTopState, HsmTraceLevel } from '../';
+import { Hsm, HsmAny, makeHsm, HsmInitialState, HsmTopState, HsmTraceLevel } from '../';
 
 import { TRACE_LEVELS } from './spec.utils';
 
@@ -28,11 +28,9 @@ async function sleep(millis: number): Promise<void> {
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Deferred post (traceLevel = ${traceLevel})`, function (): void {
 		let sm: Hsm<HsmAny, Protocol>;
-		const factory = new HsmFactory(TopState);
 
 		beforeEach(async () => {
-			factory.traceLevel = traceLevel;
-			sm = factory.create({});
+			sm = makeHsm(TopState, {}, true, traceLevel);
 			await sm.sync();
 		});
 

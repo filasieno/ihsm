@@ -1,4 +1,4 @@
-# Tutorial 04: Protocol Typing
+# Protocol Typing
 
 ## Problem
 
@@ -28,8 +28,6 @@ state ThermostatTop {
 
 Typing is compile-time; at runtime this is an internal transition in `Idle`.
 
-## Walkthrough
-
 The protocol is the machine’s **event vocabulary**:
 
 ```typescript
@@ -53,8 +51,7 @@ export class ThermostatTop extends HsmTopState<ThermostatCtx, ThermostatProtocol
 The factory is typed end-to-end:
 
 ```typescript
-export const thermostatFactory = new HsmFactory(ThermostatTop);
-const t = thermostatFactory.create({ celsius: 18 });
+const t = makeHsm(ThermostatTop, { celsius: 18 });
 
 t.post('setTarget', 22);   // ✓
 // t.post('setTargt', 22); // ✗ compile error: unknown event
@@ -63,7 +60,7 @@ t.post('setTarget', 22);   // ✓
 
 ## Reading the trace
 
-ihsm logs every dispatch step when `HsmTraceLevel.VERBOSE_DEBUG` is set and a custom `HsmTraceWriter` collects lines. Setup: [Tutorial 02 — Tracing](../02-tracing/README.md).
+With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
@@ -73,19 +70,9 @@ Each line is **`domain|…|StateName: message`**. Domains nest as the runtime de
 
 **What to notice:** Same internal pattern as context: `#setTarget` handler completes without a transition block.
 
-## Run the test
+## Verify
 
 ```shell
 npm run test:tutorials -- --grep 'Tutorial 04'
 ```
 
-## What you learned
-
-- `Protocol` lists events (and later, services for `call()`).
-- Wrong names and payload types fail at build time.
-- For every TypeScript mechanism involved (`keyof`, `infer`, conditional types,
-  …), read
-  [Advanced: Protocol typing](../../docs/REFERENCE.md#advanced-protocol-typing-and-compile-time-safety)
-  in the reference manual.
-
-Next: [Tutorial 05 — Hierarchy](../05-hierarchy/README.md)

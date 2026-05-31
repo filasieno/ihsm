@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { Hsm, HsmAny, HsmFactory, HsmInitialState, HsmRejectCallback, HsmResolveCallback, HsmTopState, HsmTraceLevel } from '../';
+import { Hsm, HsmAny, makeHsm, HsmInitialState, HsmRejectCallback, HsmResolveCallback, HsmTopState, HsmTraceLevel } from '../';
 
 interface Protocol {
 	getResult(resolve: (result: string) => void, reject: (error: Error) => void, value: string): void;
@@ -22,11 +22,9 @@ class A extends TopState {}
 
 describe(`call`, function (): void {
 	let sm: Hsm<HsmAny, Protocol>;
-	const factory = new HsmFactory(TopState);
 
 	beforeEach(async () => {
-		factory.traceLevel = HsmTraceLevel.VERBOSE_DEBUG;
-		sm = factory.create({});
+		sm = makeHsm(TopState, {}, true, HsmTraceLevel.VERBOSE_DEBUG);
 		await sm.sync();
 		expect(sm.currentState).equals(A);
 	});

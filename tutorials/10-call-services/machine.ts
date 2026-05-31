@@ -1,4 +1,4 @@
-import { HsmFactory, HsmInitialState, HsmRejectCallback, HsmResolveCallback, HsmTopState } from '../../src';
+import { makeHsm, HsmInitialState, HsmRejectCallback, HsmResolveCallback, HsmTopState } from '../../src';
 
 export interface WalletCtx {
 	balance: number;
@@ -7,16 +7,8 @@ export interface WalletCtx {
 export interface WalletProtocol {
 	deposit(amount: number): void;
 	getBalance(resolve: HsmResolveCallback<number>, reject: HsmRejectCallback): void;
-	fetchBalanceDelayed(
-		resolve: HsmResolveCallback<number>,
-		reject: HsmRejectCallback,
-		delayMs: number
-	): Promise<void>;
-	withdraw(
-		resolve: HsmResolveCallback<number>,
-		reject: HsmRejectCallback,
-		amount: number
-	): void;
+	fetchBalanceDelayed(resolve: HsmResolveCallback<number>, reject: HsmRejectCallback, delayMs: number): Promise<void>;
+	withdraw(resolve: HsmResolveCallback<number>, reject: HsmRejectCallback, amount: number): void;
 }
 
 export class WalletTop extends HsmTopState<WalletCtx, WalletProtocol> implements WalletProtocol {
@@ -30,11 +22,7 @@ export class WalletTop extends HsmTopState<WalletCtx, WalletProtocol> implements
 	}
 
 	/** Async service — return a Promise; call resolve/reject after await. */
-	async fetchBalanceDelayed(
-		resolve: HsmResolveCallback<number>,
-		_reject: HsmRejectCallback,
-		delayMs: number
-	): Promise<void> {
+	async fetchBalanceDelayed(resolve: HsmResolveCallback<number>, _reject: HsmRejectCallback, delayMs: number): Promise<void> {
 		await this.sleep(delayMs);
 		resolve(this.ctx.balance);
 	}
@@ -53,8 +41,6 @@ export class WalletTop extends HsmTopState<WalletCtx, WalletProtocol> implements
 @HsmInitialState
 export class Open extends WalletTop {}
 
-export const walletFactory = new HsmFactory(WalletTop);
-
 export function createWallet(initialBalance: number) {
-	return walletFactory.create({ balance: initialBalance });
+	return makeHsm(WalletTop, { balance: initialBalance });
 }

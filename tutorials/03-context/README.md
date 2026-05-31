@@ -1,4 +1,4 @@
-# Tutorial 03: Context
+# Context
 
 ## Problem
 
@@ -23,8 +23,6 @@ state CounterTop {
 ```
 
 Internal transitions: every event stays in `Running`; only `ctx.value` changes.
-
-## Walkthrough
 
 Context holds mutable domain fields:
 
@@ -60,10 +58,10 @@ One concrete state is enough when behavior does not depend on mode:
 export class Running extends CounterTop {}
 ```
 
-Factory seeds initial data:
+makeHsm seeds initial data:
 
 ```typescript
-const counter = counterFactory.create({ value: 10, step: 5 });
+const counter = makeHsm(CounterTop, { value: 10, step: 5 });
 await counter.sync();
 
 counter.post('increment');
@@ -73,7 +71,7 @@ await counter.sync();
 
 ## Reading the trace
 
-ihsm logs every dispatch step when `HsmTraceLevel.VERBOSE_DEBUG` is set and a custom `HsmTraceWriter` collects lines. Setup: [Tutorial 02 — Tracing](../02-tracing/README.md).
+With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
@@ -83,15 +81,9 @@ Each line is **`domain|…|StateName: message`**. Domains nest as the runtime de
 
 **What to notice:** `#increment` runs handler + `execute` domain but **no** `requested transition` — internal transition; only `ctx.value` changes.
 
-## Run the test
+## Verify
 
 ```shell
 npm run test:tutorials -- --grep 'Tutorial 03'
 ```
 
-## What you learned
-
-- `ctx` is domain data, not the state name.
-- Omitting `transition()` keeps the current state (internal transition).
-
-Next: [Tutorial 04 — Protocol typing](../04-protocol-typing/README.md)

@@ -1,4 +1,4 @@
-import { HsmFactory, HsmInitialState, HsmRejectCallback, HsmResolveCallback, HsmTopState } from '../../src';
+import { makeHsm, HsmInitialState, HsmRejectCallback, HsmResolveCallback, HsmTopState } from '../../src';
 
 export type OrderPhase = 'draft' | 'validating' | 'approved' | 'rejected' | 'completed';
 
@@ -33,6 +33,13 @@ export class Draft extends CheckoutTop {
 		this.ctx.phase = 'validating';
 		await this.sleep(10);
 		this.ctx.validationNotes.push('fraud-check-ok');
+		this.transition(Validating);
+	}
+}
+
+/** Decision pseudo state — guard runs in `then()` after async validation. */
+export class Validating extends CheckoutTop {
+	then(): void {
 		if (this.ctx.amount <= this.ctx.limit) {
 			this.transition(Approved);
 		} else {
@@ -59,10 +66,8 @@ export class Completing extends CheckoutTop {
 	}
 }
 
-export const checkoutFactory = new HsmFactory(CheckoutTop);
-
 export function createCheckout(orderId: string, amount: number, limit: number) {
-	return checkoutFactory.create({
+	return makeHsm(CheckoutTop, {
 		orderId,
 		amount,
 		limit,

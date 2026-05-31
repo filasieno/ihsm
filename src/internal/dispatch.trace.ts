@@ -1,7 +1,36 @@
-import { HsmTopState, HsmEventHandlerError, HsmEventHandlerName, HsmEventHandlerPayload, HsmFatalErrorState, HsmInitializationError, HsmFatalError, HsmRuntimeError, HsmStateClass, HsmTransitionError, HsmUnhandledEventError } from '../';
+import { HsmTopState, HsmEventHandlerError, HsmEventHandlerName, HsmEventHandlerPayload, HsmThenDepthError, HsmFatalErrorState, HsmInitializationError, HsmFatalError, HsmRuntimeError, HsmStateClass, HsmTransitionError, HsmUnhandledEventError } from '../';
 
 import { DoneCallback, HsmWithTracing, Task, Transition } from './defs.private';
+import { ThenTrace, scheduleThenStep } from './dispatch-then';
 import { asError, getInitialState, getTransitionKey, hasInitialState, quoteUnknown } from './utils';
+
+function thenTrace<Context, Protocol extends {} | undefined>(hsm: HsmWithTracing<Context, Protocol>): ThenTrace {
+	return {
+		start(stateName: string): void {
+			hsm._tracePush('then', `started ${stateName}.then()`);
+		},
+		done(stateName: string): void {
+			hsm._traceWrite(`${stateName}.then() done`);
+			hsm._tracePopDone(`${stateName}.then() successful`);
+		},
+		error(stateName: string, cause: unknown): void {
+			hsm._tracePopError(`${stateName}.then() has thrown ${quoteUnknown(cause)}`);
+		},
+		depthExceeded(): void {
+			hsm._tracePopError('then() chain exceeded maximum depth');
+		},
+	};
+}
+
+function finishEventDispatch<Context, Protocol extends {} | undefined>(hsm: HsmWithTracing<Context, Protocol>): void {
+	hsm._traceWrite(`end event dispatch`);
+	hsm._currentEventName = undefined;
+	hsm._currentEventPayload = undefined;
+}
+
+function scheduleCompleteTransitions<Context, Protocol extends {} | undefined>(hsm: HsmWithTracing<Context, Protocol>, onComplete: () => void): void {
+	scheduleThenStep(hsm, doTransition, thenTrace(hsm), 0, onComplete);
+}
 
 /** @internal */
 class TraceTransition<Context, Protocol extends {} | undefined, EventName extends keyof Protocol> implements Transition<Context, Protocol> {
@@ -149,7 +178,7 @@ function lookupErrorHandler<Context, Protocol extends {} | undefined, EventName 
 }
 
 /** @internal */
-async function doError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, err: Error): Promise<void> {
+async function doError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, err: Error, onComplete: () => void): Promise<void> {
 	hsm._transitionState = undefined;
 	hsm._tracePush(`error recovery`, `started error recovery`);
 	const messageHandler = lookupErrorHandler(hsm);
@@ -160,25 +189,24 @@ async function doError<Context, Protocol extends {} | undefined, EventName exten
 			await result;
 		}
 		hsm._tracePopDone('error handler execution successful');
-		await doTransition(hsm);
+		scheduleCompleteTransitions(hsm, () => {
+			hsm._tracePopDone('error recovery successful');
+			onComplete();
+		});
 	} catch (recoveryErr) {
 		hsm._tracePopError(`error handler execution failure: ${quoteUnknown(recoveryErr)}`);
-		if (recoveryErr instanceof HsmTransitionError) {
+		if (recoveryErr instanceof HsmTransitionError || recoveryErr instanceof HsmThenDepthError) {
 			hsm._tracePopError(`error recovery failure: ${quoteUnknown(recoveryErr)}`);
 			throw recoveryErr;
 		}
 		const err = asError(recoveryErr);
 		hsm.transition(HsmFatalErrorState);
-		try {
-			await doTransition(hsm);
+		scheduleCompleteTransitions(hsm, () => {
 			hsm._tracePopError(`error recovery failure: ${quoteUnknown(err)}`);
-		} catch (_transitionError) {
-			hsm._tracePopError(`error recovery failure: ${quoteUnknown(err)}`);
-			throw new HsmFatalError(hsm, err);
-		}
+			onComplete();
+		});
 		throw new HsmFatalError(hsm, err);
 	}
-	hsm._tracePopDone('error recovery successful');
 }
 
 /** @internal */
@@ -202,7 +230,7 @@ function lookupUnhandled<Context, Protocol extends {} | undefined, EventName ext
 }
 
 /** @internal */
-async function doUnhandledEvent<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, error: HsmUnhandledEventError<Context, Protocol, EventName>): Promise<void> {
+async function doUnhandledEvent<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, error: HsmUnhandledEventError<Context, Protocol, EventName>, onComplete: () => void): Promise<void> {
 	hsm._tracePush('unhandled recovery', `started unhandled event recovery`);
 	const messageHandler = lookupUnhandled(hsm);
 	try {
@@ -212,20 +240,24 @@ async function doUnhandledEvent<Context, Protocol extends {} | undefined, EventN
 			await result;
 		}
 		hsm._tracePopDone('unhandled handler execution successful');
-		await doTransition(hsm);
-		hsm._tracePopDone('unhandled event recovery successful');
+		scheduleCompleteTransitions(hsm, () => {
+			hsm._tracePopDone('unhandled event recovery successful');
+			onComplete();
+		});
 	} catch (recoveryErr) {
 		hsm._tracePopError(`unhandled event recovery failure: ${quoteUnknown(recoveryErr)}`);
 
-		if (recoveryErr instanceof HsmTransitionError) {
+		if (recoveryErr instanceof HsmTransitionError || recoveryErr instanceof HsmThenDepthError) {
 			hsm.currentState = HsmFatalErrorState;
 			hsm._tracePopError(`unhandled event recovery failure: ${quoteUnknown(recoveryErr)}`);
 			throw recoveryErr;
 		}
 
 		try {
-			await doError(hsm, asError(recoveryErr));
-			hsm._tracePopDone('unhandled event recovery successful');
+			await doError(hsm, asError(recoveryErr), () => {
+				hsm._tracePopDone('unhandled event recovery successful');
+				onComplete();
+			});
 		} catch (nestedErr) {
 			hsm._tracePopError(`unhandled event recovery failure: ${quoteUnknown(nestedErr)}`);
 			throw nestedErr;
@@ -280,6 +312,9 @@ async function executeInit<Context, Protocol extends {} | undefined, EventName e
 			hsm._tracePopDone(`final state is ${currState.name}`);
 			hsm.currentState = currState;
 		} catch (cause) {
+			if (cause instanceof HsmTransitionError || cause instanceof HsmThenDepthError) {
+				throw cause;
+			}
 			hsm._tracePopError(`initialization failed from top state '${hsm.topState.name}' as ${currState.name}.onEntry() handler has raised ${quoteUnknown(cause)}; final state is ${HsmFatalErrorState.name}`);
 			hsm.currentState = HsmFatalErrorState;
 			throw new HsmInitializationError(hsm, currState, asError(cause));
@@ -302,11 +337,14 @@ async function dispatchEvent<Context, Protocol extends {} | undefined, EventName
 		if (!eventHandler) {
 			hsm._traceWrite(`event #${eventLabel} is unhandled in state ${hsm.currentStateName}`);
 			try {
-				await doUnhandledEvent(hsm, new HsmUnhandledEventError(hsm));
-				hsm._tracePopDone('event dispatch successful');
+				await doUnhandledEvent(hsm, new HsmUnhandledEventError(hsm), () => {
+					hsm._tracePopDone('event dispatch successful');
+					finishEventDispatch(hsm);
+				});
 				return;
 			} catch (recoveryErr) {
 				hsm._tracePopError(`event dispatch failed: ${quoteUnknown(recoveryErr)}`);
+				finishEventDispatch(hsm);
 				throw recoveryErr;
 			}
 		}
@@ -318,46 +356,59 @@ async function dispatchEvent<Context, Protocol extends {} | undefined, EventName
 				await result;
 			}
 			hsm._tracePopDone('event handler execution successful');
-			await doTransition(hsm);
-			hsm._tracePopDone(`event dispatch successful`);
+			scheduleCompleteTransitions(hsm, () => {
+				hsm._tracePopDone(`event dispatch successful`);
+				finishEventDispatch(hsm);
+			});
 		} catch (recoveryErr) {
 			hsm._tracePopError(quoteUnknown(recoveryErr));
 			if (recoveryErr instanceof HsmUnhandledEventError) {
 				hsm._traceWrite(`event #${eventLabel} is unhandled in state ${hsm.currentStateName}`);
 				try {
-					await doUnhandledEvent(hsm, recoveryErr);
-					hsm._tracePopDone('event dispatch successful');
+					await doUnhandledEvent(hsm, recoveryErr, () => {
+						hsm._tracePopDone('event dispatch successful');
+						finishEventDispatch(hsm);
+					});
 					return;
 				} catch (nestedErr) {
 					hsm._tracePopError(`event dispatch failed: ${quoteUnknown(nestedErr)}`);
+					finishEventDispatch(hsm);
 					throw nestedErr;
 				}
-			} else if (recoveryErr instanceof HsmTransitionError) {
+			} else if (recoveryErr instanceof HsmTransitionError || recoveryErr instanceof HsmThenDepthError) {
 				hsm._tracePopError(`event dispatch failed: ${quoteUnknown(recoveryErr)}`);
+				finishEventDispatch(hsm);
 				throw recoveryErr;
 			} else {
 				try {
-					await doError(hsm, asError(recoveryErr));
-					hsm._tracePopDone('event dispatch successful');
+					await doError(hsm, asError(recoveryErr), () => {
+						hsm._tracePopDone('event dispatch successful');
+						finishEventDispatch(hsm);
+					});
 				} catch (nestedErr) {
 					hsm._tracePopError(`event dispatch failed: ${quoteUnknown(nestedErr)}`);
+					finishEventDispatch(hsm);
 					throw nestedErr;
 				}
 			}
 		}
-	} finally {
-		hsm._traceWrite(`end event dispatch`);
-		hsm._currentEventName = undefined;
-		hsm._currentEventPayload = undefined;
-		hsm._transitionState = undefined;
+	} catch (err) {
+		finishEventDispatch(hsm);
+		throw err;
 	}
 }
 
 export function createInitTask<DispatchContext, DispatchProtocol extends {} | undefined>(hsm: HsmWithTracing<DispatchContext, DispatchProtocol>): Task {
 	return (done: DoneCallback): void => {
 		executeInit(hsm)
-			.catch((err: unknown) => hsm.dispatchErrorCallback(hsm, asError(err)))
-			.finally(() => done());
+			.then(() => {
+				scheduleCompleteTransitions(hsm, () => {});
+				done();
+			})
+			.catch((err: unknown) => {
+				hsm.dispatchErrorCallback(hsm, asError(err));
+				done();
+			});
 	};
 }
 

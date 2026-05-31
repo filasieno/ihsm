@@ -1,4 +1,4 @@
-import { HsmFactory, HsmInitialState, HsmTopState } from '../../src';
+import { makeHsm, HsmInitialState, HsmTopState } from '../../src';
 
 export interface ReminderCtx {
 	message: string;
@@ -22,8 +22,6 @@ export class ReminderTop extends HsmTopState<ReminderCtx, ReminderProtocol> impl
 @HsmInitialState
 export class Waiting extends ReminderTop {}
 
-export const reminderFactory = new HsmFactory(ReminderTop);
-
 export function createReminder() {
-	return reminderFactory.create({ message: '' });
+	return makeHsm(ReminderTop, { message: '' });
 }

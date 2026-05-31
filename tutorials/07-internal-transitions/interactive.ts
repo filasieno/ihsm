@@ -1,0 +1,23 @@
+import { singleSenderTutorial } from '../_shared/interactive-helpers';
+import { LampTop } from './machine';
+
+export const interactive = singleSenderTutorial({
+	title: 'Lamp machine',
+	topState: LampTop,
+	initialCtx: { brightness: 50, entryCount: 0 },
+	messages: [
+		{
+			id: 'dim',
+			label: 'dim',
+			kind: 'post',
+			fields: [{ name: 'delta', label: 'Delta', type: 'number', default: 10 }],
+		},
+		{
+			id: 'brighten',
+			label: 'brighten',
+			kind: 'post',
+			fields: [{ name: 'delta', label: 'Delta', type: 'number', default: 10 }],
+		},
+	],
+	stateSummary: sm => `State: ${sm.currentStateName} · brightness: ${sm.ctx.brightness} · entryCount: ${sm.ctx.entryCount}`,
+});

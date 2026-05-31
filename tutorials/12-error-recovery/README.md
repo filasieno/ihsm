@@ -1,4 +1,4 @@
-# Tutorial 12: Error Recovery
+# Error Recovery
 
 ## Problem
 
@@ -22,8 +22,6 @@ state WorkerTop {
 ```
 
 Recovery keeps the machine in `Working` when hooks swallow the failure.
-
-## Walkthrough
 
 `risky` simulates a fault; `unknown` triggers unhandled:
 
@@ -66,7 +64,7 @@ await worker.sync();
 
 ## Reading the trace
 
-ihsm logs every dispatch step when `HsmTraceLevel.VERBOSE_DEBUG` is set and a custom `HsmTraceWriter` collects lines. Setup: [Tutorial 02 — Tracing](../02-tracing/README.md).
+With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
@@ -76,15 +74,9 @@ Each line is **`domain|…|StateName: message`**. Domains nest as the runtime de
 
 **What to notice:** `#risky` throws → `error recovery` domain → `onError` → machine stays in `Working` when recovery succeeds.
 
-## Run the test
+## Verify
 
 ```shell
 npm run test:tutorials -- --grep 'Tutorial 12'
 ```
 
-## What you learned
-
-- Typed errors carry `eventName`, `eventPayload`, `hsmContext`.
-- Failed recovery lands in `HsmFatalErrorState`.
-
-Next: [Tutorial 13 — Async handlers](../13-async-handlers/README.md)

@@ -1,237 +1,198 @@
-# Tutorial 05: Deep hierarchy and reading statecharts
+# Hierarchy and transitions
 
 ## Problem
 
-Flat state names hide structure. Without a shared mental model for **nested states**,
-**initial substates**, and **LCA transitions**, it is hard to predict which
-`onEntry` / `onExit` hooks run — or why a chart “jumps” to an unexpected leaf.
+Hierarchy alone does not explain **when** `onEntry` and `onExit` run. Crossing branches requires cleanup and setup in **LCA order** — easy to get wrong by hand. You need a shallow example first, then a shared deep machine where every topological case is visible.
 
 ## Solution
 
-Model a **deep class hierarchy** (four levels under the root). Each tutorial
-section fires one transition kind; `ctx.trace` records `enter:` / `exit:` / `handler:`
-lines so you can compare with the reference manual (§4–§5).
+Call `this.transition(Destination)`. ihsm finds the **lowest common ancestor** on the class prototype chain, runs **`onExit`** from the current leaf up to (not including) the LCA, then **`onEntry`** down toward the target — following `@HsmInitialState` chains when the target is a composite.
 
-Hands-on reference: [§4 Reading statecharts](../../docs/REFERENCE.md#reading-uml-statecharts) ·
-[§5 Transition taxonomy](../../docs/REFERENCE.md#transition-taxonomy).
+Two machines in this topic:
 
-## UML statechart (overview)
+| Machine | File | Purpose |
+| ------- | ---- | ------- |
+| Shallow siblings `A → B → C` | [`trace-sibling.ts`](./trace-sibling.ts) | Entry/exit order, sibling LCA |
+| Two deep stacks | [`machine.ts`](./machine.ts) | Every transition topology |
+
+---
+
+## Entry and exit — shallow sibling chain
+
+Three siblings under one root. **LCA = `TraceTop`** for `A → B` and `B → C`; the root is never exited.
 
 ```plantuml
 @startuml
 left to right direction
-skinparam ranksep 28
-skinparam nodesep 22
-state DeepTop {
-  [*] --> BranchSouth
-  state BranchSouth {
-    [*] --> MidSouth
-    state MidSouth {
-      [*] --> LeafSouthA
-      LeafSouthA : tick / value++
-      LeafSouthA -right-> LeafSouthB : goSibling
-    }
-  }
-  state BranchNorth {
-    [*] --> MidNorth
-    state MidNorth {
-      [*] --> LeafNorthA
-      LeafNorthA -down-> LeafNorthB : (cross-branch target)
-    }
-  }
-  state BranchEast {
-    [*] --> LeafEast
-  }
+skinparam ranksep 25
+state TraceTop {
+  [*] --> A
+  A --> B : goToB
+  B --> C : goToC
 }
 @enduml
 ```
 
-**How to read this chart**
+### Expected trace
 
-| Symbol | Meaning in ihsm |
-| ------ | ---------------- |
-| `[ * ]` | Initial pseudostate — maps to `@HsmInitialState` on one child |
-| `state X { … }` | Composite — a class that has substates (inheritance children) |
-| `A --> B : event` | External transition — handler calls `this.transition(B)` |
-| `StateName : event / action` inside a box | Internal transition — handler runs, no `transition()`, no exit/entry |
-| Nested box | Outer state entered before inner; exited after inner |
-
-After `create()`, ihsm walks **outer → inner** along each composite’s initial
-chain: `DeepTop → BranchSouth → MidSouth → LeafSouthA`.
-
-## Walkthrough — machine shape
-
-Four levels under the root, three branches (South is the initial branch):
-
-```typescript
-// DeepTop → BranchSouth → MidSouth → LeafSouthA  (initial leaf)
-@HsmInitialState export class BranchSouth extends DeepTop { … }
-@HsmInitialState export class MidSouth extends BranchSouth { … }
-@HsmInitialState export class LeafSouthA extends MidSouth { … }
+```trace
+{{TRACE_SHALLOW}}
 ```
 
-Parallel branches for cross-ancestor moves:
+External transitions only (arrows). Handlers that stay in the same state use in-state `StateName : event / action` text — no self-loop arrow. See [Internal transitions](../07-internal-transitions/README.md).
+
+### Handler (state machine)
 
 ```typescript
-export class BranchNorth extends DeepTop { … }
-@HsmInitialState export class MidNorth extends BranchNorth { … }
-export class LeafNorthB extends MidNorth { … }
+export class TraceTop extends HsmTopState<TraceCtx, TraceProtocol> implements TraceProtocol {
+	onEntry(): void {
+		this.ctx.log.push('enter:Top');
+	}
+	onExit(): void {
+		this.ctx.log.push('exit:Top');
+	}
+	goToB(): void {
+		this.transition(B);
+	}
+	goToC(): void {
+		this.transition(C);
+	}
+}
 
-export class BranchEast extends DeepTop { … }
-@HsmInitialState export class LeafEast extends BranchEast { … }
-```
-
-Shared handlers live on `DeepTop` (inherited by every leaf):
-
-```typescript
-goCrossBranch(): void {
-  this.transition(LeafNorthB); // LCA = DeepTop
+@HsmInitialState
+export class A extends TraceTop {
+	onEntry(): void { this.ctx.log.push('enter:A'); }
+	onExit(): void { this.ctx.log.push('exit:A'); }
 }
 ```
 
-Tracing helper:
+`B` and `C` define their own `onEntry` / `onExit` the same way.
+
+### Client (caller)
 
 ```typescript
-onEntry(): void {
-  this.ctx.trace.push(`enter:${this.currentStateName}`);
-}
-onExit(): void {
-  this.ctx.trace.push(`exit:${this.currentStateName}`);
-}
-```
-
-## Transition catalog (with traces)
-
-Run `npm run test:tutorials -- --grep 'Tutorial 05'` — each test matches a row below.
-
-### Initialization
-
-| Event | Transition | Trace (after `await sync()`) |
-| ----- | ---------- | ------------------------------ |
-| *(create)* | Enter initial chain | `enter:DeepTop`, `enter:BranchSouth`, `enter:MidSouth`, `enter:LeafSouthA` |
-
-### Internal transition (no `transition()`)
-
-Handler runs; **no** `onExit` / `onEntry`.
-
-| Event | Trace tail |
-| ----- | ---------- |
-| `post('tick')` | `handler:tick` |
-
-Current state stays `LeafSouthA`; only `ctx.value` changes.
-
-### Child → sibling child (same parent)
-
-LCA is the parent composite (`MidSouth`). Only the two leaves exchange exit/entry.
-
-| From | To | Trace tail |
-| ---- | -- | ---------- |
-| `LeafSouthA` | `LeafSouthB` | `exit:LeafSouthA`, `enter:LeafSouthB` |
-
-### Child → parent composite
-
-Target is `MidSouth`, which has `@HsmInitialState LeafSouthA`. ihsm **descends**
-into the initial leaf again after exiting the current leaf.
-
-| From | To (requested) | Final state | Trace tail |
-| ---- | -------------- | ----------- | ---------- |
-| `LeafSouthA` | `MidSouth` | `LeafSouthA` | `exit:LeafSouthA`, `enter:LeafSouthA` |
-
-### Child → ancestor (shallower composite)
-
-| From | To | Trace tail |
-| ---- | -- | ---------- |
-| `LeafSouthB` | `BranchSouth` | `exit:LeafSouthB`, `exit:MidSouth`, `enter:MidSouth`, `enter:LeafSouthA` |
-
-`DeepTop` is **not** exited — still an ancestor of both source and target.
-
-### Child → root
-
-| From | To | Trace tail |
-| ---- | -- | ---------- |
-| `LeafSouthA` | `DeepTop` | `exit:LeafSouthA`, `exit:MidSouth`, `exit:BranchSouth`, `enter:BranchSouth`, `enter:MidSouth`, `enter:LeafSouthA` |
-
-Exits stop at the LCA (`DeepTop`); re-entry follows the **initial** chain from
-`BranchSouth` down (not a bare root with no leaf).
-
-### Child → leaf under another branch (different ancestor)
-
-LCA is `DeepTop`. Full south branch exits; north branch enters.
-
-| From | To | Trace tail |
-| ---- | -- | ---------- |
-| `LeafSouthA` | `LeafNorthB` | `exit:LeafSouthA`, `exit:MidSouth`, `exit:BranchSouth`, `enter:BranchNorth`, `enter:MidNorth`, `enter:LeafNorthB` |
-
-### Child → composite in another branch
-
-Target is `BranchEast`; runtime descends to `@HsmInitialState LeafEast`.
-
-| From | To (requested) | Final state | Trace tail |
-| ---- | -------------- | ----------- | ---------- |
-| `LeafSouthA` | `BranchEast` | `LeafEast` | `exit:LeafSouthA`, `exit:MidSouth`, `exit:BranchSouth`, `enter:BranchEast`, `enter:LeafEast` |
-
-### Self-transition
-
-| From | To | Trace tail |
-| ---- | -- | ---------- |
-| `LeafSouthA` | `LeafSouthA` | *(empty — no exit/entry)* |
-
-### Async handler, then transition
-
-`async goAsyncCross()` awaits `sleep`, then `transition(LeafNorthA)`. **`await sync()`**
-waits for the handler **and** the transition.
-
-| Step | Trace |
-| ---- | ----- |
-| Handler start | `handler:goAsyncCross:start` |
-| After await | `handler:goAsyncCross:after-await` |
-| Transition | `exit:LeafSouthA`, `exit:MidSouth`, `exit:BranchSouth`, `enter:BranchNorth`, `enter:MidNorth`, `enter:LeafNorthA` |
-
-### Errors
-
-| Scenario | What happens | `sync()` | Final state |
-| -------- | -------------- | -------- | ----------- |
-| `onExit` throws | `HsmTransitionError` → default recovery → `HsmFatalErrorState` | resolves | `HsmFatalErrorState` |
-| Unhandled event | `HsmUnhandledEventError` → `onError` rethrows → fatal | resolves | `HsmFatalErrorState` |
-
-`sync()` **drains the mailbox**; it does not reject when the default
-`dispatchErrorCallback` logs and the machine lands in `HsmFatalErrorState`.
-Use a custom callback in production if callers must observe failures.
-
-Demo:
-
-```typescript
-sm.post('armFailExit');   // next onExit will throw
+const sm = createTracer();
 await sm.sync();
-sm.post('goCrossBranch');
+// log: enter:Top, enter:A
+
+sm.post('goToB');
 await sm.sync();
-expect(sm.currentState.name).equals('HsmFatalErrorState');
+// exit:A, enter:B — TraceTop stays active
+
+sm.post('goToC');
+await sm.sync();
+// exit:B, enter:C — still no exit:Top
 ```
 
-## Reading the trace
+Chained siblings under one parent are the same rule as [03 · Sibling](./cases/03-sibling/README.md) under `MidWest` — only the depth changes.
 
-ihsm logs every dispatch step when `HsmTraceLevel.VERBOSE_DEBUG` is set and a custom `HsmTraceWriter` collects lines. Setup: [Tutorial 02 — Tracing](../02-tracing/README.md).
+---
 
-Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
+## Deep stacks — transition topology
+
+All cases share [`machine.ts`](./machine.ts) — one actor, two symmetric stacks:
+
+```
+DeepTop                          ← root / LCA for cross-stack moves
+├── StackWest  (@HsmInitialState)  ← west stack (4 levels)
+│   └── MidWest (@HsmInitialState)
+│       ├── LeafWestA (@HsmInitialState)  ← default after create()
+│       └── LeafWestB
+└── StackEast                      ← east stack (4 levels)
+    └── MidEast (@HsmInitialState)
+        ├── LeafEastA (@HsmInitialState)
+        └── LeafEastB
+```
+
+After `create()` + `await sync()`, the active leaf is **`LeafWestA`**. Handlers live on `DeepTop`; `ctx.trace` records `enter:` / `exit:` / `handler:` lines.
+
+## Full statechart (both stacks)
+
+```plantuml
+@startuml
+left to right direction
+skinparam ranksep 30
+skinparam nodesep 24
+state DeepTop {
+  [*] --> StackWest
+  state "StackWest\n(initial branch)" as StackWest {
+    [*] --> MidWest
+    state MidWest {
+      [*] --> LeafWestA
+      LeafWestA : tick / value++
+      LeafWestA -right-> LeafWestB : goSiblingWest
+      LeafWestA -down-> MidWest : goParentWest
+      LeafWestB -down-> StackWest : goAncestorWest
+      LeafWestA -up-> DeepTop : goRoot
+    }
+  }
+  state StackEast {
+    [*] --> MidEast
+    state MidEast {
+      [*] --> LeafEastA
+      LeafEastB -left-> LeafEastA : goSiblingEast
+    }
+  }
+  LeafWestA -down-> LeafEastB : goCrossToLeafEastB
+  LeafWestA -down-> StackEast : goCrossToBranchEast
+  LeafEastA -up-> LeafWestB : goCrossToLeafWestB
+}
+@enduml
+```
+
+### Expected trace
 
 ```trace
 {{TRACE}}
 ```
 
-**What to notice:** Init walks the initial chain (`DeepTop` → `BranchSouth` → `MidSouth` → `LeafSouthA`). `#tick` is internal — no transition section.
+## How ihsm applies a transition
 
-## Run the test
+1. Handler calls `this.transition(TargetStateClass)`.
+2. Runtime finds the **LCA** on the class prototype chain (`HsmTopState` is not part of your hierarchy).
+3. **`onExit`** from the current leaf **up to but not including** the LCA.
+4. **`onEntry`** from the LCA **down toward** the target; if the target is a **composite**, follow each `@HsmInitialState` until the deepest leaf.
+5. Active state is always a **leaf class**.
+
+Transition paths are **cached** keyed by `FromState=>ToState`.
+
+Reference: [§5 Transitions](../../docs/REFERENCE.md#_5-transitions) · [§5 Transition taxonomy](../../docs/REFERENCE.md#transition-taxonomy).
+
+## Transition cases
+
+| Case | Topology | From → To | LCA |
+| ---- | -------- | --------- | --- |
+| [01 · Initialization](./cases/01-initialization/README.md) | Initial chain | `create()` → `LeafWestA` | — |
+| [02 · Internal](./cases/02-internal/README.md) | No `transition()` | `LeafWestA` (stays) | — |
+| [03 · Sibling](./cases/03-sibling/README.md) | Leaf → sibling leaf | `LeafWestA` → `LeafWestB` | `MidWest` |
+| [04 · Parent](./cases/04-to-parent/README.md) | Leaf → parent composite | `LeafWestA` → `MidWest` | `MidWest` |
+| [05 · Ancestor](./cases/05-to-ancestor/README.md) | Leaf → ancestor composite | `LeafWestB` → `StackWest` | `StackWest` |
+| [06 · Root](./cases/06-to-root/README.md) | Leaf → root | `LeafWestA` → `DeepTop` | `DeepTop` |
+| [07 · Cross leaf](./cases/07-cross-leaf/README.md) | Leaf → leaf other stack | `LeafWestA` → `LeafEastB` | `DeepTop` |
+| [08 · Cross branch](./cases/08-cross-branch/README.md) | Leaf → branch composite | `LeafWestA` → `StackEast` | `DeepTop` |
+| [09 · Cross mid](./cases/09-cross-mid/README.md) | Leaf → mid composite | `LeafWestA` → `MidEast` | `DeepTop` |
+| [10 · Self](./cases/10-self/README.md) | Leaf → same leaf | `LeafWestA` → `LeafWestA` | — |
+| [11 · East sibling](./cases/11-east-sibling/README.md) | Leaf → sibling (east stack) | `LeafEastB` → `LeafEastA` | `MidEast` |
+| [12 · Cross return](./cases/12-cross-return/README.md) | East → west leaf | `LeafEastA` → `LeafWestB` | `DeepTop` |
+| [13 · Async cross](./cases/13-async-cross/README.md) | `await` then cross-stack | `LeafWestA` → `LeafEastA` | `DeepTop` |
+
+Errors (`onExit` throw, unhandled events) are in [`tutorial.spec.ts`](./tutorial.spec.ts) under `14 errors`.
+
+## Verify
 
 ```shell
 npm run test:tutorials -- --grep 'Tutorial 05'
 ```
 
-## What you learned
+One deep-stack case:
 
-- Read `[ * ]`, nested boxes, and labels as ihsm classes + `@HsmInitialState` + `transition()`.
-- Internal vs external transitions; LCA controls exit/entry lists.
-- Entering a composite always descends to its initial leaf chain.
-- `post` + `await sync()` observe async handlers and following transitions.
-- Transition and unhandled errors route to `HsmFatalErrorState` with default recovery.
+```shell
+npm run test:tutorials -- --grep '05 · 03 sibling'
+```
 
-Next: [Tutorial 06 — Entry & exit](../06-transitions-entry-exit/README.md)
+Shallow entry/exit chain:
+
+```shell
+npm run test:tutorials -- --grep '05 · entry exit'
+```
+

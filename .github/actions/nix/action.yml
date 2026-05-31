@@ -1,0 +1,14 @@
+name: Setup Nix
+description: Install Nix with flakes enabled and warm the binary cache.
+
+runs:
+  using: composite
+  steps:
+    - name: Install Nix
+      uses: DeterminateSystems/nix-installer-action@v16
+      with:
+        extra-conf: |
+          experimental-features = nix-command flakes
+
+    - name: Magic Nix cache
+      uses: DeterminateSystems/magic-nix-cache-action@v9

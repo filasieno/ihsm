@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, HsmFactory, HsmInitializationError, HsmInitialState, HsmTopState } from '../';
+import { Hsm, makeHsm, HsmInitializationError, HsmInitialState, HsmTopState } from '../';
 
 import { clearLastError, createTestDispatchErrorCallback, getLastError, TRACE_LEVELS } from './spec.utils';
 
@@ -18,18 +18,15 @@ class B extends A {
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Initialization failure (traceLevel = ${traceLevel})`, function (): void {
 		let sm: Hsm;
-		const factory = new HsmFactory(TopState);
 
 		beforeEach(async () => {
-			factory.traceLevel = traceLevel;
-			factory.dispatchErrorCallback = createTestDispatchErrorCallback(true);
 			clearLastError();
-			sm = factory.create({});
+			sm = makeHsm(TopState, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
 			await sm.sync();
 		});
 
 		it(`moves the state machine to FatalErrorState`, async () => {
-			sm = factory.create({});
+			sm = makeHsm(TopState, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
 			await sm.sync();
 			expect(sm.currentStateName).equals('HsmFatalErrorState');
 			expect(getLastError()).instanceOf(HsmInitializationError);

@@ -1,0 +1,17 @@
+LeafEastB: begin event dispatch of #goSiblingEast
+#goSiblingEast|LeafEastB: started event dispatch
+#goSiblingEast|lookup|LeafEastB: started lookup of #goSiblingEast event handler
+#goSiblingEast|lookup|LeafEastB: not found in state LeafEastB
+#goSiblingEast|lookup|LeafEastB: not found in state MidEast
+#goSiblingEast|lookup|LeafEastB: not found in state StackEast
+#goSiblingEast|lookup|LeafEastB: done: #goSiblingEast found in state DeepTop
+#goSiblingEast|execute|LeafEastB: started event handler execution
+#goSiblingEast|execute|LeafEastB: done: event handler execution successful
+#goSiblingEast|LeafEastB: requested transition from LeafEastB to LeafEastA 
+#goSiblingEast|LeafEastB: transition cache miss for LeafEastB to LeafEastA 
+#goSiblingEast|transition from LeafEastB to LeafEastA|LeafEastB: started transition from LeafEastB to LeafEastA 
+#goSiblingEast|transition from LeafEastB to LeafEastA|LeafEastB: LeafEastB.onExit() done
+#goSiblingEast|transition from LeafEastB to LeafEastA|LeafEastB: LeafEastA.onEntry() done
+#goSiblingEast|transition from LeafEastB to LeafEastA|LeafEastB: done: final state is LeafEastA
+#goSiblingEast|LeafEastA: done: event dispatch successful
+LeafEastA: end event dispatch

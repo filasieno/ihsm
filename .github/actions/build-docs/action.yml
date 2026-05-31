@@ -1,35 +1,19 @@
 name: Build documentation site
-description: Install dependencies, validate PlantUML diagrams, and build the VitePress site.
-
-inputs:
-  node-version:
-    description: Node.js version
-    required: false
-    default: '22'
+description: Build the Docusaurus site with interactive React tutorials.
 
 runs:
   using: composite
   steps:
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ inputs.node-version }}
-        cache: npm
+    - name: Setup Nix
+      uses: ./.github/actions/nix
 
-    - name: Setup Java (PlantUML)
-      uses: actions/setup-java@v4
-      with:
-        distribution: temurin
-        java-version: 21
-
-    - name: Install dependencies
-      run: npm ci
+    - name: Build site
+      run: nix build .#docs --print-build-logs
       shell: bash
 
-    - name: Check PlantUML statecharts
-      run: npm run check:plantuml
-      shell: bash
-
-    - name: Build VitePress site (reference + tutorials + API)
-      run: npm run doc
+    - name: Stage dist for Pages artifact
+      run: |
+        rm -rf site/build-pages
+        mkdir -p site/build-pages
+        cp -r result/share/doc/ihsm/* site/build-pages/
       shell: bash

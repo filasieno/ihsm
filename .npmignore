@@ -129,3 +129,5 @@ tsconfig.browser.json
 tsconfig.node.json
 typedoc.json
 .eslintrc.json
+
+.npmtoken

@@ -1,4 +1,4 @@
-# Tutorial 11: Restore
+# Restore
 
 ## Problem
 
@@ -7,7 +7,7 @@ After restart or loading from a database, you must resume at a specific mode wit
 ## Solution
 
 1. **Suspend** — read `currentState` + `ctx`, serialize to JSON (DB row or file).
-2. **Resume** — `factory.create(..., false)` on a **new** instance, then `restore(stateClass, ctx)`.
+2. **Resume** — `makeHsm(..., false)` on a **new** instance, then `restore(stateClass, ctx)`.
 
 `restore` sets active state and context **without** running `onEntry` or `onExit`.
 
@@ -30,8 +30,6 @@ end note
 ```
 
 `suspend` / `resume` are **meta-operations** (not Protocol events) — persistence boundaries.
-
-## Walkthrough
 
 States and a name registry (classes cannot be JSON-serialized):
 
@@ -111,7 +109,7 @@ await afterRestart.sync();
 
 ## Reading the trace
 
-ihsm logs every dispatch step when `HsmTraceLevel.VERBOSE_DEBUG` is set and a custom `HsmTraceWriter` collects lines. Setup: [Tutorial 02 — Tracing](../02-tracing/README.md).
+With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
@@ -121,16 +119,9 @@ Each line is **`domain|…|StateName: message`**. Domains nest as the runtime de
 
 **What to notice:** `restore()` does **not** emit trace — it is a meta-operation. After rehydration, `#navigate` behaves like any normal event dispatch.
 
-## Run the test
+## Verify
 
 ```shell
 npm run test:tutorials -- --grep 'Tutorial 11'
 ```
 
-## What you learned
-
-- Persist `{ stateName, ctx }` — map names back to state classes on load.
-- `restore` is immediate — no entry/exit.
-- `create(..., false)` + `restore` = cold start from a snapshot.
-
-Next: [Tutorial 12 — Error recovery](../12-error-recovery/README.md)

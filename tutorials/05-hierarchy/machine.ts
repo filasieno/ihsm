@@ -1,4 +1,4 @@
-import { HsmFactory, HsmInitialState, HsmTopState } from '../../src';
+import { makeHsm, HsmInitialState, HsmTopState } from '../../src';
 
 export interface DeepCtx {
 	trace: string[];
@@ -9,14 +9,17 @@ export interface DeepCtx {
 
 export interface DeepProtocol {
 	tick(): void;
-	goSibling(): void;
-	goParent(): void;
-	goAncestor(): void;
+	goSiblingWest(): void;
+	goParentWest(): void;
+	goAncestorWest(): void;
 	goRoot(): void;
-	goCrossBranch(): void;
-	goComposite(): void;
-	goAsyncCross(): void;
-	goSelf(): void;
+	goSelfWest(): void;
+	goCrossToLeafEastB(): void;
+	goCrossToBranchEast(): void;
+	goCrossToMidEast(): void;
+	goSiblingEast(): void;
+	goCrossToLeafWestB(): void;
+	goAsyncCrossEast(): void;
 	armFailExit(): void;
 }
 
@@ -24,6 +27,7 @@ function pushTrace(ctx: DeepCtx, line: string): void {
 	ctx.trace.push(line);
 }
 
+/** Root — LCA for every cross-stack transition. */
 export class DeepTop extends HsmTopState<DeepCtx, DeepProtocol> implements DeepProtocol {
 	onEntry(): void {
 		pushTrace(this.ctx, 'enter:DeepTop');
@@ -36,32 +40,41 @@ export class DeepTop extends HsmTopState<DeepCtx, DeepProtocol> implements DeepP
 		this.ctx.value += 1;
 		pushTrace(this.ctx, 'handler:tick');
 	}
-	goSibling(): void {
-		this.transition(LeafSouthB);
+	goSiblingWest(): void {
+		this.transition(LeafWestB);
 	}
-	goParent(): void {
-		this.transition(MidSouth);
+	goParentWest(): void {
+		this.transition(MidWest);
 	}
-	goAncestor(): void {
-		this.transition(BranchSouth);
+	goAncestorWest(): void {
+		this.transition(StackWest);
 	}
 	goRoot(): void {
 		this.transition(DeepTop);
 	}
-	goCrossBranch(): void {
-		this.transition(LeafNorthB);
+	goSelfWest(): void {
+		this.transition(LeafWestA);
 	}
-	goComposite(): void {
-		this.transition(BranchEast);
+	goCrossToLeafEastB(): void {
+		this.transition(LeafEastB);
 	}
-	async goAsyncCross(): Promise<void> {
-		pushTrace(this.ctx, 'handler:goAsyncCross:start');
+	goCrossToBranchEast(): void {
+		this.transition(StackEast);
+	}
+	goCrossToMidEast(): void {
+		this.transition(MidEast);
+	}
+	goSiblingEast(): void {
+		this.transition(LeafEastA);
+	}
+	goCrossToLeafWestB(): void {
+		this.transition(LeafWestB);
+	}
+	async goAsyncCrossEast(): Promise<void> {
+		pushTrace(this.ctx, 'handler:goAsyncCrossEast:start');
 		await this.sleep(10);
-		pushTrace(this.ctx, 'handler:goAsyncCross:after-await');
-		this.transition(LeafNorthA);
-	}
-	goSelf(): void {
-		this.transition(LeafSouthA);
+		pushTrace(this.ctx, 'handler:goAsyncCrossEast:after-await');
+		this.transition(LeafEastA);
 	}
 	armFailExit(): void {
 		this.ctx.failExit = true;
@@ -74,120 +87,96 @@ export class DeepTop extends HsmTopState<DeepCtx, DeepProtocol> implements DeepP
 	}
 }
 
-/** South branch — initial branch after create (DeepTop → BranchSouth → …). */
+/** West stack — initial branch after create. Depth: StackWest → MidWest → leaf. */
 @HsmInitialState
-export class BranchSouth extends DeepTop {
+export class StackWest extends DeepTop {
 	onEntry(): void {
-		pushTrace(this.ctx, 'enter:BranchSouth');
+		pushTrace(this.ctx, 'enter:StackWest');
 	}
 	onExit(): void {
-		this.maybeFailExit('BranchSouth');
-		pushTrace(this.ctx, 'exit:BranchSouth');
-	}
-}
-
-@HsmInitialState
-export class MidSouth extends BranchSouth {
-	onEntry(): void {
-		pushTrace(this.ctx, 'enter:MidSouth');
-	}
-	onExit(): void {
-		this.maybeFailExit('MidSouth');
-		pushTrace(this.ctx, 'exit:MidSouth');
+		this.maybeFailExit('StackWest');
+		pushTrace(this.ctx, 'exit:StackWest');
 	}
 }
 
 @HsmInitialState
-export class LeafSouthA extends MidSouth {
+export class MidWest extends StackWest {
 	onEntry(): void {
-		pushTrace(this.ctx, 'enter:LeafSouthA');
+		pushTrace(this.ctx, 'enter:MidWest');
 	}
 	onExit(): void {
-		this.maybeFailExit('LeafSouthA');
-		pushTrace(this.ctx, 'exit:LeafSouthA');
-	}
-}
-
-export class LeafSouthB extends MidSouth {
-	onEntry(): void {
-		pushTrace(this.ctx, 'enter:LeafSouthB');
-	}
-	onExit(): void {
-		this.maybeFailExit('LeafSouthB');
-		pushTrace(this.ctx, 'exit:LeafSouthB');
-	}
-}
-
-/** North branch — different subtree under the same root (cross-ancestor target). */
-export class BranchNorth extends DeepTop {
-	onEntry(): void {
-		pushTrace(this.ctx, 'enter:BranchNorth');
-	}
-	onExit(): void {
-		this.maybeFailExit('BranchNorth');
-		pushTrace(this.ctx, 'exit:BranchNorth');
+		this.maybeFailExit('MidWest');
+		pushTrace(this.ctx, 'exit:MidWest');
 	}
 }
 
 @HsmInitialState
-export class MidNorth extends BranchNorth {
+export class LeafWestA extends MidWest {
 	onEntry(): void {
-		pushTrace(this.ctx, 'enter:MidNorth');
+		pushTrace(this.ctx, 'enter:LeafWestA');
 	}
 	onExit(): void {
-		this.maybeFailExit('MidNorth');
-		pushTrace(this.ctx, 'exit:MidNorth');
+		this.maybeFailExit('LeafWestA');
+		pushTrace(this.ctx, 'exit:LeafWestA');
+	}
+}
+
+export class LeafWestB extends MidWest {
+	onEntry(): void {
+		pushTrace(this.ctx, 'enter:LeafWestB');
+	}
+	onExit(): void {
+		this.maybeFailExit('LeafWestB');
+		pushTrace(this.ctx, 'exit:LeafWestB');
+	}
+}
+
+/** East stack — parallel deep branch under the same root. */
+export class StackEast extends DeepTop {
+	onEntry(): void {
+		pushTrace(this.ctx, 'enter:StackEast');
+	}
+	onExit(): void {
+		this.maybeFailExit('StackEast');
+		pushTrace(this.ctx, 'exit:StackEast');
 	}
 }
 
 @HsmInitialState
-export class LeafNorthA extends MidNorth {
+export class MidEast extends StackEast {
 	onEntry(): void {
-		pushTrace(this.ctx, 'enter:LeafNorthA');
+		pushTrace(this.ctx, 'enter:MidEast');
 	}
 	onExit(): void {
-		this.maybeFailExit('LeafNorthA');
-		pushTrace(this.ctx, 'exit:LeafNorthA');
-	}
-}
-
-export class LeafNorthB extends MidNorth {
-	onEntry(): void {
-		pushTrace(this.ctx, 'enter:LeafNorthB');
-	}
-	onExit(): void {
-		this.maybeFailExit('LeafNorthB');
-		pushTrace(this.ctx, 'exit:LeafNorthB');
-	}
-}
-
-/** East branch — entering a composite descends to its initial leaf. */
-export class BranchEast extends DeepTop {
-	onEntry(): void {
-		pushTrace(this.ctx, 'enter:BranchEast');
-	}
-	onExit(): void {
-		this.maybeFailExit('BranchEast');
-		pushTrace(this.ctx, 'exit:BranchEast');
+		this.maybeFailExit('MidEast');
+		pushTrace(this.ctx, 'exit:MidEast');
 	}
 }
 
 @HsmInitialState
-export class LeafEast extends BranchEast {
+export class LeafEastA extends MidEast {
 	onEntry(): void {
-		pushTrace(this.ctx, 'enter:LeafEast');
+		pushTrace(this.ctx, 'enter:LeafEastA');
 	}
 	onExit(): void {
-		this.maybeFailExit('LeafEast');
-		pushTrace(this.ctx, 'exit:LeafEast');
+		this.maybeFailExit('LeafEastA');
+		pushTrace(this.ctx, 'exit:LeafEastA');
 	}
 }
 
-export const deepFactory = new HsmFactory(DeepTop);
-
-export function createDeepMachine(): ReturnType<typeof deepFactory.create> {
-	return deepFactory.create({ trace: [], value: 0, failExit: false });
+export class LeafEastB extends MidEast {
+	onEntry(): void {
+		pushTrace(this.ctx, 'enter:LeafEastB');
+	}
+	onExit(): void {
+		this.maybeFailExit('LeafEastB');
+		pushTrace(this.ctx, 'exit:LeafEastB');
+	}
 }
 
-/** Expected init trace: outer → inner initial chain. */
-export const INIT_TRACE = ['enter:DeepTop', 'enter:BranchSouth', 'enter:MidSouth', 'enter:LeafSouthA'];
+export function createDeepMachine() {
+	return makeHsm(DeepTop, { trace: [], value: 0, failExit: false });
+}
+
+/** After `create()` + `sync()`: outer → inner along `@HsmInitialState` chain. */
+export const INIT_TRACE = ['enter:DeepTop', 'enter:StackWest', 'enter:MidWest', 'enter:LeafWestA'];

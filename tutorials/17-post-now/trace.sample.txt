@@ -1,0 +1,45 @@
+Draft: begin event dispatch of #confirm
+#confirm|Draft: started event dispatch
+#confirm|lookup|Draft: started lookup of #confirm event handler
+#confirm|lookup|Draft: not found in state Draft
+#confirm|lookup|Draft: done: #confirm found in state CheckoutTop
+#confirm|execute|Draft: started event handler execution
+#confirm|execute|Draft: done: event handler execution successful
+#confirm|Draft: requested transition from Draft to Confirmed 
+#confirm|Draft: transition cache miss for Draft to Confirmed 
+#confirm|transition from Draft to Confirmed|Draft: started transition from Draft to Confirmed 
+#confirm|transition from Draft to Confirmed|Draft: Draft.onExit() skipped: default empty implementation
+#confirm|transition from Draft to Confirmed|Draft: Confirmed.onEntry() skipped: default empty implementation
+#confirm|transition from Draft to Confirmed|Draft: done: final state is Confirmed
+#confirm|Confirmed: done: event dispatch successful
+Confirmed: end event dispatch
+Confirmed: begin event dispatch of #lockInventory
+#lockInventory|Confirmed: started event dispatch
+#lockInventory|lookup|Confirmed: started lookup of #lockInventory event handler
+#lockInventory|lookup|Confirmed: not found in state Confirmed
+#lockInventory|lookup|Confirmed: done: #lockInventory found in state CheckoutTop
+#lockInventory|execute|Confirmed: started event handler execution
+#lockInventory|execute|Confirmed: done: event handler execution successful
+#lockInventory|Confirmed: no transition requested
+#lockInventory|Confirmed: done: event dispatch successful
+Confirmed: end event dispatch
+Confirmed: begin event dispatch of #capturePayment
+#capturePayment|Confirmed: started event dispatch
+#capturePayment|lookup|Confirmed: started lookup of #capturePayment event handler
+#capturePayment|lookup|Confirmed: not found in state Confirmed
+#capturePayment|lookup|Confirmed: done: #capturePayment found in state CheckoutTop
+#capturePayment|execute|Confirmed: started event handler execution
+#capturePayment|execute|Confirmed: done: event handler execution successful
+#capturePayment|Confirmed: no transition requested
+#capturePayment|Confirmed: done: event dispatch successful
+Confirmed: end event dispatch
+Confirmed: begin event dispatch of #cancel
+#cancel|Confirmed: started event dispatch
+#cancel|lookup|Confirmed: started lookup of #cancel event handler
+#cancel|lookup|Confirmed: not found in state Confirmed
+#cancel|lookup|Confirmed: done: #cancel found in state CheckoutTop
+#cancel|execute|Confirmed: started event handler execution
+#cancel|execute|Confirmed: done: event handler execution successful
+#cancel|Confirmed: no transition requested
+#cancel|Confirmed: done: event dispatch successful
+Confirmed: end event dispatch

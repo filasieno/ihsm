@@ -13,14 +13,7 @@ describe('Tutorial 13: async handlers', () => {
 		await sm.sync();
 
 		expect(sm.currentState).equals(Done);
-		expect(sm.ctx.steps).deep.equals([
-			'open(read)',
-			'read',
-			'close(read)',
-			'open(write)',
-			'write',
-			'close(write)',
-		]);
+		expect(sm.ctx.steps).deep.equals(['open(read)', 'read', 'close(read)', 'open(write)', 'write', 'close(write)']);
 		expect(sm.ctx.bytesWritten).equals(Buffer.from('payload-bytes', 'utf8').length);
 	});
 

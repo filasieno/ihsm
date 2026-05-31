@@ -1,4 +1,4 @@
-import { HsmFactory, HsmInitialState, HsmTopState } from '../../src';
+import { makeHsm, HsmInitialState, HsmTopState } from '../../src';
 
 export interface QueueCtx {
 	events: string[];
@@ -30,8 +30,6 @@ export class QueueTop extends HsmTopState<QueueCtx, QueueProtocol> implements Qu
 @HsmInitialState
 export class Idle extends QueueTop {}
 
-export const queueFactory = new HsmFactory(QueueTop);
-
 export function createQueueMachine() {
-	return queueFactory.create({ events: [] });
+	return makeHsm(QueueTop, { events: [] });
 }

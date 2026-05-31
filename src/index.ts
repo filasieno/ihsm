@@ -85,6 +85,8 @@ export interface HsmState<Context, Protocol extends {} | undefined> extends HsmB
 	transition(nextState: HsmStateClass<Context, Protocol>): void;
 	unhandled(): never;
 	sleep(millis: number): Promise<void>;
+	/** Handler-only: queue an event on the internal high-priority mailbox (before normal `post`). */
+	postNow<EventName extends keyof Protocol>(eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void;
 }
 
 /**
@@ -92,6 +94,7 @@ export interface HsmState<Context, Protocol extends {} | undefined> extends HsmB
  * @category State machine
  */
 export interface Hsm<Context = HsmAny, Protocol extends {} | undefined = undefined> extends HsmBase<Context, Protocol> {
+	readonly ctx: Context;
 	sync(): Promise<void>;
 	restore(state: HsmStateClass<Context, Protocol>, ctx: Context): void;
 	call<EventName extends keyof Protocol>(eventName: HsmServiceName<Protocol, EventName>, ...eventPayload: HsmServiceRequest<Protocol, EventName>): Promise<HsmServiceResponse<Protocol, EventName>>;
@@ -101,7 +104,7 @@ export interface Hsm<Context = HsmAny, Protocol extends {} | undefined = undefin
  * @category Event handler
  */
 
-export type HsmEventHandlerName<Protocol extends {} | undefined, EventName extends keyof Protocol> = Protocol extends undefined ? string : EventName extends keyof HsmState<any, any> ? never : EventName;
+export type HsmEventHandlerName<Protocol extends {} | undefined, EventName extends keyof Protocol> = Protocol extends undefined ? string : EventName extends keyof HsmState<any, any> | 'then' ? never : EventName;
 
 /**
  * @category Event handler
@@ -128,7 +131,7 @@ export type HsmServiceResponse<Protocol, EventName extends keyof Protocol> = Pro
 /**
  *
  */
-export type HsmServiceName<Protocol, EventName> = Protocol extends undefined ? string : EventName extends keyof HsmState<any, any> ? never : EventName;
+export type HsmServiceName<Protocol, EventName> = Protocol extends undefined ? string : EventName extends keyof HsmState<any, any> | 'then' ? never : EventName;
 
 /**
  * todo
@@ -137,6 +140,7 @@ export type HsmServiceName<Protocol, EventName> = Protocol extends undefined ? s
 export interface HsmStateMachineEvents<Context, Protocol extends {} | undefined> {
 	onExit(): Promise<void> | void;
 	onEntry(): Promise<void> | void;
+	then(): Promise<void> | void;
 	onError<EventName extends keyof Protocol>(error: HsmRuntimeError<Context, Protocol, EventName>): Promise<void> | void;
 	onUnhandled<EventName extends keyof Protocol>(error: HsmUnhandledEventError<Context, Protocol, EventName>): Promise<void> | void;
 }
@@ -209,10 +213,22 @@ export abstract class HsmTopState<Context = HsmAny, Protocol extends {} | undefi
 	deferredPost<EventName extends keyof Protocol>(millis: number, eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void {
 		this.hsm.deferredPost(millis, eventName, ...eventPayload);
 	}
+	postNow<EventName extends keyof Protocol>(eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void {
+		this.hsm.postNow(eventName, ...eventPayload);
+	}
 
 	onExit(): Promise<void> | void {}
 
 	onEntry(): Promise<void> | void {}
+
+	/**
+	 * Optional automatic hook after initialization or event dispatch completes (including
+	 * any scheduled transitions). Override on a **leaf** state class only — the empty
+	 * default is not inherited. May call {@link transition} to chain further steps.
+	 * Not part of {@link Protocol}; excluded from `post` / `call` typing.
+	 * @category State machine
+	 */
+	then(): Promise<void> | void {}
 
 	onError<EventName extends keyof Protocol>(error: HsmRuntimeError<Context, Protocol, EventName>): Promise<void> | void {
 		throw error;
@@ -265,11 +281,21 @@ export class HsmTransitionError<Context, Protocol extends {} | undefined, EventN
 		hsm: HsmState<Context, Protocol>,
 		cause: Error,
 		public failedStateName: string,
-		public failedCallback: 'onExit' | 'onEntry',
+		public failedCallback: 'onExit' | 'onEntry' | 'then',
 		public fromStateName: string,
 		public toStateName: string
 	) {
-		super('HsmTransitionError', hsm, `${failedStateName}.${failedCallback}() has failed while executing a transition from ${fromStateName} to ${toStateName}`, cause);
+		const phase = failedCallback === 'then' ? `${failedStateName}.${failedCallback}() has failed after entering state ${failedStateName}` : `${failedStateName}.${failedCallback}() has failed while executing a transition from ${fromStateName} to ${toStateName}`;
+		super('HsmTransitionError', hsm, phase, cause);
+	}
+}
+
+/**
+ * @category Error
+ */
+export class HsmThenDepthError<Context, Protocol extends {} | undefined> extends HsmError<Context, Protocol> {
+	constructor(hsm: HsmState<Context, Protocol>) {
+		super('HsmThenDepthError', hsm, `then() chain exceeded the maximum of ${32} steps in state ${hsm.currentStateName}`);
 	}
 }
 
@@ -370,35 +396,34 @@ class ConsoleTraceWriter implements HsmTraceWriter {
 	}
 }
 
+function defaultDispatchErrorCallback<Context, Protocol extends {} | undefined>(hsm: HsmBase<Context, Protocol>, err: Error): void {
+	const writer = hsm.traceWriter;
+	writer.write(hsm, `An event dispatch has failed; error ${err.name}: ${err.message} has not been managed`);
+	writer.write(hsm, err);
+	throw err;
+}
+
+const defaultTraceWriter = new ConsoleTraceWriter();
+const defaultTraceLevel = HsmTraceLevel.DEBUG;
+const defaultInitialize = true;
+
 /**
- * todo
+ * Creates a state machine instance bound to the given context object.
+ *
+ * @param topState - Root state class
+ * @param ctx - Mutable domain context
+ * @param initialize - When `true`, walk `@HsmInitialState` chain, run `onEntry`, then `then()` on the initial leaf (default `true`)
+ * @param traceLevel - Trace verbosity (default {@link HsmTraceLevel.DEBUG})
+ * @param traceWriter - Trace sink (default console logger)
+ * @param dispatchErrorCallback - Hook when dispatch throws and is not recovered (default: log and rethrow)
  * @category Factory
  */
-export class HsmFactory<Context, Protocol extends undefined | {}> {
-	private static defaultDispatchErrorCallback<Context, Protocol extends {} | undefined>(hsm: HsmBase<Context, Protocol>, err: Error): void {
-		const writer = hsm.traceWriter;
-		writer.write(hsm, `An event dispatch has failed; error ${err.name}: ${err.message} has not been managed`);
-		writer.write(hsm, err);
-		throw err;
-	}
-	private static defaultTraceWriter = new ConsoleTraceWriter();
-	private static defaultTraceLevel = HsmTraceLevel.DEBUG;
-	private static defaultInitialize = true;
-	constructor(
-		public topState: HsmStateClass<Context, Protocol>,
-		public initialize = HsmFactory.defaultInitialize,
-		public traceLevel = HsmFactory.defaultTraceLevel,
-		public traceWriter = HsmFactory.defaultTraceWriter,
-		public dispatchErrorCallback = HsmFactory.defaultDispatchErrorCallback
-	) {}
-
-	create(ctx: Context, initialize: boolean = this.initialize, traceLevel = this.traceLevel, traceWriter = this.traceWriter, dispatchErrorCallback = this.dispatchErrorCallback): Hsm<Context, Protocol> {
-		const instance: Instance<Context, Protocol> = {
-			hsm: undefined as unknown as HsmWithTracing<Context, Protocol>,
-			ctx: ctx,
-		};
-		Object.setPrototypeOf(instance, this.topState.prototype);
-		instance.hsm = new HsmObject(this.topState, instance, traceWriter, traceLevel, dispatchErrorCallback, initialize);
-		return instance.hsm;
-	}
+export function makeHsm<Context, Protocol extends undefined | {}>(topState: HsmStateClass<Context, Protocol>, ctx: Context, initialize: boolean = defaultInitialize, traceLevel: HsmTraceLevel = defaultTraceLevel, traceWriter: HsmTraceWriter = defaultTraceWriter, dispatchErrorCallback: HsmDispatchErrorCallback<Context, Protocol> = defaultDispatchErrorCallback): Hsm<Context, Protocol> {
+	const instance: Instance<Context, Protocol> = {
+		hsm: undefined as unknown as HsmWithTracing<Context, Protocol>,
+		ctx: ctx,
+	};
+	Object.setPrototypeOf(instance, topState.prototype);
+	instance.hsm = new HsmObject(topState, instance, traceWriter, traceLevel, dispatchErrorCallback, initialize);
+	return instance.hsm;
 }

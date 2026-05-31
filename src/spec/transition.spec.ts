@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, HsmFactory, HsmInitialState, HsmTopState, HsmTraceLevel } from '../';
+import { Hsm, makeHsm, HsmInitialState, HsmTopState, HsmTraceLevel } from '../';
 import { TRACE_LEVELS, clearLastError } from './spec.utils';
 
 type Cons = new () => TopState;
@@ -176,13 +176,10 @@ for (const traceLevel of TRACE_LEVELS) {
 	describe(`Transition (traceLevel = ${traceLevel})`, function () {
 		let ctx: TransitionTrace;
 		let sm: Hsm<TransitionTrace, Protocol>;
-		const factory = new HsmFactory(TopState);
-		factory.traceLevel = traceLevel;
-
 		beforeEach(async () => {
 			clearLastError();
 			ctx = new TransitionTrace();
-			sm = factory.create(ctx);
+			sm = makeHsm(TopState, ctx, true, traceLevel);
 			await sm.sync();
 		});
 

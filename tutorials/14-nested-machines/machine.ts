@@ -1,4 +1,4 @@
-import { HsmFactory, HsmInitialState, HsmTopState } from '../../src';
+import { Hsm, makeHsm, HsmInitialState, HsmTopState } from '../../src';
 
 /** Payment region */
 export interface PaymentCtx {
@@ -44,12 +44,12 @@ export class ShippingDone extends ShippingTop {}
 
 /** Coordinator — not an Hsm itself; owns two actors */
 export class OrderCoordinator {
-	readonly payment: ReturnType<typeof paymentFactory.create>;
-	readonly shipping: ReturnType<typeof shippingFactory.create>;
+	readonly payment: Hsm<PaymentCtx, PaymentProtocol>;
+	readonly shipping: Hsm<ShippingCtx, ShippingProtocol>;
 
 	constructor() {
-		this.payment = paymentFactory.create({ paid: false });
-		this.shipping = shippingFactory.create({ shipped: false });
+		this.payment = makeHsm(PaymentTop, { paid: false });
+		this.shipping = makeHsm(ShippingTop, { shipped: false });
 	}
 
 	async sync(): Promise<void> {
@@ -65,9 +65,6 @@ export class OrderCoordinator {
 		await this.shipping.sync();
 	}
 }
-
-export const paymentFactory = new HsmFactory(PaymentTop);
-export const shippingFactory = new HsmFactory(ShippingTop);
 
 export function createOrderCoordinator() {
 	return new OrderCoordinator();

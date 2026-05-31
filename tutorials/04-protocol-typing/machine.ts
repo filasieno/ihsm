@@ -1,4 +1,4 @@
-import { HsmFactory, HsmInitialState, HsmTopState } from '../../src';
+import { makeHsm, HsmInitialState, HsmTopState } from '../../src';
 
 export interface ThermostatCtx {
 	celsius: number;
@@ -23,10 +23,8 @@ export class ThermostatTop extends HsmTopState<ThermostatCtx, ThermostatProtocol
 @HsmInitialState
 export class Idle extends ThermostatTop {}
 
-export const thermostatFactory = new HsmFactory(ThermostatTop);
-
 export function createThermostat(initialCelsius: number) {
-	return thermostatFactory.create({ celsius: initialCelsius });
+	return makeHsm(ThermostatTop, { celsius: initialCelsius });
 }
 
 // Compile-time examples (uncomment to verify the compiler rejects mistakes):

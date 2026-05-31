@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { Hsm, HsmAny, HsmBase, HsmFactory, HsmFatalErrorState, HsmInitialState, HsmTopState } from '../';
+import { Hsm, HsmAny, HsmBase, makeHsm, HsmFatalErrorState, HsmInitialState, HsmTopState } from '../';
 
 import { clearLastError, TRACE_LEVELS } from './spec.utils';
 
@@ -33,14 +33,13 @@ class A extends TopState {}
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Error dispatch (traceLevel = ${traceLevel})`, function (): void {
 		let sm: Hsm<HsmAny, Protocol>;
-		const factory = new HsmFactory(TopState);
 		let flag = false;
 		let defaultCallback: (hsm: HsmBase<HsmAny, Protocol>, msg: any) => void;
+		let dispatchErrorCallback: (hsm: HsmBase<HsmAny, Protocol>, msg: any) => void;
 
 		beforeEach(async () => {
-			factory.traceLevel = traceLevel;
-			defaultCallback = factory.dispatchErrorCallback;
-			factory.dispatchErrorCallback = (hsm: HsmBase<HsmAny, Protocol>, msg: any): void => {
+			defaultCallback = makeHsm(TopState, {}, true, traceLevel).dispatchErrorCallback;
+			dispatchErrorCallback = (hsm: HsmBase<HsmAny, Protocol>, msg: any): void => {
 				try {
 					defaultCallback(hsm, msg);
 				} catch (error) {
@@ -49,7 +48,8 @@ for (const traceLevel of TRACE_LEVELS) {
 				}
 			};
 			clearLastError();
-			sm = factory.create({});
+			flag = false;
+			sm = makeHsm(TopState, {}, true, traceLevel, undefined, dispatchErrorCallback);
 			await sm.sync();
 		});
 
@@ -57,7 +57,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			expect(sm.currentState).equals(A);
 			sm.post('executeWithError01');
 			await sm.sync();
-			expect(sm.dispatchErrorCallback).equals(factory.dispatchErrorCallback);
+			expect(sm.dispatchErrorCallback).equals(dispatchErrorCallback);
 			expect(sm.currentState).equals(HsmFatalErrorState);
 			expect(flag).eq(true);
 			sm.dispatchErrorCallback = defaultCallback;

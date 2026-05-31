@@ -1,0 +1,97 @@
+.panel {
+	border: 1px solid var(--ifm-color-emphasis-300);
+	border-radius: 12px;
+	padding: 1rem;
+	margin: 1.5rem 0;
+	background: var(--ifm-background-surface-color);
+}
+
+.toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	align-items: flex-end;
+	margin-bottom: 1rem;
+}
+
+.fieldGroup {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	min-width: 10rem;
+}
+
+.fieldGroup label {
+	font-size: 0.85rem;
+	font-weight: 600;
+}
+
+.fieldGroup select,
+.fieldGroup input {
+	padding: 0.45rem 0.6rem;
+	border: 1px solid var(--ifm-color-emphasis-300);
+	border-radius: 8px;
+	background: var(--ifm-background-color);
+	color: var(--ifm-font-color-base);
+}
+
+.primaryButton,
+.secondaryButton {
+	padding: 0.55rem 0.9rem;
+	border-radius: 8px;
+	border: 1px solid transparent;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.primaryButton {
+	background: var(--ifm-color-primary);
+	color: var(--ifm-font-color-base-inverse);
+}
+
+.secondaryButton {
+	background: transparent;
+	border-color: var(--ifm-color-emphasis-400);
+	color: var(--ifm-font-color-base);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.fieldGroup select:disabled,
+.fieldGroup input:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+.statusRow {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem 1rem;
+	align-items: baseline;
+	margin-bottom: 0.75rem;
+	font-family: var(--ifm-font-family-monospace);
+	font-size: 0.9rem;
+}
+
+.error {
+	color: var(--ifm-color-danger);
+}
+
+.traceLabel {
+	display: block;
+	font-weight: 600;
+	margin-bottom: 0.35rem;
+}
+
+.trace {
+	width: 100%;
+	font-family: var(--ifm-font-family-monospace);
+	font-size: 0.85rem;
+	line-height: 1.45;
+	padding: 0.75rem;
+	border: 1px solid var(--ifm-color-emphasis-300);
+	border-radius: 8px;
+	background: var(--ifm-code-background);
+	color: var(--ifm-font-color-base);
+	resize: vertical;
+}

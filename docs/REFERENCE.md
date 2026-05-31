@@ -12,7 +12,7 @@ typed **`call()`** request/response channel.
 | --------- | ----- |
 | Production dependencies | **0** |
 | Runtime test coverage | **100%** (statements, branches, functions, lines) |
-| Node.js | **20+** |
+| Node.js | **22+** |
 
 Hands-on walkthroughs: [reference tutorials](/reference/tutorials/) · [source index](../tutorials/README.md)
 
@@ -32,7 +32,7 @@ supply chain.
 
 **When to prefer declarative libraries (e.g. XState):** visual editors, single-chart
 parallel regions, or deep frontend/Stately integration. See
-[§13 Comparison with XState](#_13-comparison-with-xstate).
+[§14 Comparison with XState](#_14-comparison-with-xstate).
 
 ---
 
@@ -47,11 +47,12 @@ parallel regions, or deep frontend/Stately integration. See
 7. [restore()](#_7-restore)
 8. [Error model](#_8-error-model)
 9. [Async handlers](#_9-async-handlers)
-10. [HsmFactory configuration](#_10-hsmfactory-configuration)
-11. [Zero dependencies](#_11-zero-dependencies)
-12. [Code coverage](#_12-code-coverage)
-13. [Comparison with XState](#_13-comparison-with-xstate)
-14. [API quick reference](#_14-api-quick-reference)
+10. [then()](#_10-then)
+11. [makeHsm](#_11-make-hsm)
+12. [Zero dependencies](#_12-zero-dependencies)
+13. [Code coverage](#_13-code-coverage)
+14. [Comparison with XState](#_14-comparison-with-xstate)
+15. [API quick reference](#_15-api-quick-reference)
 
 ---
 
@@ -126,13 +127,12 @@ send messages, deterministic ordering.
 
 **XState:** `actor.send()` with interpreter; similar serialization per actor.
 
-### Factory
+### makeHsm
 
-`HsmFactory` creates machine instances:
+`makeHsm` creates machine instances:
 
 ```typescript
-const factory = new HsmFactory(DoorTop);
-const door = factory.create({ openCount: 0 });
+const door = makeHsm(DoorTop, { openCount: 0 });
 await door.sync(); // wait for initialization
 ```
 
@@ -151,6 +151,7 @@ await door.sync(); // wait for initialization
 | Transition | `this.transition(StateClass)` | Yes |
 | Cached LCA path | automatic | Yes (internal) |
 | Entry / exit | `onEntry()` / `onExit()` | Yes |
+| `then()` | automatic post-transition hook | Yes |
 | Internal transition | handle event, no `transition()` | Implicit (by omission) |
 | Guards | `if` in handler | Implicit (code) |
 | History | `ctx` + `restore()` | Implicit (data) |
@@ -160,6 +161,7 @@ await door.sync(); // wait for initialization
 | `call` | Promise + mailbox | Yes |
 | `sync` | drain queue | Yes |
 | `restore` | set state + ctx | Yes |
+| `makeHsm` | create + optional init | Yes |
 | Tracing | levels + `HsmTraceWriter` | Yes |
 | Errors | typed error hierarchy | Yes |
 | Async handlers | `async` methods | Yes |
@@ -168,7 +170,7 @@ await door.sync(); // wait for initialization
 
 ### Context
 
-Mutable domain object passed to `factory.create(ctx)`. Survives transitions
+Mutable domain object passed as the second argument to `makeHsm`. Survives transitions
 unless you replace it in `restore()`.
 
 Tutorial: [../tutorials/03-context/README.md](../tutorials/03-context/README.md)
@@ -210,13 +212,41 @@ initial substates if entering a composite).
 
 Transition paths are **cached** keyed by `FromState=>ToState` for hot loops.
 
-Tutorial: [../tutorials/06-transitions-entry-exit/README.md](../tutorials/06-transitions-entry-exit/README.md)
+Tutorial: [../tutorials/05-hierarchy/README.md](../tutorials/05-hierarchy/README.md) (entry/exit and deep-stack topology)
 
 ### Entry and exit
 
 Override `onEntry()` / `onExit()` on state classes. Sync or async. Only states
 that **define their own** handlers participate in debug/trace exit lists; inherited
 empty defaults from `HsmTopState` are skipped in verbose tracing.
+
+### `then()`
+
+Optional hook on a **leaf state class**. Runs automatically after **initialization**
+or after an **event dispatch** finishes — including any `transition()` exit/entry
+work scheduled by the handler. Use it for automatic follow-up when a state becomes
+active (for example, transition to a terminal state after a brief pending phase).
+
+```typescript
+class Pending extends Top {
+  then(): void {
+    this.transition(Done);
+  }
+}
+
+@HsmInitialState
+class Boot extends BootTop {
+  then(): void {
+    this.transition(BootReady); // runs once after init descent
+  }
+}
+```
+
+Only states that **define their own** `then()` run the hook (the empty default on
+`HsmTopState` is not inherited). `then()` is not part of `Protocol` — clients
+cannot `post('then')`. It may be sync or async; if it calls `transition()`, the
+runtime may chain further `then()` steps (up to 32 per init/dispatch). See
+[§10 then()](#_10-then).
 
 ### Internal transitions
 
@@ -260,7 +290,7 @@ Tutorial: [../tutorials/14-nested-machines/README.md](../tutorials/14-nested-mac
 
 ## 3. Static type checking
 
-ihsm pushes correctness to **compile time** via generics on `HsmFactory`,
+ihsm pushes correctness to **compile time** via generics on `makeHsm`,
 `HsmTopState`, and `Hsm`. At a glance:
 
 ```typescript
@@ -273,7 +303,7 @@ interface PaymentProtocol {
 }
 
 class PaymentTop extends HsmTopState<Wallet, PaymentProtocol> implements PaymentProtocol {}
-const wallet = new HsmFactory(PaymentTop).create({ balance: 0 });
+const wallet = makeHsm(PaymentTop, { balance: 0 });
 
 wallet.post('charge', 10);              // ✓ event name + payload
 // wallet.post('chargr', 10);           // ✗ unknown event
@@ -326,7 +356,7 @@ Five rules define how a `Protocol` interface maps to the runtime mailbox:
 
 | Rule | Meaning |
 | ---- | ------- |
-| **1. Two type parameters everywhere** | `Context` (domain data) and `Protocol` (vocabulary) flow through `HsmFactory`, `HsmTopState`, `Hsm`, and errors. |
+| **1. Two type parameters everywhere** | `Context` (domain data) and `Protocol` (vocabulary) flow through `makeHsm`, `HsmTopState`, `Hsm`, and errors. |
 | **2. Events are void handlers** | A **event** is a `Protocol` method whose return type is `void` or `Promise<void>`. Payload types are everything before that return. |
 | **3. Services are resolve/reject handlers** | A **service** (for `call`) is a method whose **first two parameters** are `resolve: (result: T) => void` and `reject: (error: Error) => void`. Request args follow; `Promise` return type is `T`. |
 | **4. Reserved names are excluded** | Keys that exist on `HsmState` (e.g. `transition`, `post`, `ctx`) cannot be used as event or service names — they become `never` at the type level. |
@@ -359,12 +389,12 @@ signature that uses it.
 `Context` and `Protocol` are declared once and threaded through the whole API:
 
 ```typescript
-export class HsmFactory<Context, Protocol extends undefined | {}> { /* … */ }
+export function makeHsm<Context, Protocol>(topState, ctx, initialize?, traceLevel?, traceWriter?, dispatchErrorCallback?): Hsm<Context, Protocol>
 export abstract class HsmTopState<Context = HsmAny, Protocol extends {} | undefined = undefined> { /* … */ }
 export interface Hsm<Context = HsmAny, Protocol extends {} | undefined = undefined> { /* … */ }
 ```
 
-**Effect:** `factory.create(ctx)` returns `Hsm<Context, Protocol>` — callers
+**Effect:** `makeHsm(Top, ctx)` returns `Hsm<Context, Protocol>` — callers
 inherit the same `Protocol` used on the state classes.
 
 ##### 2. Generic constraints (`extends`)
@@ -577,7 +607,7 @@ extracts from service methods.
 left to right direction
 rectangle "Protocol interface" as P
 rectangle "State class\nimplements Protocol" as S
-rectangle "HsmFactory\n<Context, Protocol>" as F
+rectangle "makeHsm\n(TopState, ctx)" as F
 rectangle "Hsm instance" as H
 rectangle "post / deferredPost" as post
 rectangle "call" as call
@@ -597,7 +627,7 @@ S --> D
 
 1. You define `Protocol` and `Context`.
 2. State classes **implement** `Protocol` (handlers).
-3. `HsmFactory<Context, Protocol>` fixes both type parameters on `create()`.
+3. `makeHsm(TopState, ctx)` infers `Context` and `Protocol` from the top state class.
 4. External code calls `post('event', …)` / `call('service', …)` — TypeScript
    validates against the same `Protocol` the handlers implement.
 5. At runtime, ihsm dispatches to the method on the **current state** prototype
@@ -611,6 +641,15 @@ S --> D
 ---
 
 ## 4. Messaging: post, call, sync
+
+Every messaging API has two sides:
+
+| Side | Where | Role |
+| ---- | ----- | ---- |
+| **Handler** | Method on the active state class | Runs when the mailbox dispatches the event or service |
+| **Client** | Code holding `Hsm` | Calls `post`, `call`, or `sync` — never implements the handler inline |
+
+The **Protocol** interface types both: handler signatures on state classes, client call sites via `post('name', …)` / `call('name', …)`.
 
 ### Reading UML statecharts
 
@@ -638,7 +677,7 @@ With `left to right direction`, compass keywords are interpreted **before** the 
 to place a target **below** the source, use `-left->`; **above**, use `-right->`.
 Do not use self-loop arrows for internal transitions — use in-state `State : event / action` text instead.
 
-**After `factory.create(ctx)`** the runtime performs **initialization**: `onEntry`
+**After `makeHsm(TopState, ctx)`** the runtime performs **initialization**: `onEntry`
 from the top state down through each composite’s initial child until the deepest
 initial leaf is active (same order as following `[ * ]` arrows inward).
 
@@ -651,11 +690,26 @@ Full deep-hierarchy walkthrough with **trace for every transition kind**:
 
 ### `post(event, ...payload)`
 
-Fire-and-forget. Enqueues an event dispatch. Returns immediately.
+Fire-and-forget. The client enqueues; the handler runs later on the active state.
+
+**Handler** — event method, no `resolve` / `reject`:
+
+```typescript
+// Protocol: open(): void;
+@HsmInitialState
+class Closed extends DoorTop {
+  open(): void {
+    this.ctx.openCount += 1;
+    this.transition(Open);
+  }
+}
+```
+
+**Client** — returns immediately; use `sync()` to wait for side effects:
 
 ```typescript
 door.post('open');
-await door.sync();
+await door.sync(); // handler + transition complete
 ```
 
 Inside a state handler, `this.post('tick')` schedules work **after** the current
@@ -668,36 +722,34 @@ Tutorial: [../tutorials/08-post-and-sync/README.md](../tutorials/08-post-and-syn
 **Unique to ihsm among common JS HSM libraries:** query the same actor through
 its mailbox and receive a **typed Promise**.
 
-```typescript
-const balance = await wallet.call('getBalance');
-```
-
-Implementation: `call` enqueues a dispatch where the Protocol method receives
-`resolve` / `reject` as its first arguments. The caller's Promise settles when
-the handler calls `resolve(value)` or `reject(error)`.
-
-Handlers may be **sync** or **async**:
+**Handler** — first two parameters are `resolve` / `reject` (injected by runtime; client never passes them):
 
 ```typescript
-// sync — resolve before return
-getBalance(resolve, _reject): void {
+// Protocol: getBalance(resolve: (n: number) => void, reject: (e: Error) => void): void;
+getBalance(resolve: HsmResolveCallback<number>, _reject: HsmRejectCallback): void {
   resolve(this.ctx.balance);
 }
 
-// async — await work, then resolve (return type Promise<void>)
-async fetchBalance(resolve, reject, id: string): Promise<void> {
+// async — await work, then resolve
+async fetchBalance(resolve: HsmResolveCallback<number>, reject: HsmRejectCallback, id: string): Promise<void> {
   const row = await db.load(id);
   resolve(row.balance);
 }
 ```
 
-The runtime `await`s a returned Promise, but **`call()` still completes only
-via `resolve` / `reject`** — not from the handler's return value alone.
+**Client** — one `await`; no separate `sync()`:
+
+```typescript
+const balance = await wallet.call('getBalance');
+```
+
+The client's Promise settles when the handler calls **`resolve(value)`** or
+**`reject(error)`** — not from the handler's return value alone.
 
 Benefits:
 
 - Same serialization guarantees as `post` (no re-entrancy)
-- Caller uses familiar `async`/`await`
+- Client uses familiar `async`/`await`
 - Return type inferred from `Protocol`
 
 Tutorial: [../tutorials/10-call-services/README.md](../tutorials/10-call-services/README.md)
@@ -708,16 +760,21 @@ use `waitFor` — no single typed `call` on the interpreter.
 ### `deferredPost(millis, event, ...payload)`
 
 Schedule an event after a delay via `setTimeout`, then enqueue normally.
+Available **inside handlers only** (`this.deferredPost`).
+
+**Handler:**
 
 ```typescript
 scheduleReminder(text: string): void {
-	this.deferredPost(50, 'deliver', text); // returns immediately
+  this.deferredPost(50, 'deliver', text); // returns immediately
 }
 
 deliver(text: string): void {
-	this.ctx.message = text; // runs after delay + mailbox drain
+  this.ctx.message = text;
 }
 ```
+
+**Client:**
 
 ```typescript
 sm.post('scheduleReminder', 'hello later');
@@ -730,11 +787,18 @@ Tutorial: [../tutorials/09-deferred-post/README.md](../tutorials/09-deferred-pos
 ### `sync()`
 
 Returns a Promise that resolves when a **sync marker** task reaches the front of
-the queue and runs — not necessarily when every downstream job is finished.
+the queue — **client-side only** (no handler to implement).
+
+**Client:**
 
 ```typescript
 door.post('open');
 await door.sync(); // through handler + its transition
+
+sm.post('tick');
+sm.post('tick');
+sm.post('done');
+await sm.sync();   // one sync drains all three posts
 ```
 
 After a handler **chains** `this.post(...)` calls, call `sync()` again to wait
@@ -759,9 +823,7 @@ toward the target — **descending `@HsmInitialState` chains** when the target
 is a composite.
 
 Tutorial: [../tutorials/05-hierarchy/README.md](../tutorials/05-hierarchy/README.md)
-(deep hierarchy, every case traced) ·
-[../tutorials/06-transitions-entry-exit/README.md](../tutorials/06-transitions-entry-exit/README.md)
-(sibling LCA).
+(shallow entry/exit chain and [case-by-case topology](../tutorials/05-hierarchy/cases/)).
 
 ### Transition taxonomy
 
@@ -771,14 +833,15 @@ The table lists **external** transitions (handler calls `transition()`). An
 
 | Kind | Example (tutorial 05) | Chart notation | Exit / entry | Notes |
 | ---- | --------------------- | -------------- | ------------ | ----- |
-| **Internal** | `tick()` in `LeafSouthA` | `LeafSouthA : tick / value++` inside box | none | `ctx` updates; state class unchanged |
-| **Child → sibling child** | `LeafSouthA → LeafSouthB` | `A --> B : goSibling` | exit A, enter B | LCA = parent (`MidSouth`) |
-| **Child → parent composite** | `LeafSouthA → MidSouth` | arrow to parent composite | exit leaf; re-enter initial leaf | Composites with `@HsmInitialState` descend again |
-| **Child → ancestor** | `LeafSouthB → BranchSouth` | arrow to ancestor | exit up to LCA; enter down initial chain | Ancestors above LCA untouched |
-| **Child → root** | `LeafSouthA → DeepTop` | arrow to root | exit to LCA; re-enter initial branch | Root’s own onExit/onEntry skipped at LCA |
-| **Cross-branch (other subtree)** | `LeafSouthA → LeafNorthB` | arrow across branches | exit south branch; enter north | LCA = top state |
-| **Into composite** | `LeafSouthA → BranchEast` | arrow into composite | exit source branch; enter `BranchEast` + initial `LeafEast` | Target composite → initial leaf |
-| **Self** | `LeafSouthA → LeafSouthA` | arrow to same state (rare) | none | Source equals destination leaf |
+| **Internal** | `tick()` in `LeafWestA` | `LeafWestA : tick / value++` inside box | none | `ctx` updates; state class unchanged |
+| **Child → sibling child** | `LeafWestA → LeafWestB` | `A --> B : goSiblingWest` | exit A, enter B | LCA = parent (`MidWest`) |
+| **Child → parent composite** | `LeafWestA → MidWest` | arrow to parent composite | exit leaf; re-enter initial leaf | Composites with `@HsmInitialState` descend again |
+| **Child → ancestor** | `LeafWestB → StackWest` | arrow to ancestor | exit up to LCA; enter down initial chain | Ancestors above LCA untouched |
+| **Child → root** | `LeafWestA → DeepTop` | arrow to root | exit to LCA; re-enter initial branch | Root’s own onExit/onEntry skipped at LCA |
+| **Cross-stack leaf → leaf** | `LeafWestA → LeafEastB` | arrow across stacks | exit west stack; enter east leaf | LCA = `DeepTop` |
+| **Cross-stack → branch composite** | `LeafWestA → StackEast` | arrow into composite | exit source stack; enter branch + initial chain | Target composite → initial leaf |
+| **Cross-stack → mid composite** | `LeafWestA → MidEast` | arrow to mid composite | same as branch when initial chain matches | Often identical trace to branch target |
+| **Self** | `LeafWestA → LeafWestA` | arrow to same state (rare) | none | Source equals destination leaf |
 
 **Trace convention** (tutorial 05): push `enter:StateName` / `exit:StateName` from
 `onEntry` / `onExit`; `handler:event` from the handler. Compare with
@@ -822,6 +885,8 @@ See [§4 `sync()`](#sync) and [tutorial 08](../tutorials/08-post-and-sync/README
 | Handler throws | `HsmEventHandlerError` | `onError` → often `HsmFatalErrorState` |
 | No handler | `HsmUnhandledEventError` | `onUnhandled` → `onError` |
 | `onExit` / `onEntry` throws | `HsmTransitionError` | Recovery → `HsmFatalErrorState` |
+| `then()` throws | `HsmTransitionError` (`failedCallback: 'then'`) | `HsmFatalErrorState` |
+| `then()` chain exceeds limit | `HsmThenDepthError` | `HsmFatalErrorState` |
 | `onError` throws | `HsmFatalError` | `HsmFatalErrorState` |
 
 `sync()` drains the queue; with the **default** `dispatchErrorCallback` the
@@ -852,7 +917,7 @@ to propagate failures to application code.
 | `DEBUG` | 1 | Transition and handler boundaries |
 | `VERBOSE_DEBUG` | 2 | Lookup walks, cache hit/miss |
 
-Set on factory: `new HsmFactory(Top, true, HsmTraceLevel.DEBUG)`.
+Set trace level: `makeHsm(Top, ctx, true, HsmTraceLevel.DEBUG)`.
 
 ### Trace writer
 
@@ -899,7 +964,7 @@ const json = JSON.stringify({
 });
 
 // resume — new instance after restart
-const sm = factory.create(emptyCtx, false);
+const sm = makeHsm(TopState, emptyCtx, false);
 sm.restore(STATE_BY_NAME[stateName], parsed.ctx);
 ```
 
@@ -923,8 +988,9 @@ Tutorial: [../tutorials/11-restore/README.md](../tutorials/11-restore/README.md)
 | ---- | ---- |
 | `HsmUnhandledEventError` | No handler for event in current state |
 | `HsmEventHandlerError` | Handler threw |
-| `HsmTransitionError` | `onEntry`/`onExit` threw during transition |
+| `HsmTransitionError` | `onEntry`/`onExit`/`then()` threw during transition |
 | `HsmInitializationError` | `onEntry` during init failed |
+| `HsmThenDepthError` | `then()` chain exceeded 32 steps |
 | `HsmFatalError` | `onError` recovery failed |
 | `HsmInitialStateError` | Two `@HsmInitialState` on same parent |
 
@@ -993,35 +1059,140 @@ for in-flight work.
 
 ---
 
-## 10. HsmFactory configuration
+## 10. then()
+
+Optional lifecycle hook on state classes. The runtime invokes it **automatically**
+after every successful **initialization** or **event dispatch**, once all
+scheduled transitions (`onExit`, LCA walk, `onEntry`) for that turn have finished.
+
+### Define on the leaf
 
 ```typescript
-new HsmFactory(
+class Pending extends Top {
+  then(): void {
+    this.ctx.log.push('then:Pending');
+    this.transition(Done);
+  }
+}
+
+class AsyncPending extends Top {
+  async then(): Promise<void> {
+    await this.sleep(10);
+    this.transition(AsyncDone);
+  }
+}
+
+@HsmInitialState
+class Boot extends BootTop {
+  then(): void {
+    this.transition(BootReady); // after init descent completes
+  }
+}
+```
+
+The empty default on `HsmTopState` is **not** inherited — only leaf classes that
+**own** `then()` (`hasOwnProperty`) participate. A child that extends a parent
+with `then()` but does not override it will **not** run the parent's hook.
+
+### When it runs
+
+| Trigger | Order |
+| ------- | ----- |
+| `makeHsm(Top, ctx, true)` | `@HsmInitialState` descent → `onEntry` chain → **`then()` on initial leaf** |
+| Handler calls `transition()` | handler → transition (exit/entry) → **`then()` on new leaf** |
+| Handler without transition | handler completes → **`then()` on current leaf** (if defined) |
+
+`then()` is **not** an event or service — it is excluded from `Protocol` typing
+and cannot be targeted with `post('then')` or `call('then')`.
+
+### Chaining
+
+If `then()` calls `this.transition(Next)`, the runtime runs that transition and
+then invokes `Next`'s `then()` when the new leaf owns one. The loop continues
+until a step does not schedule a transition or the leaf has no `then()`. Maximum
+**32** steps per initialization or dispatch; exceeding that throws
+`HsmThenDepthError` and moves to `HsmFatalErrorState`.
+
+### Errors
+
+| Failure | Error type | Outcome |
+| ------- | ---------- | ------- |
+| `then()` throws | `HsmTransitionError` (`failedCallback: 'then'`) | `HsmFatalErrorState` |
+| Chain > 32 steps | `HsmThenDepthError` | `HsmFatalErrorState` |
+
+### vs handler `transition()` and `onEntry`
+
+| | Handler `transition()` | `then()` | `post()` from `onEntry` |
+| --- | --- | --- | --- |
+| Runs | After handler body, before dispatch ends | After handler **and** its transitions | Next mailbox job |
+| After init | No | Yes (on initial leaf) | Only if you `post` in `onEntry` |
+| Same dispatch turn | Yes | Yes (including chained steps) | No — separate dispatch |
+
+Use `then()` when follow-up should run **as part of the same init or event
+dispatch** once the state is fully entered. Use `post()` from `onEntry` when the
+follow-up should be a **separate** mailbox job (see [§5 Rules of thumb](#rules-of-thumb)).
+
+---
+
+## 11. makeHsm
+
+Creates a machine instance bound to a **context** object and optionally runs
+initialization.
+
+```typescript
+import { makeHsm, HsmTraceLevel } from 'ihsm';
+
+// Default: initialize=true, traceLevel=DEBUG, console trace writer
+const door = makeHsm(DoorTop, { openCount: 0 });
+await door.sync();
+
+// Verbose trace into a custom writer (tests, structured logs)
+const writer = new CollectingTraceWriter();
+const traced = makeHsm(
+  DoorTop,
+  { openCount: 0 },
+  true,
+  HsmTraceLevel.VERBOSE_DEBUG,
+  writer,
+);
+
+// Skip init — hydrate from a snapshot (tutorial 11)
+const sm = makeHsm(SessionTop, emptyCtx, false);
+sm.restore(Authenticated, savedCtx);
+```
+
+```typescript
+makeHsm(
   TopStateClass,
-  initialize?,           // default true — run onEntry descent on create
+  ctx,
+  initialize?,           // default true — run onEntry descent
   traceLevel?,             // default HsmTraceLevel.DEBUG
   traceWriter?,            // default console logger
   dispatchErrorCallback?   // default: log and rethrow
-);
+): Hsm<Context, Protocol>
 ```
 
 | Parameter | Purpose |
 | --------- | ------- |
 | `topState` | Root state class (required) |
-| `initialize` | When `true`, `create()` walks `@HsmInitialState` chain and runs `onEntry` |
-| `traceLevel` | `PRODUCTION`, `DEBUG`, or `VERBOSE_DEBUG` for new instances |
+| `ctx` | Mutable domain context (required) |
+| `initialize` | When `true`, walks `@HsmInitialState` chain, runs `onEntry`, then `then()` on the initial leaf |
+| `traceLevel` | `PRODUCTION`, `DEBUG`, or `VERBOSE_DEBUG` |
 | `traceWriter` | Custom `HsmTraceWriter` (tests, structured logs) |
 | `dispatchErrorCallback` | Hook when dispatch throws and is not recovered |
 
-`create(ctx, initialize?, traceLevel?, traceWriter?, dispatchErrorCallback?)`
-overrides factory defaults per instance. Pass `initialize: false` when you will
-immediately `restore()` a snapshot (tutorial 10).
+`Context` and `Protocol` are inferred from the top state class — callers get a
+fully typed `Hsm<Context, Protocol>` without manual generic arguments.
 
-Factory fields are mutable — tests often set `factory.traceLevel` in `beforeEach`.
+Pass `initialize: false` when you will immediately `restore()` a snapshot (tutorial 11).
+Pass `traceLevel`, `traceWriter`, and `dispatchErrorCallback` on each call when
+tests or deployments need non-default behavior.
+
+Tutorial: [../tutorials/01-hello-state-machine/README.md](../tutorials/01-hello-state-machine/README.md)
 
 ---
 
-## 11. Zero dependencies
+## 12. Zero dependencies
 
 `package.json` has **no** `dependencies`. Runtime uses only JavaScript builtins
 (`Map`, `Promise`, `setTimeout`, `Object.setPrototypeOf`).
@@ -1034,7 +1205,7 @@ Implications:
 
 ---
 
-## 12. Code coverage
+## 13. Code coverage
 
 The runtime under `src/` (excluding `src/spec/`) maintains **100%** coverage:
 
@@ -1055,7 +1226,7 @@ Tutorial tests: `npm run test:tutorials`
 
 ---
 
-## 13. Comparison with XState
+## 14. Comparison with XState
 
 | Concern | ihsm | XState v5 |
 | ------- | ---- | --------- |
@@ -1078,14 +1249,29 @@ visual specs, parallel regions in one chart, or frontend ecosystem integration.
 
 ---
 
-## 14. API quick reference
+## 15. API quick reference
 
-### `HsmFactory<Context, Protocol>`
+### `makeHsm<Context, Protocol>`
 
-| Member | Description |
-| ------ | ----------- |
-| `constructor(topState, initialize?, traceLevel?, traceWriter?, dispatchErrorCallback?)` | Configure defaults |
-| `create(ctx, ...)` | New machine instance |
+```typescript
+makeHsm(
+  topState,
+  ctx,
+  initialize?,           // default true
+  traceLevel?,             // default HsmTraceLevel.DEBUG
+  traceWriter?,            // default console logger
+  dispatchErrorCallback?,  // default: log and rethrow
+): Hsm<Context, Protocol>
+```
+
+| Parameter | Description |
+| --------- | ----------- |
+| `topState` | Root state class |
+| `ctx` | Domain context object |
+| `initialize` | Run `@HsmInitialState` descent, `onEntry`, and leaf `then()` when `true` |
+| `traceLevel` | `PRODUCTION`, `DEBUG`, or `VERBOSE_DEBUG` |
+| `traceWriter` | Custom trace sink |
+| `dispatchErrorCallback` | Hook when dispatch throws and is not recovered |
 
 ### `HsmTopState<Context, Protocol>`
 
@@ -1099,6 +1285,7 @@ visual specs, parallel regions in one chart, or frontend ecosystem integration.
 | `sleep(ms)` | Promise delay helper |
 | `unhandled()` | Throw unhandled event |
 | `onEntry` / `onExit` | Lifecycle |
+| `then()` | Automatic post-transition hook (leaf-owned only) |
 | `onError` / `onUnhandled` | Recovery hooks |
 
 ### `Hsm<Context, Protocol>`
@@ -1114,8 +1301,9 @@ visual specs, parallel regions in one chart, or frontend ecosystem integration.
 | ----- | ---- |
 | `HsmUnhandledEventError` | No handler in current state |
 | `HsmEventHandlerError` | Handler threw |
-| `HsmTransitionError` | `onEntry` / `onExit` threw |
+| `HsmTransitionError` | `onEntry` / `onExit` / `then()` threw |
 | `HsmInitializationError` | Init `onEntry` failed |
+| `HsmThenDepthError` | `then()` chain exceeded 32 steps |
 | `HsmFatalError` | `onError` recovery failed |
 | `HsmInitialStateError` | Duplicate `@HsmInitialState` |
 | `HsmFatalErrorState` | Terminal recovery-failure state |
@@ -1138,5 +1326,5 @@ Mark default substate of composite parent.
 
 1. Read §1–4 of this manual.
 2. Work through [tutorials 01–02](../tutorials/README.md) (hello + **tracing**), then 03–15 (also under [reference/tutorials/](/reference/tutorials/) on the site).
-3. Read §5–9; complete tutorials 06–13.
+3. Read §5–10; complete tutorials 06–13.
 4. Study [tutorial 15](../tutorials/15-complex-workflow/README.md) for integration.

@@ -38,6 +38,7 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 	public _instance: Instance<Context, Protocol>;
 	public _transitionCache: Map<string, Transition<Context, Protocol>> = new Map();
 	public _jobs: Task[];
+	public _hiPriorityJobs: Task[];
 	private _isRunning = false;
 	public _transitionState?: HsmStateClass<Context, Protocol>;
 
@@ -67,6 +68,7 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 		this._createInitTask = mapInitTaskFactory(traceLevel);
 		this._createEventDispatchTask = mapEventDispatchTaskFactory(traceLevel);
 		this._jobs = [];
+		this._hiPriorityJobs = [];
 		this._isRunning = false;
 
 
@@ -97,6 +99,7 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 	get currentState(): HsmStateClass<Context, Protocol> { return Object.getPrototypeOf(this._instance).constructor; }
 	set currentState(newState: HsmStateClass<Context, Protocol>) { Object.setPrototypeOf(this._instance, newState.prototype); }
 	post<EventName extends keyof Protocol>(eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void { this.pushTask(this._createEventDispatchTask(this, eventName, ...eventPayload)); }
+	postNow<EventName extends keyof Protocol>(eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void { this.pushHiPriorityTask(this._createEventDispatchTask(this, eventName, ...eventPayload)); }
 	deferredPost<EventName extends keyof Protocol>(millis: number, eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void {
 		setTimeout(
 			() => this.pushTask(this._createEventDispatchTask(this, eventName, ...eventPayload)),
@@ -126,7 +129,22 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 	}
 
 	public pushTask(t: (done: () => void) => void): void {
-		this._jobs.push(t);
+		this.enqueueTask(t, this._jobs);
+	}
+
+	public pushHiPriorityTask(t: (done: () => void) => void): void {
+		this.enqueueTask(t, this._hiPriorityJobs);
+	}
+
+	public unshiftHiPriorityTask(t: (done: () => void) => void): void {
+		this._hiPriorityJobs.unshift(t);
+		if (this._isRunning) return;
+		this._isRunning = true;
+		this.dequeue();
+	}
+
+	private enqueueTask(t: Task, queue: Task[]): void {
+		queue.push(t);
 		if (this._isRunning) return;
 		this._isRunning = true;
 		this.dequeue();
@@ -138,19 +156,32 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 	}
 
 	private dequeue(): void {
-		if (this._jobs.length == 0) {
+		if (this._hiPriorityJobs.length == 0 && this._jobs.length == 0) {
 			this._isRunning = false;
 			return;
 		}
-		const task = this._jobs.shift();
-		 
-		this.exec(task!);
+		const task = this._hiPriorityJobs.length > 0 ? this._hiPriorityJobs.shift()! : this._jobs.shift()!;
+		this.exec(task);
 	}
 
 	private exec(task: Task): void {
-		setTimeout(() => Promise.resolve()
-			.then(() => new Promise<void>((resolve: () => void) => task(resolve)))
-			.then(() => this.dequeue()), 0);
+		setTimeout(() => this.runTask(task).then(() => this.dequeue()), 0);
+	}
+
+	private runTask(task: Task): Promise<void> {
+		return new Promise<void>(resolve => {
+			task(() => {
+				this.drainHiPriority().then(resolve);
+			});
+		});
+	}
+
+	private drainHiPriority(): Promise<void> {
+		if (this._hiPriorityJobs.length === 0) {
+			return Promise.resolve();
+		}
+		const task = this._hiPriorityJobs.shift()!;
+		return this.runTask(task).then(() => this.drainHiPriority());
 	}
 
 	public _tracePush(d: string, msg: string): void {

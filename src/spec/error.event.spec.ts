@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, HsmAny, HsmEventHandlerError, HsmFactory, HsmFatalErrorState, HsmInitialState, HsmStateClass, HsmTopState } from '../';
+import { Hsm, HsmAny, HsmEventHandlerError, makeHsm, HsmFatalErrorState, HsmInitialState, HsmStateClass, HsmTopState } from '../';
 
 import { clearLastError, createTestDispatchErrorCallback, TRACE_LEVELS } from './spec.utils';
 
@@ -79,13 +79,10 @@ class D extends Recovery {
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Error event (traceLevel = ${traceLevel})`, function (): void {
 		let sm: Hsm;
-		const factory = new HsmFactory(TopState);
 
 		beforeEach(async () => {
-			factory.traceLevel = traceLevel;
-			factory.dispatchErrorCallback = createTestDispatchErrorCallback(true);
 			clearLastError();
-			sm = factory.create({});
+			sm = makeHsm(TopState, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
 			await sm.sync();
 		});
 

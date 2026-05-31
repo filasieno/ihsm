@@ -11,62 +11,38 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Test & coverage
+  nix:
+    name: Build & test (Nix)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [20, 22]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: npm
+      - name: Setup Nix
+        uses: ./.github/actions/nix
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Build library and run tests
+        run: nix flake check --print-build-logs
 
-      - name: Run unit tests with coverage
-        run: npm test
+  coveralls:
+    name: Coverage upload
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: nix
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Run tutorials
-        run: npm run test:tutorials
+      - name: Setup Nix
+        uses: ./.github/actions/nix
+
+      - name: Generate lcov
+        run: nix develop --command bash -c 'npm test && npm run coverage'
 
       - name: Upload coverage to Coveralls
-        if: matrix.node-version == 22 && github.event_name == 'push'
         uses: coverallsapp/github-action@v2
-        continue-on-error: true
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Compile TypeScript
-        run: npm run build
-
-      - name: ESLint
-        run: npm run lint
-
-      - name: Typecheck tutorial machines
-        run: npm run typecheck:tutorials
 
   docs:
     name: Documentation build
@@ -75,8 +51,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build site
-        uses: ./.github/actions/build-docs
+      - name: Setup Nix
+        uses: ./.github/actions/nix
+
+      - name: Build documentation site
+        run: nix build .#docs --print-build-logs
 
       - name: Verify site output
-        run: bash scripts/verify-docs-site.sh
+        run: bash scripts/verify-docs-site.sh site/build-pages

@@ -1,4 +1,4 @@
-import { HsmFactory, HsmInitialState, HsmTopState } from '../../src';
+import { makeHsm, HsmInitialState, HsmTopState } from '../../src';
 
 export interface DoorCtx {
 	openCount: number;
@@ -25,8 +25,6 @@ export class Open extends DoorTop {
 	}
 }
 
-export const doorFactory = new HsmFactory(DoorTop);
-
-export function createDoor(): ReturnType<typeof doorFactory.create> {
-	return doorFactory.create({ openCount: 0 });
+export function createDoor() {
+	return makeHsm(DoorTop, { openCount: 0 });
 }

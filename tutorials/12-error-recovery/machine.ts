@@ -1,4 +1,4 @@
-import { HsmEventHandlerError, HsmFactory, HsmInitialState, HsmTopState, HsmUnhandledEventError } from '../../src';
+import { HsmEventHandlerError, makeHsm, HsmInitialState, HsmTopState, HsmUnhandledEventError } from '../../src';
 
 export interface WorkerCtx {
 	failures: number;
@@ -32,8 +32,6 @@ export class Working extends WorkerTop {
 	}
 }
 
-export const workerFactory = new HsmFactory(WorkerTop);
-
 export function createWorker() {
-	return workerFactory.create({ failures: 0, recovered: 0 });
+	return makeHsm(WorkerTop, { failures: 0, recovered: 0 });
 }

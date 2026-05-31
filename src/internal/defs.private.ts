@@ -32,4 +32,7 @@ export interface HsmWithTracing<Context, Protocol extends {} | undefined> extend
 	_tracePopDone(msg: string): void;
 	_tracePopError(msg: string): void;
 	_traceWrite(msg: any): void;
+
+	unshiftHiPriorityTask(t: Task): void;
+	pushHiPriorityTask(t: Task): void;
 }

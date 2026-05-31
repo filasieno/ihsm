@@ -1,0 +1,55 @@
+# Leaf → ancestor composite
+
+## Topology
+
+Target is a **grandparent** (or higher ancestor), not the root. **LCA = that ancestor** (`StackWest`).
+
+```plantuml
+@startuml
+left to right direction
+state StackWest {
+  [*] --> MidWest
+  state MidWest {
+    [*] --> LeafWestA
+    LeafWestB -up-> StackWest : goAncestorWest
+  }
+}
+@enduml
+```
+
+
+### Expected trace
+
+```trace
+{{TRACE}}
+```
+
+## Starting point
+
+`LeafWestB` (after `goSiblingWest` from `LeafWestA`).
+
+## What happens
+
+| Step | Action |
+| ---- | ------ |
+| 1 | LCA = **`StackWest`** |
+| 2 | Exit **`LeafWestB`**, then **`MidWest`** — stop before `StackWest` |
+| 3 | **`DeepTop` is not exited** — still an ancestor of both source and target |
+| 4 | Re-enter **`MidWest`** → `@HsmInitialState` **`LeafWestA`** |
+| 5 | Final leaf = **`LeafWestA`** |
+
+## Code
+
+```typescript
+sm.post('goSiblingWest');
+await sm.sync();
+sm.post('goAncestorWest');
+await sm.sync();
+```
+
+
+## Verify
+
+```shell
+npm run test:tutorials -- --grep '05 · 05 to ancestor'
+```

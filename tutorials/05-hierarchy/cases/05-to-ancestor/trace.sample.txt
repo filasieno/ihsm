@@ -1,0 +1,19 @@
+LeafWestB: begin event dispatch of #goAncestorWest
+#goAncestorWest|LeafWestB: started event dispatch
+#goAncestorWest|lookup|LeafWestB: started lookup of #goAncestorWest event handler
+#goAncestorWest|lookup|LeafWestB: not found in state LeafWestB
+#goAncestorWest|lookup|LeafWestB: not found in state MidWest
+#goAncestorWest|lookup|LeafWestB: not found in state StackWest
+#goAncestorWest|lookup|LeafWestB: done: #goAncestorWest found in state DeepTop
+#goAncestorWest|execute|LeafWestB: started event handler execution
+#goAncestorWest|execute|LeafWestB: done: event handler execution successful
+#goAncestorWest|LeafWestB: requested transition from LeafWestB to StackWest 
+#goAncestorWest|LeafWestB: transition cache miss for LeafWestB to StackWest 
+#goAncestorWest|transition from LeafWestB to StackWest|LeafWestB: started transition from LeafWestB to StackWest 
+#goAncestorWest|transition from LeafWestB to StackWest|LeafWestB: LeafWestB.onExit() done
+#goAncestorWest|transition from LeafWestB to StackWest|LeafWestB: MidWest.onExit() done
+#goAncestorWest|transition from LeafWestB to StackWest|LeafWestB: MidWest.onEntry() done
+#goAncestorWest|transition from LeafWestB to StackWest|LeafWestB: LeafWestA.onEntry() done
+#goAncestorWest|transition from LeafWestB to StackWest|LeafWestB: done: final state is LeafWestA
+#goAncestorWest|LeafWestA: done: event dispatch successful
+LeafWestA: end event dispatch

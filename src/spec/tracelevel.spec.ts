@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { HsmFactory, Hsm, HsmInitialState, HsmTopState, HsmTraceLevel, HsmAny, HsmTraceWriter } from '../';
+import { makeHsm, Hsm, HsmInitialState, HsmTopState, HsmTraceLevel, HsmAny, HsmTraceWriter } from '../';
 import * as ihsm from '../index';
 
 interface Protocol {
@@ -45,11 +45,9 @@ class F extends E {}
 
 describe(`Switch TraceLevel`, function (): void {
 	let sm: Hsm<HsmAny, Protocol>;
-	const factory = new HsmFactory(TopState);
 
 	beforeEach(async () => {
-		factory.traceLevel = HsmTraceLevel.VERBOSE_DEBUG;
-		sm = factory.create({});
+		sm = makeHsm(TopState, {}, true, HsmTraceLevel.VERBOSE_DEBUG);
 		await sm.sync();
 	});
 

@@ -1,0 +1,52 @@
+# Initialization
+
+## Topology
+
+No external transition — ihsm walks the **initial chain** after `makeHsm()`.
+
+```plantuml
+@startuml
+left to right direction
+state DeepTop {
+  [*] --> StackWest
+  state StackWest {
+    [*] --> MidWest
+    state MidWest {
+      [*] --> LeafWestA
+    }
+  }
+}
+@enduml
+```
+
+
+### Expected trace
+
+```trace
+{{TRACE}}
+```
+
+## Starting point
+
+```typescript
+const sm = createDeepMachine();
+await sm.sync();
+```
+
+## What happens
+
+| Step | Action |
+| ---- | ------ |
+| 1 | Start at `DeepTop`, follow `@HsmInitialState StackWest` |
+| 2 | Follow `@HsmInitialState MidWest` |
+| 3 | Follow `@HsmInitialState LeafWestA` — no further initial child |
+| 4 | Active leaf = **`LeafWestA`** |
+
+Each composite on the path runs `onEntry` **outer → inner**.
+
+
+## Verify
+
+```shell
+npm run test:tutorials -- --grep '05 · 01 initialization'
+```

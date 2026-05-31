@@ -1,6 +1,7 @@
-import { HsmTopState, HsmEventHandlerError, HsmEventHandlerName, HsmEventHandlerPayload, HsmFatalErrorState, HsmInitializationError, HsmFatalError, HsmStateClass, HsmTransitionError, HsmUnhandledEventError } from '../';
+import { HsmTopState, HsmEventHandlerError, HsmEventHandlerName, HsmEventHandlerPayload, HsmThenDepthError, HsmFatalErrorState, HsmInitializationError, HsmFatalError, HsmStateClass, HsmTransitionError, HsmUnhandledEventError } from '../';
 
 import { DoneCallback, HsmWithTracing, Task, Transition } from './defs.private';
+import { scheduleThenStep } from './dispatch-then';
 import { getInitialState, getTransitionKey, hasInitialState, asError } from './utils';
 
 class ProductionTransition<Context, Protocol extends {} | undefined, EventName extends keyof Protocol> implements Transition<Context, Protocol> {
@@ -112,7 +113,7 @@ async function doTransition<Context, Protocol extends {} | undefined>(hsm: HsmWi
 	}
 }
 
-async function doError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, err: Error): Promise<void> {
+async function doError<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, err: Error, onComplete: () => void): Promise<void> {
 	hsm._transitionState = undefined; // clear next state
 	const messageHandler = hsm.currentState.prototype.onError;
 	try {
@@ -120,35 +121,31 @@ async function doError<Context, Protocol extends {} | undefined, EventName exten
 		if (result) {
 			await result;
 		}
-		await doTransition(hsm);
+		scheduleThenStep(hsm, doTransition, undefined, 0, onComplete);
 	} catch (recoveryErr) {
-		if (recoveryErr instanceof HsmTransitionError) {
+		if (recoveryErr instanceof HsmTransitionError || recoveryErr instanceof HsmThenDepthError) {
 			throw new HsmFatalError(hsm, recoveryErr);
 		}
 		const err = asError(recoveryErr);
 		hsm.transition(HsmFatalErrorState);
-		try {
-			await doTransition(hsm);
-		} catch (_transitionError) {
-			throw new HsmFatalError(hsm, err);
-		}
+		scheduleThenStep(hsm, doTransition, undefined, 0, onComplete);
 		throw new HsmFatalError(hsm, err);
 	}
 }
 
-async function doUnhandledEvent<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, error: HsmUnhandledEventError<Context, Protocol, EventName>): Promise<void> {
+async function doUnhandledEvent<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, error: HsmUnhandledEventError<Context, Protocol, EventName>, onComplete: () => void): Promise<void> {
 	try {
 		const result = hsm.currentState.prototype.onUnhandled.call(hsm._instance, error);
 		if (result) {
 			await result;
 		}
-		await doTransition(hsm);
+		scheduleThenStep(hsm, doTransition, undefined, 0, onComplete);
 	} catch (recoveryErr) {
-		if (recoveryErr instanceof HsmTransitionError) {
+		if (recoveryErr instanceof HsmTransitionError || recoveryErr instanceof HsmThenDepthError) {
 			hsm.currentState = HsmFatalErrorState;
 			throw recoveryErr;
 		}
-		await doError(hsm, asError(recoveryErr));
+		await doError(hsm, asError(recoveryErr), onComplete);
 	}
 }
 
@@ -166,9 +163,17 @@ async function executeInit<Context, Protocol extends {} | undefined, EventName e
 		}
 		hsm.currentState = currState;
 	} catch (cause) {
+		if (cause instanceof HsmTransitionError || cause instanceof HsmThenDepthError) {
+			throw cause;
+		}
 		hsm.currentState = HsmFatalErrorState;
 		throw new HsmInitializationError(hsm, currState, asError(cause));
 	}
+}
+
+function finishEventDispatch<Context, Protocol extends {} | undefined>(hsm: HsmWithTracing<Context, Protocol>): void {
+	hsm._currentEventName = undefined;
+	hsm._currentEventPayload = undefined;
 }
 
 async function dispatchEvent<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): Promise<void> {
@@ -177,26 +182,26 @@ async function dispatchEvent<Context, Protocol extends {} | undefined, EventName
 	try {
 		const eventHandler = hsm.currentState.prototype[eventName];
 		if (!eventHandler) {
-			await doUnhandledEvent(hsm, new HsmUnhandledEventError(hsm));
+			await doUnhandledEvent(hsm, new HsmUnhandledEventError(hsm), () => finishEventDispatch(hsm));
 			return;
 		}
 		try {
 			const result = eventHandler.call(hsm._instance, ...eventPayload);
 			if (result) await result;
-			await doTransition(hsm);
+			scheduleThenStep(hsm, doTransition, undefined, 0, () => finishEventDispatch(hsm));
 		} catch (recoveryErr) {
 			if (recoveryErr instanceof HsmUnhandledEventError) {
-				await doUnhandledEvent(hsm, recoveryErr);
-			} else if (recoveryErr instanceof HsmTransitionError) {
+				await doUnhandledEvent(hsm, recoveryErr, () => finishEventDispatch(hsm));
+			} else if (recoveryErr instanceof HsmTransitionError || recoveryErr instanceof HsmThenDepthError) {
+				finishEventDispatch(hsm);
 				throw recoveryErr;
 			} else {
-				await doError(hsm, asError(recoveryErr));
+				await doError(hsm, asError(recoveryErr), () => finishEventDispatch(hsm));
 			}
 		}
-	} finally {
-		hsm._currentEventName = undefined;
-		hsm._currentEventPayload = undefined;
-		hsm._transitionState = undefined;
+	} catch (err) {
+		finishEventDispatch(hsm);
+		throw err;
 	}
 }
 
@@ -208,8 +213,14 @@ async function dispatchEvent<Context, Protocol extends {} | undefined, EventName
 export function createInitTask<DispatchContext, DispatchProtocol extends {} | undefined>(hsm: HsmWithTracing<DispatchContext, DispatchProtocol>): Task {
 	return (done: DoneCallback): void => {
 		executeInit(hsm)
-			.catch((err: unknown) => hsm.dispatchErrorCallback(hsm, asError(err)))
-			.finally(() => done());
+			.then(() => {
+				scheduleThenStep(hsm, doTransition, undefined, 0, () => {});
+				done();
+			})
+			.catch((err: unknown) => {
+				hsm.dispatchErrorCallback(hsm, asError(err));
+				done();
+			});
 	};
 }
 

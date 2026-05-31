@@ -1,4 +1,4 @@
-# Tutorial 07: Internal Transitions
+# Internal Transitions
 
 ## Problem
 
@@ -22,8 +22,6 @@ state LampTop {
 ```
 
 No exit or entry on `dim` / `brighten` — internal transitions on `On`.
-
-## Walkthrough
 
 Track whether entry ran via a counter in ctx:
 
@@ -58,7 +56,7 @@ await lamp.sync();
 
 ## Reading the trace
 
-ihsm logs every dispatch step when `HsmTraceLevel.VERBOSE_DEBUG` is set and a custom `HsmTraceWriter` collects lines. Setup: [Tutorial 02 — Tracing](../02-tracing/README.md).
+With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
@@ -68,15 +66,9 @@ Each line is **`domain|…|StateName: message`**. Domains nest as the runtime de
 
 **What to notice:** `#dim` adjusts brightness with no transition lines — state class stays `On`.
 
-## Run the test
+## Verify
 
 ```shell
 npm run test:tutorials -- --grep 'Tutorial 07'
 ```
 
-## What you learned
-
-- Internal transition = handle event, omit `transition()`.
-- Inline `if` / clamping replaces declarative guards.
-
-Next: [Tutorial 08 — Post & sync](../08-post-and-sync/README.md)

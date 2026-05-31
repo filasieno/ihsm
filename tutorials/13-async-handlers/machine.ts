@@ -1,4 +1,4 @@
-import { HsmFactory, HsmInitialState, HsmTopState } from '../../src';
+import { makeHsm, HsmInitialState, HsmTopState } from '../../src';
 
 export interface FileCtx {
 	sourcePath: string;
@@ -31,7 +31,7 @@ async function close(_fd: number): Promise<void> {
 	await Promise.resolve();
 }
 
-export class FileTop extends HsmTopState<FileCtx, FileProtocol> implements FileProtocol {}
+export class FileTop extends HsmTopState<FileCtx, FileProtocol> {}
 
 @HsmInitialState
 export class Idle extends FileTop {
@@ -68,10 +68,8 @@ export class Idle extends FileTop {
 
 export class Done extends FileTop {}
 
-export const fileFactory = new HsmFactory(FileTop);
-
 export function createFileActor() {
-	return fileFactory.create({
+	return makeHsm(FileTop, {
 		sourcePath: '',
 		destPath: '',
 		bytesWritten: 0,

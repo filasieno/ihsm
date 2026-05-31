@@ -1,4 +1,4 @@
-# Tutorial 01: Hello State Machine
+# Hello State Machine
 
 ## Problem
 
@@ -22,8 +22,6 @@ state DoorTop {
 @enduml
 ```
 
-## Walkthrough
-
 We declare what the machine remembers (`DoorCtx`) and which events exist (`DoorProtocol`). The protocol drives typed `post('open')` at compile time.
 
 ```typescript
@@ -43,41 +41,61 @@ The **root state** inherits mailbox machinery from `HsmTopState`. It anchors the
 export class DoorTop extends HsmTopState<DoorCtx, DoorProtocol> {}
 ```
 
-Mark the **initial state** with `@HsmInitialState`. After `factory.create`, the runtime descends here.
+Mark the **initial state** with `@HsmInitialState`. After `makeHsm`, the runtime descends here.
+
+### Handler — `Closed` state
 
 ```typescript
 @HsmInitialState
 export class Closed extends DoorTop {
 	open(): void {
-		this.ctx.openCount += 1; // domain data in ctx
-		this.transition(Open);   // ← explicit transition
+		this.ctx.openCount += 1;
+		this.transition(Open);
 	}
 }
 ```
 
-`Open` handles only what matters while open:
+### Handler — `Open` state
 
 ```typescript
 export class Open extends DoorTop {
 	close(): void {
-		this.transition(Closed); // ← return to Closed
+		this.transition(Closed);
 	}
 }
 ```
 
-Create the actor and drive it from the outside:
+### Client — create actor, `post`, `sync`
+
+Create the machine with `makeHsm` (or the tutorial helper `createDoor()`):
 
 ```typescript
-const door = doorFactory.create({ openCount: 0 });
-await door.sync();           // wait for init
+import { makeHsm } from 'ihsm';
 
-door.post('open');
-await door.sync();           // handler + transition complete
+const door = makeHsm(DoorTop, { openCount: 0 });
+await door.sync();           // wait for init (onEntry chain + then() if defined)
 ```
+
+The client never calls `open()` directly — it enqueues the event by name:
+
+door.post('open');           // fire-and-forget — enqueues open handler
+await door.sync();           // wait until open handler + transition complete
+
+door.post('close');
+await door.sync();
+```
+
+| Side | Code | Waits? |
+| ---- | ---- | ------ |
+| Handler | `open(): void { … }` on `Closed` | Runtime runs it when dispatched |
+| Client | `door.post('open')` | No — returns immediately |
+| Client | `await door.sync()` | Yes — drain queue through handler + transition |
+
+`post` returns immediately; `sync()` is how the **client** waits when there is no return value. For a typed reply in one step, use `call()` ([Call services](../10-call-services/README.md)). To batch several posts with one wait, see [Post and sync](../08-post-and-sync/README.md).
 
 ## Reading the trace
 
-ihsm logs every dispatch step when `HsmTraceLevel.VERBOSE_DEBUG` is set and a custom `HsmTraceWriter` collects lines. Setup: [Tutorial 02 — Tracing](../02-tracing/README.md).
+With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
@@ -87,16 +105,9 @@ Each line is **`domain|…|StateName: message`**. Domains nest as the runtime de
 
 **What to notice:** `initialize` descends to `Closed`. Each `post` opens a `#open` / `#close` domain. After the handler, `requested transition` and `started transition` show the LCA path; `final state is` confirms the new leaf.
 
-## Run the test
+## Verify
 
 ```shell
 npm run test:tutorials -- --grep 'Tutorial 01'
 ```
 
-## What you learned
-
-- States are classes; `@HsmInitialState` picks the start state.
-- `transition()` is always explicit.
-- `post` enqueues; `sync()` waits for the current dispatch chain.
-
-Next: [Tutorial 02 — Tracing](../02-tracing/README.md)

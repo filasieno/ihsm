@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, HsmFactory, HsmInitialState, HsmStateClass, HsmTopState, HsmTraceLevel, HsmTraceWriter } from '../';
+import { Hsm, makeHsm, HsmInitialState, HsmStateClass, HsmTopState, HsmTraceLevel, HsmTraceWriter } from '../';
 import { clearLastError, TRACE_LEVELS } from './spec.utils';
 
 type State = HsmStateClass<Report>;
@@ -43,16 +43,13 @@ class B extends A {}
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Fields (traceLevel = ${traceLevel})`, () => {
 		let sm: Hsm;
-		const factory = new HsmFactory(TopState);
-		factory.traceLevel = traceLevel;
-
 		beforeEach(async () => {
 			clearLastError();
 		});
 
 		it(`are available`, async () => {
 			const ctx = new Report();
-			sm = factory.create(ctx);
+			sm = makeHsm(TopState, ctx, true, traceLevel);
 			sm.post('report', 'hello world');
 			await sm.sync();
 			expect(sm.currentStateName).eq('B');
@@ -60,11 +57,11 @@ for (const traceLevel of TRACE_LEVELS) {
 			expect(ctx.eventPayload).eqls(['hello world']);
 			expect(ctx.currentState).eq(B);
 			expect(ctx.currentStateName).eq('B');
-			expect(ctx.topState).eq(factory.topState);
+			expect(ctx.topState).eq(TopState);
 			expect(ctx.ctxTypeName).eq('Report');
-			expect(ctx.traceLevel).eq(factory.traceLevel);
+			expect(ctx.traceLevel).eq(traceLevel);
 			expect(ctx.topStateName).eq('TopState');
-			expect(ctx.traceWriter).eq(factory.traceWriter);
+			expect(ctx.traceWriter).eq(sm.traceWriter);
 		});
 	});
 }

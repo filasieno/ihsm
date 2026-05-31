@@ -7,28 +7,27 @@
 	"contributors": [
 		"Roberto Boati"
 	],
-	"description": "Samek/QP-style class HSM for TypeScript — zero deps, transition caching, typed call() services, 100% test coverage",
+	"description": "An idiomatic hierarchical state machine package for TypeScript",
+	"files": [
+		"lib"
+	],
+	"workspaces": [
+		"site"
+	],
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@istanbuljs/nyc-config-typescript": "^1.0.2",
 		"@types/mocha": "^10.0.10",
 		"@types/node": "^25.9.1",
 		"chai": "^6.2.2",
-		"eslint": "^10.4.0",
+		"eslint": "^10.4.1",
 		"eslint-config-prettier": "^10.1.8",
-		"eslint-plugin-prettier": "^5.5.6",
-		"husky": "^4.3.8",
 		"mocha": "^11.7.6",
-		"node-plantuml": "^0.9.0",
 		"nyc": "^18.0.0",
 		"prettier": "^3.8.3",
-		"source-map-support": "^0.5.21",
 		"ts-node": "^10.9.2",
-		"typedoc": "^0.28.19",
-		"typescript": "^5.9.3",
-		"typescript-eslint": "^8.60.0",
-		"vitepress": "^1.6.4",
-		"xstate": "^5.32.0"
+		"typescript": "^6.0.3",
+		"typescript-eslint": "^8.60.0"
 	},
 	"homepage": "https://filasieno.github.io/ihsm/",
 	"keywords": [
@@ -44,7 +43,7 @@
 	],
 	"license": "MIT",
 	"engines": {
-		"node": ">=20"
+		"node": ">=22"
 	},
 	"main": "./lib/index.js",
 	"name": "ihsm",
@@ -56,30 +55,25 @@
 		"build-browser": "tsc --build tsconfig.browser.json",
 		"build-node": "tsc --build tsconfig.json",
 		"build": "npm run build-node",
-		"benchmark": "npm run build-node && node --require ts-node/register/transpile-only benchmark/run-comparison.ts",
-		"check:plantuml": "node scripts/check-plantuml.mjs && node scripts/check-plantuml-initials.mjs",
-		"traces:generate": "node --require ts-node/register/transpile-only scripts/generate-tutorial-traces.ts",
 		"clean": "rm -rf ./lib ./.tsc ./.nyc_output ./coverage",
 		"coverage": "nyc report --reporter=text-lcov",
 		"dist": "npm run build-node && npm run doc",
-		"doc": "node scripts/doc-build.mjs",
-		"doc:api": "typedoc --options typedoc.json",
-		"doc:prepare": "node scripts/build-docs-site.mjs",
-		"doc:preview": "node scripts/build-docs-site.mjs && vitepress dev docs",
-		"doc:site": "vitepress build docs",
-		"verify:doc": "bash scripts/verify-docs-site.sh",
+		"doc": "npm run build -w ihsm-site",
+		"doc:preview": "npm run start -w ihsm-site",
+		"doc:site": "npm run build -w ihsm-site",
+		"verify:doc": "bash scripts/verify-docs-site.sh site/build",
 		"lint": "eslint . && prettier --check 'src/**/*.ts' 'tutorials/**/*.ts'",
 		"prebuild-browser": "rm -f ./.tsc",
 		"prebuild-node": "rm -f ./.tsc",
 		"predist": "npm run clean",
-		"prettier": "prettier --write 'src/**/*.ts'",
-		"precommit": "npm run test:all",
+		"prettier": "prettier --write 'src/**/*.ts' 'tutorials/**/*.ts'",
+		"release:check": "npm run test:all && npm run lint && npm run build && npm run doc && npm run verify:doc",
+		"prepublishOnly": "npm run test && npm run build",
 		"test": "nyc mocha",
 		"test:tutorials": "mocha --config .mocharc.tutorials.json",
 		"test:all": "npm test && npm run test:tutorials",
-		"typecheck:tutorials": "tsc --project tsconfig.tutorials.json --noEmit",
-		"test:benchmark": "mocha --require ts-node/register/transpile-only --timeout 120000 'benchmark/**/*.spec.ts'"
+		"typecheck:tutorials": "tsc --project tsconfig.tutorials.json --noEmit"
 	},
 	"types": "./lib/index.d.ts",
-	"version": "0.0.17"
+	"version": "0.0.18"
 }

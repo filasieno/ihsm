@@ -1,0 +1,7 @@
+:root {
+	--ifm-font-family-monospace: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.markdown h1:first-child {
+	margin-bottom: 1rem;
+}

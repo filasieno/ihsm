@@ -1,4 +1,4 @@
-# Tutorial 13: Async Handlers
+# Async Handlers
 
 ## Problem
 
@@ -45,8 +45,6 @@ state FileTop {
 ```
 
 The arrow to `Done` is the only **external** transition. All I/O is **inside** the handler — not separate states.
-
-## Walkthrough
 
 Protocol — one async event for the whole file copy:
 
@@ -114,7 +112,7 @@ expect(sm.ctx.bytesWritten).greaterThan(0);
 
 ## Reading the trace
 
-ihsm logs every dispatch step when `HsmTraceLevel.VERBOSE_DEBUG` is set and a custom `HsmTraceWriter` collects lines. Setup: [Tutorial 02 — Tracing](../02-tracing/README.md).
+With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
@@ -124,16 +122,9 @@ Each line is **`domain|…|StateName: message`**. Domains nest as the runtime de
 
 **What to notice:** `#transfer` stays in `execute|Idle` for the whole async pipeline — no intermediate states for open/read/write/close. `transition from Idle to Done` appears **once**, after all `await`s complete.
 
-## Run the test
+## Verify
 
 ```shell
 npm run test:tutorials -- --grep 'Tutorial 13'
 ```
 
-## What you learned
-
-- **`async` handlers** let you `await` I/O inside one state — no spurious `Opening` / `Reading` / … states.
-- **`transition()`** is deferred until the handler Promise settles.
-- The mailbox still serializes work; queued events wait until the async handler finishes.
-
-Next: [Tutorial 14 — Nested machines](../14-nested-machines/README.md)

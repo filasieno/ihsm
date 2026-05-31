@@ -1,15 +1,21 @@
 import eslint from '@eslint/js';
 import eslintConfigPrettier from 'eslint-config-prettier';
-import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
 	eslint.configs.recommended,
 	...tseslint.configs.recommended,
 	eslintConfigPrettier,
-	eslintPluginPrettierRecommended,
 	{
-		ignores: ['lib/**', 'coverage/**', 'docs/api/**', 'node_modules/**'],
+		ignores: [
+			'lib/**',
+			'coverage/**',
+			'docs/**',
+			'.typedoc-out/**',
+			'node_modules/**',
+			'scripts/**',
+			'site/**',
+		],
 	},
 	{
 		files: ['**/*.ts'],
@@ -22,5 +28,5 @@ export default tseslint.config(
 			'no-prototype-builtins': 'off',
 			'no-empty': 'off',
 		},
-	}
+	},
 );

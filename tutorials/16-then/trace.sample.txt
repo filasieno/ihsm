@@ -1,0 +1,24 @@
+Idle: begin event dispatch of #weigh
+#weigh|Idle: started event dispatch
+#weigh|lookup|Idle: started lookup of #weigh event handler
+#weigh|lookup|Idle: not found in state Idle
+#weigh|lookup|Idle: done: #weigh found in state RouteTop
+#weigh|execute|Idle: started event handler execution
+#weigh|execute|Idle: done: event handler execution successful
+#weigh|Idle: requested transition from Idle to Checking 
+#weigh|Idle: transition cache miss for Idle to Checking 
+#weigh|transition from Idle to Checking|Idle: started transition from Idle to Checking 
+#weigh|transition from Idle to Checking|Idle: Idle.onExit() skipped: default empty implementation
+#weigh|transition from Idle to Checking|Idle: Checking.onEntry() skipped: default empty implementation
+#weigh|transition from Idle to Checking|Idle: done: final state is Checking
+#weigh|then|Checking: started Checking.then()
+#weigh|then|Checking: Checking.then() done
+#weigh|then|Checking: done: Checking.then() successful
+#weigh|Checking: requested transition from Checking to LocalDelivery 
+#weigh|Checking: transition cache miss for Checking to LocalDelivery 
+#weigh|transition from Checking to LocalDelivery|Checking: started transition from Checking to LocalDelivery 
+#weigh|transition from Checking to LocalDelivery|Checking: Checking.onExit() skipped: default empty implementation
+#weigh|transition from Checking to LocalDelivery|Checking: LocalDelivery.onEntry() done
+#weigh|transition from Checking to LocalDelivery|Checking: done: final state is LocalDelivery
+#weigh|LocalDelivery: done: event dispatch successful
+LocalDelivery: end event dispatch

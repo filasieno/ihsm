@@ -1,16 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import {
-	Anonymous,
-	Authenticated,
-	createSession,
-	resumeSession,
-	resumeSessionFromDb,
-	sessionDb,
-	suspendSession,
-	suspendSessionToDb,
-} from './machine';
+import { Anonymous, Authenticated, createSession, resumeSession, resumeSessionFromDb, sessionDb, suspendSession, suspendSessionToDb } from './machine';
 
 describe('Tutorial 11: restore', () => {
 	beforeEach(() => {

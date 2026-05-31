@@ -1,10 +1,19 @@
 {
 	"extends": "./tsconfig.json",
 	"compilerOptions": {
+		"module": "commonjs",
+		"moduleResolution": "bundler",
 		"noEmit": true,
 		"rootDir": ".",
 		"types": ["mocha", "node"]
 	},
-	"include": ["tutorials/**/machine.ts", "tutorials/_shared/**/*.ts", "scripts/generate-tutorial-traces.ts"],
+	"include": [
+		"tutorials/**/machine.ts",
+		"tutorials/**/interactive.ts",
+		"tutorials/**/trace-*.ts",
+		"tutorials/_shared/trace.ts",
+		"tutorials/_shared/interactive-helpers.ts",
+		"tutorials/_shared/interactive-types.ts"
+	],
 	"exclude": ["./lib", "node_modules", "benchmark", "src/spec"]
 }

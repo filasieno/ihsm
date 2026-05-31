@@ -1,4 +1,4 @@
-# Tutorial 09: Deferred Post
+# Deferred Post
 
 ## Problem
 
@@ -6,9 +6,7 @@ You need to fire an event after a delay without blocking the handler or inventin
 
 ## Solution
 
-`deferredPost(millis, event, ...args)` uses `setTimeout`, then enqueues the event like any `post`.
-
-## UML statechart
+`deferredPost(millis, event, ...args)` uses `setTimeout`, then enqueues the event like any `post`. ## UML statechart
 
 ```plantuml
 @startuml
@@ -21,74 +19,70 @@ state ReminderTop {
 @enduml
 ```
 
-Time passes on the waiting line; no separate timer state class.
-
-## Walkthrough
-
-Context holds the message once delivery runs:
+## Protocol
 
 ```typescript
-export interface ReminderCtx {
-	message: string;
-}
-
 export interface ReminderProtocol {
 	scheduleReminder(text: string): void;
 	deliver(text: string): void;
 }
 ```
 
-The **root state** implements the protocol. `scheduleReminder` returns immediately;
-`deferredPost` arms a timer that enqueues `deliver` later:
+---
+
+## Example · Schedule from handler, wait from client
+
+### Handler (state machine)
+
+`scheduleReminder` returns immediately; the timer enqueues `deliver` later:
 
 ```typescript
 export class ReminderTop extends HsmTopState<ReminderCtx, ReminderProtocol> implements ReminderProtocol {
 	scheduleReminder(text: string): void {
-		this.deferredPost(50, 'deliver', text); // ← returns immediately; event runs after 50ms
+		this.deferredPost(50, 'deliver', text); // arms timer → post('deliver', text)
 	}
 
 	deliver(text: string): void {
-		this.ctx.message = text; // runs when timer fires and mailbox drains
+		this.ctx.message = text;
 	}
 }
-```
 
-Mark the **initial state** — a single state is enough when timing is modeled as
-a deferred event, not a separate mode:
-
-```typescript
 @HsmInitialState
 export class Waiting extends ReminderTop {}
 ```
 
-Wire up the factory:
+Inside a handler you can also chain: `this.deferredPost(ms, 'event', …)` — same mailbox rules as `this.post`.
 
-```typescript
-export const reminderFactory = new HsmFactory(ReminderTop);
+### Client (caller)
 
-export function createReminder() {
-	return reminderFactory.create({ message: '' });
-}
-```
-
-From the caller, wait for real time **and** for the mailbox to drain:
+Wait for **real time** (timer must fire) **and** mailbox drain:
 
 ```typescript
 const sm = createReminder();
-await sm.sync();
+await sm.sync(); // init
 
-sm.post('scheduleReminder', 'hello later');
-await sleep(100); // timer must fire before deliver is enqueued
-await sm.sync();  // deliver handler completes
+sm.post('scheduleReminder', 'hello later'); // handler returns immediately
+await sleep(100);                           // timer fires → deliver enqueued
+await sm.sync();                            // deliver handler completes
 
 expect(sm.ctx.message).equals('hello later');
 ```
 
-`scheduleReminder` finishes before `deliver` runs — same serialized queue as `post`.
+| Step | Who | What happens |
+| ---- | --- | ------------ |
+| 1 | Client | `post('scheduleReminder', …)` enqueues handler |
+| 2 | Handler | `deferredPost(50, 'deliver', …)` — returns; timer armed |
+| 3 | Client | `await sync()` — `scheduleReminder` done |
+| 4 | Timer | After 50ms, `deliver` enters mailbox |
+| 5 | Client | `await sync()` — `deliver` handler runs |
+
+`deferredPost` is only available **inside** handlers (`this.deferredPost`). The client uses ordinary `post` to trigger the scheduling handler.
+
+---
 
 ## Reading the trace
 
-ihsm logs every dispatch step when `HsmTraceLevel.VERBOSE_DEBUG` is set and a custom `HsmTraceWriter` collects lines. Setup: [Tutorial 02 — Tracing](../02-tracing/README.md).
+With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
@@ -98,16 +92,9 @@ Each line is **`domain|…|StateName: message`**. Domains nest as the runtime de
 
 **What to notice:** `#scheduleReminder` returns immediately; `#deliver` appears later as its own dispatch after the timer fires.
 
-## Run the test
+## Verify
 
 ```shell
 npm run test:tutorials -- --grep 'Tutorial 09'
 ```
 
-## What you learned
-
-- Timers enter the same serialized queue as `post`.
-- Handler returns before the deferred event runs.
-- No extra state class is required for a simple timeout.
-
-Next: [Tutorial 10 — Call services](../10-call-services/README.md)

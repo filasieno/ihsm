@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, HsmAny, HsmFactory, HsmFatalErrorState, HsmInitialState, HsmRuntimeError, HsmStateClass, HsmTopState, HsmUnhandledEventError } from '../';
+import { Hsm, HsmAny, makeHsm, HsmFatalErrorState, HsmInitialState, HsmRuntimeError, HsmStateClass, HsmTopState, HsmUnhandledEventError } from '../';
 import { clearLastError, createTestDispatchErrorCallback, getLastError, TRACE_LEVELS } from './spec.utils';
 
 interface Protocol {
@@ -86,13 +86,10 @@ class EmptyTopState extends HsmTopState {}
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`An unhandled event (traceLevel = ${traceLevel})`, function (): void {
 		let sm: Hsm<HsmAny, Protocol>;
-		const factory = new HsmFactory(TopState);
 
 		beforeEach(async () => {
-			factory.traceLevel = traceLevel;
-			factory.dispatchErrorCallback = createTestDispatchErrorCallback(true);
 			clearLastError();
-			sm = factory.create({});
+			sm = makeHsm(TopState, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
 			await sm.sync();
 		});
 
@@ -142,10 +139,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		});
 
 		it(`the standard onUnhandled throws`, async () => {
-			const factory = new HsmFactory(EmptyTopState);
-			factory.traceLevel = traceLevel;
-			factory.dispatchErrorCallback = createTestDispatchErrorCallback(true);
-			const sm = factory.create({});
+			const sm = makeHsm(EmptyTopState, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
 			sm.post('hello');
 			await sm.sync();
 			expect(sm.currentState).equals(HsmFatalErrorState);

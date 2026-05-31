@@ -1,13 +1,14 @@
-[![CI](https://github.com/filasieno/ihsm/actions/workflows/ci.yml/badge.svg)](https://github.com/filasieno/ihsm/actions/workflows/ci.yml)
-[![Documentation](https://github.com/filasieno/ihsm/actions/workflows/docs.yml/badge.svg)](https://github.com/filasieno/ihsm/actions/workflows/docs.yml)
-[![Coverage Status](https://coveralls.io/repos/github/filasieno/ihsm/badge.svg?branch=master)](https://coveralls.io/github/filasieno/ihsm?branch=master)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![npm version](https://img.shields.io/npm/v/ihsm.svg)](https://www.npmjs.com/package/ihsm)
-[![Node](https://img.shields.io/node/v/ihsm.svg)](https://github.com/filasieno/ihsm)
+[![CI](https://img.shields.io/github/actions/workflow/status/filasieno/ihsm/ci.yml?branch=master&label=CI)](https://github.com/filasieno/ihsm/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/github/actions/workflow/status/filasieno/ihsm/docs.yml?branch=master&label=docs)](https://github.com/filasieno/ihsm/actions/workflows/docs.yml)
+[![Coverage](https://img.shields.io/coverallsCoverage/github/filasieno/ihsm?branch=master)](https://coveralls.io/github/filasieno/ihsm?branch=master)
+[![License: MIT](https://img.shields.io/github/license/filasieno/ihsm)](https://github.com/filasieno/ihsm/blob/master/LICENSE)
+[![npm version](https://img.shields.io/npm/v/ihsm)](https://www.npmjs.com/package/ihsm)
+[![Node](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js)](https://github.com/filasieno/ihsm/blob/master/package.json)
 
 # ihsm
 
-An _idiomatic_ hierarchical state machine library for TypeScript and JavaScript — **Samek/QP-style** class hierarchy with **cached LCA transitions**, **zero production dependencies**, and **100% code coverage** on the runtime.
+An idiomatic hierarchical state machine package for TypeScript — **Samek/QP-style** class hierarchy with
+**cached LCA transitions**, **zero production dependencies**, and **100% code coverage** on the runtime.
 
 ## Quality
 
@@ -39,6 +40,8 @@ Coverage is enforced via `nyc` over all runtime sources under `src/` (excluding 
 - Entry / exit actions (`onEntry`, `onExit`)
 - Async and sync handlers
 - **`call()` — typed request/response through the actor mailbox** (unique)
+- **`then()` — decision pseudo-states with automatic follow-up transitions**
+- **`postNow()` — hi-priority extended transitions within the same dispatch**
 - Actor-style messaging (`post`, `deferredPost`, serialized queue)
 - Structured errors and trace levels
 
@@ -61,19 +64,49 @@ The full site (reference, tutorials, API) is rebuilt on every push to `master` /
 npm install ihsm@latest
 ```
 
-Requires **Node.js 20+**.
+Requires **Node.js 22+** (provided by the Nix dev shell / package build).
 
 ## Development
 
-**Prerequisites:** Node.js 20+, npm, Git. **Java 21+** is required only to build the documentation site (PlantUML statecharts).
+**Prerequisite:** [Nix](https://nixos.org/download/) with flakes enabled. No separate Node.js or npm install is required.
 
 ```shell
 git clone https://github.com/filasieno/ihsm.git
 cd ihsm
-npm ci
+nix develop          # optional: enter dev shell (direnv: allow once)
 ```
 
-### Build commands
+With [direnv](https://direnv.net/), run `direnv allow` once — the `.envrc` loads the flake dev shell automatically.
+
+**Nixpkgs:** the flake follows `nixpkgs-unstable` for current Node.js and tooling, with the exact commit pinned in `flake.lock` (currently `e9a7635a57597d9754eccebdfc7045e6c8600e6b`). Reproducible builds use that lock; bump when you want newer packages:
+
+```shell
+nix flake update nixpkgs   # refresh lock to latest unstable
+nix flake check            # verify after bump
+```
+
+### Nix build commands
+
+| Command | Purpose |
+| ------- | ------- |
+| `nix build` | Compile TypeScript → `lib/`, run unit + tutorial tests |
+| `nix build .#lint` | ESLint, Prettier, tutorial typecheck |
+| `nix build .#docs` | Docusaurus site with interactive React tutorials |
+| `nix flake check` | Library + lint (CI gate) |
+
+Build outputs land in `./result/` (symlink). Library artifacts: `result/lib/`. Docs: `result/share/doc/ihsm/`.
+
+Typical check before a PR:
+
+```shell
+nix flake check
+nix build .#docs
+bash scripts/verify-docs-site.sh site/build
+```
+
+### Dev shell scripts
+
+Inside `nix develop`, `node_modules` comes from the same pinned `package-lock.json` as the Nix build:
 
 | Command | Purpose |
 | ------- | ------- |
@@ -82,35 +115,28 @@ npm ci
 | `npm run test:all` | Both test suites |
 | `npm run lint` | ESLint + Prettier |
 | `npm run build` | Compile TypeScript → `lib/` |
-| `npm run typecheck:tutorials` | Typecheck tutorial `machine.ts` files |
-| `npm run check:plantuml` | Validate UML diagrams in READMEs |
-| `npm run doc` | Full docs site → `docs/.vitepress/dist/` |
-| `npm run doc:preview` | Dev server → http://localhost:5173/ihsm/ |
+| `npm run doc:preview` | Docusaurus dev server with interactive tutorials |
+| `npm run doc:site` | Static site → `site/build/` |
 | `npm run verify:doc` | Assert production site output (same as CI) |
-| `npm run benchmark` | ihsm vs XState comparison (dev dependency) |
 
-Typical check before a PR:
+When `package-lock.json` changes, refresh the Nix npm hash:
 
 ```shell
-npm run test:all
-npm run lint
-npm run check:plantuml
-npm run doc && npm run verify:doc
+nix run nixpkgs#prefetch-npm-deps -- package-lock.json
+# → update npmDepsHash in flake.nix
 ```
 
 ### Documentation site
 
-Sources of truth: `docs/REFERENCE.md`, `tutorials/*/README.md`, JSDoc in `src/index.ts`. Generated paths (`docs/reference/`, `docs/public/`, `docs/.vitepress/dist/`) are gitignored — edit sources only.
+Interactive tutorials run ihsm in the browser (React + Docusaurus). Each page has sender/message
+forms, a read-only trace panel, and a reset button. Mocha specs under `tutorials/*/tutorial.spec.ts`
+exercise the same machines headlessly.
 
 ```shell
-npm run doc:preview      # edit + hot reload (runs doc:prepare first)
-npm run doc              # production build (PlantUML → SVG, TypeDoc, VitePress)
-npm run verify:doc       # CI output checks
+npm run doc:preview      # http://localhost:3000/ihsm/
+npm run doc:site         # production build → site/build/
+npm run verify:doc
 ```
-
-Preview the production build: `npm run doc` then `npx vitepress preview docs` → http://localhost:4173/ihsm/
-
-Finer-grained scripts: `npm run doc:prepare` (sync markdown + diagrams + API only), `npm run doc:api` (TypeDoc only), `npm run doc:site` (VitePress only), `npm run traces:generate` (refresh tutorial trace samples).
 
 ## Contributing
 

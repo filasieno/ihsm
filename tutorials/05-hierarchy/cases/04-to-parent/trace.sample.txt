@@ -1,0 +1,17 @@
+LeafWestA: begin event dispatch of #goParentWest
+#goParentWest|LeafWestA: started event dispatch
+#goParentWest|lookup|LeafWestA: started lookup of #goParentWest event handler
+#goParentWest|lookup|LeafWestA: not found in state LeafWestA
+#goParentWest|lookup|LeafWestA: not found in state MidWest
+#goParentWest|lookup|LeafWestA: not found in state StackWest
+#goParentWest|lookup|LeafWestA: done: #goParentWest found in state DeepTop
+#goParentWest|execute|LeafWestA: started event handler execution
+#goParentWest|execute|LeafWestA: done: event handler execution successful
+#goParentWest|LeafWestA: requested transition from LeafWestA to MidWest 
+#goParentWest|LeafWestA: transition cache miss for LeafWestA to MidWest 
+#goParentWest|transition from LeafWestA to MidWest|LeafWestA: started transition from LeafWestA to MidWest 
+#goParentWest|transition from LeafWestA to MidWest|LeafWestA: LeafWestA.onExit() done
+#goParentWest|transition from LeafWestA to MidWest|LeafWestA: LeafWestA.onEntry() done
+#goParentWest|transition from LeafWestA to MidWest|LeafWestA: done: final state is LeafWestA
+#goParentWest|LeafWestA: done: event dispatch successful
+LeafWestA: end event dispatch

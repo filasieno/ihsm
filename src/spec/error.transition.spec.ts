@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, HsmAny, HsmFactory, HsmFatalErrorState, HsmInitialState, HsmTopState, HsmTraceLevel } from '../';
+import { Hsm, HsmAny, makeHsm, HsmFatalErrorState, HsmInitialState, HsmTopState, HsmTraceLevel } from '../';
 import { clearLastError, createTestDispatchErrorCallback, TRACE_LEVELS } from './spec.utils';
 
 type Cons = new () => TopState;
@@ -33,13 +33,10 @@ class C extends TopState {
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`A transition that throws an error (traceLevel = ${traceLevel})`, function (): void {
 		let sm: Hsm<HsmAny, Protocol>;
-		const factory = new HsmFactory(TopState);
 
 		beforeEach(async () => {
-			factory.traceLevel = traceLevel;
-			factory.dispatchErrorCallback = createTestDispatchErrorCallback(true);
 			clearLastError();
-			sm = factory.create({});
+			sm = makeHsm(TopState, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
 			await sm.sync();
 		});
 

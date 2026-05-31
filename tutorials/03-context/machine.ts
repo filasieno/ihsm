@@ -1,4 +1,4 @@
-import { HsmFactory, HsmInitialState, HsmTopState } from '../../src';
+import { makeHsm, HsmInitialState, HsmTopState } from '../../src';
 
 export interface CounterCtx {
 	value: number;
@@ -28,8 +28,6 @@ export class CounterTop extends HsmTopState<CounterCtx, CounterProtocol> impleme
 @HsmInitialState
 export class Running extends CounterTop {}
 
-export const counterFactory = new HsmFactory(CounterTop);
-
 export function createCounter(initial = 0, step = 1) {
-	return counterFactory.create({ value: initial, step });
+	return makeHsm(CounterTop, { value: initial, step });
 }

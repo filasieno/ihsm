@@ -1,4 +1,4 @@
-# Tutorial 10: Call Services
+# Call Services
 
 ## Problem
 
@@ -6,9 +6,19 @@ Sometimes you need a **typed response** from the same actor — not just fire-an
 
 ## Solution
 
-Declare **service methods** with `(resolve, reject, ...)` as first parameters. Use `await sm.call('getBalance')` — a typed Promise through the mailbox.
+Handlers live on state classes; clients call `post`, `call`, or `sync` on the `Hsm` instance.
 
-Every service completes by calling **`resolve(value)`** or **`reject(error)`**. The handler may be **sync** (`void`) or **async** (`Promise<void>`); either way, the caller always uses `await call(...)`.
+| Side | Where | Role |
+| ---- | ----- | ---- |
+| **Handler** | State class method | Receives `resolve` / `reject` (+ payload); must call one of them |
+| **Client** | Code that holds `Hsm` | `await call('service', …)` — gets typed `Promise<T>` |
+
+| API | Client waits? | Return value? | Handler signature |
+| --- | ------------- | ------------- | ----------------- |
+| **`post('event', …)`** | No | No | `(payload…) => void \| Promise<void>` |
+| **`call('service', …)`** | Yes | Yes — `Promise<T>` | `(resolve, reject, payload…) => void \| Promise<void>` |
+
+You do **not** need `sync()` after `await call(...)` — the Promise *is* the wait.
 
 ## UML statechart
 
@@ -25,11 +35,7 @@ state WalletTop {
 @enduml
 ```
 
-Services are events with a reply channel; state stays `Open`.
-
-## Walkthrough
-
-`deposit` is a plain event. The rest are **services** — same Protocol, different completion style:
+## Protocol
 
 ```typescript
 export interface WalletProtocol {
@@ -51,15 +57,59 @@ export interface WalletProtocol {
 }
 ```
 
-### Sync — resolve / reject before return
+---
 
-Call `resolve` or `reject` directly; no `async`:
+## Example 1 · `post` event — fire-and-forget
+
+### Handler (state machine)
+
+```typescript
+deposit(amount: number): void {
+	this.ctx.balance += amount;
+}
+```
+
+No `resolve` — this is an **event**, not a service.
+
+### Client (caller)
+
+```typescript
+const wallet = createWallet(100);
+await wallet.sync();
+
+wallet.post('deposit', 25);  // returns void — no result
+await wallet.sync();         // optional: wait for balance update
+```
+
+---
+
+## Example 2 · Sync `call` — resolve before return
+
+### Handler (state machine)
 
 ```typescript
 getBalance(resolve: HsmResolveCallback<number>, _reject: HsmRejectCallback): void {
 	resolve(this.ctx.balance);
 }
+```
 
+The runtime injects `resolve` / `reject` as the **first two arguments** — the client never passes them.
+
+### Client (caller)
+
+```typescript
+const balance = await wallet.call('getBalance'); // Promise<number> → 100
+```
+
+No `sync()` needed — `await call(...)` blocks until the handler calls `resolve(...)`.
+
+---
+
+## Example 3 · Sync `call` with `reject`
+
+### Handler (state machine)
+
+```typescript
 withdraw(resolve: HsmResolveCallback<number>, reject: HsmRejectCallback, amount: number): void {
 	if (amount > this.ctx.balance) {
 		reject(new Error('insufficient funds'));
@@ -70,9 +120,23 @@ withdraw(resolve: HsmResolveCallback<number>, reject: HsmRejectCallback, amount:
 }
 ```
 
-### Async — Promise handler, then resolve / reject
+### Client (caller)
 
-Return `Promise<void>` (typically `async`). `await` I/O or timers, **then** call `resolve` or `reject`:
+```typescript
+try {
+	await wallet.call('withdraw', 200);
+} catch (error) {
+	// handler called reject(...) → rejected Promise
+}
+
+const remaining = await wallet.call('withdraw', 40); // → 60
+```
+
+---
+
+## Example 4 · Async `call` — await inside handler, then resolve
+
+### Handler (state machine)
 
 ```typescript
 async fetchBalanceDelayed(
@@ -85,29 +149,31 @@ async fetchBalanceDelayed(
 }
 ```
 
-The runtime `await`s the returned Promise before finishing the dispatch. The caller's `call()` Promise still settles only when you invoke `resolve` or `reject` — not from the handler's return value alone.
+The runtime `await`s the returned `Promise` before finishing dispatch. The client's `call()` still settles only when **`resolve` or `reject`** is invoked — not from the handler's return value alone.
 
-### Caller — always `await call(...)`
+### Client (caller)
 
 ```typescript
-const wallet = createWallet(100);
-await wallet.sync();
-
-const balance = await wallet.call('getBalance');           // sync resolve → 100
-const later = await wallet.call('fetchBalanceDelayed', 10); // async resolve → 100
-
-try {
-	await wallet.call('withdraw', 200);
-} catch (error) {
-	// reject(new Error(...)) → rejected Promise
-}
-
-const remaining = await wallet.call('withdraw', 40);       // sync resolve → 60
+const later = await wallet.call('fetchBalanceDelayed', 10); // → 100 after delay
 ```
+
+---
+
+## Example 5 · `post` + `sync` vs `call` side by side
+
+| Need | Handler | Client |
+| ---- | ------- | ------ |
+| Update balance (no reply) | `deposit(amount) { … }` | `wallet.post('deposit', 5)` |
+| Read balance (typed reply) | `getBalance(resolve, …) { resolve(…) }` | `await wallet.call('getBalance')` |
+| Wait for posted work | — | `await wallet.sync()` |
+
+Batching posts: [Post and sync](../08-post-and-sync/README.md).
+
+---
 
 ## Reading the trace
 
-ihsm logs every dispatch step when `HsmTraceLevel.VERBOSE_DEBUG` is set and a custom `HsmTraceWriter` collects lines. Setup: [Tutorial 02 — Tracing](../02-tracing/README.md).
+With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
@@ -115,19 +181,11 @@ Each line is **`domain|…|StateName: message`**. Domains nest as the runtime de
 {{TRACE}}
 ```
 
-**What to notice:** `#getBalance` is a service dispatch (same queue as events). Caller `await call(...)` resolves when the handler calls `resolve(...)`.
+**What to notice:** `#getBalance` is a service dispatch (same queue as events). Client `await call(...)` resolves when the handler calls `resolve(...)`.
 
-## Run the test
+## Verify
 
 ```shell
 npm run test:tutorials -- --grep 'Tutorial 10'
 ```
 
-## What you learned
-
-- Services: `(resolve, reject, ...payload)` signature; return `void` or `Promise<void>`.
-- **Sync:** call `resolve` / `reject` in the handler body.
-- **Async:** `async` handler, `await` work, then `resolve` / `reject`.
-- `call()` = typed request/response, same queue as `post`.
-
-Next: [Tutorial 11 — Restore](../11-restore/README.md)

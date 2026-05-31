@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Assert the VitePress production output is complete (used in CI).
+# Assert the Docusaurus production output is complete (used in CI).
 set -euo pipefail
 
-DIST="${1:-docs/.vitepress/dist}"
+DIST="${1:-site/build}"
 
 test -f "$DIST/index.html"
 test -f "$DIST/reference/index.html"
-test -f "$DIST/reference/01-key-concepts.html"
-test -f "$DIST/reference/tutorials/index.html"
-test -f "$DIST/api/index.html"
-grep -q 'plantuml-diagram' "$DIST/reference/tutorials/01-hello-state-machine.html"
-grep -q 'diagrams/01-hello-state-machine' "$DIST/reference/tutorials/01-hello-state-machine.html"
+test -f "$DIST/tutorials/index.html"
+test -f "$DIST/tutorials/01-hello-state-machine/index.html"
+test -f "$DIST/tutorials/16-then/index.html"
+test -f "$DIST/tutorials/17-post-now/index.html"
+grep -q 'Interactive tutorial' "$DIST/tutorials/01-hello-state-machine/index.html"
 
 echo "Documentation site output OK ($DIST)"

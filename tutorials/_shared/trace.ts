@@ -1,11 +1,4 @@
-import {
-	Hsm,
-	HsmFactory,
-	HsmStateClass,
-	HsmTopState,
-	HsmTraceLevel,
-	HsmTraceWriter,
-} from '../../src';
+import { Hsm, HsmStateClass, HsmTraceLevel, HsmTraceWriter, makeHsm } from '../../src';
 
 /** Mirrors {@link ConsoleTraceWriter} — one line per dispatch step. */
 export class CollectingTraceWriter implements HsmTraceWriter {
@@ -24,13 +17,9 @@ export class CollectingTraceWriter implements HsmTraceWriter {
 	}
 }
 
-export function withTrace<Context, Protocol extends {} | undefined>(
-	factory: HsmFactory<Context, Protocol>,
-	ctx: Context,
-	initialize = true,
-): { sm: Hsm<Context, Protocol>; writer: CollectingTraceWriter } {
+export function withTrace<Context, Protocol extends {} | undefined>(topState: HsmStateClass<Context, Protocol>, ctx: Context, initialize = true): { sm: Hsm<Context, Protocol>; writer: CollectingTraceWriter } {
 	const writer = new CollectingTraceWriter();
-	const sm = factory.create(ctx, initialize, HsmTraceLevel.VERBOSE_DEBUG, writer);
+	const sm = makeHsm(topState, ctx, initialize, HsmTraceLevel.VERBOSE_DEBUG, writer);
 	return { sm, writer };
 }
 

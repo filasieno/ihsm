@@ -107,7 +107,7 @@ dist
 
 # Idea IDE
 .idea
-
+reac
 # Generated documentation site (VitePress + TypeDoc)
 /docs/.vitepress/dist
 /docs/.vitepress/cache
@@ -125,17 +125,25 @@ dist
 /build
 /types
 **.map
+/result
+/site/build
+/site/.docusaurus
+/site/build-pages
 
 # Typescript incremental file
 .tsc
+.t
 *.tmp.txt
 
 # Visual studio Code
 /.vscode/
 *.code-workspace
 
-# Generated files
-**.js
+# Generated files (library build output — not the Docusaurus site)
+/lib/**/*.js
+/src/**/*.js
 **.d.ts
+!site/**/*
 
 
+.npmtoken

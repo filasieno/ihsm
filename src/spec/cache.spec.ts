@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, HsmFactory, HsmInitialState, HsmTopState, HsmTraceLevel } from '../';
+import { Hsm, makeHsm, HsmInitialState, HsmTopState, HsmTraceLevel } from '../';
 import { TRACE_LEVELS } from './spec.utils';
 
 class Report {
@@ -36,12 +36,9 @@ class B extends TopState {
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Transition cache (traceLevel = ${traceLevel})`, () => {
 		let sm: Hsm;
-		const factory = new HsmFactory(TopState);
-		factory.traceLevel = traceLevel;
-
 		it(`run a process`, async () => {
 			const ctx = new Report();
-			sm = factory.create(ctx);
+			sm = makeHsm(TopState, ctx, true, traceLevel);
 			await sm.sync();
 			sm.post('task');
 			sm.post('task');

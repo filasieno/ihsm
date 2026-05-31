@@ -1,4 +1,4 @@
-import { HsmFactory, HsmInitialState, HsmTopState } from '../../src';
+import { makeHsm, HsmInitialState, HsmTopState } from '../../src';
 
 export interface LampCtx {
 	brightness: number;
@@ -28,8 +28,6 @@ export class LampTop extends HsmTopState<LampCtx, LampProtocol> implements LampP
 @HsmInitialState
 export class On extends LampTop {}
 
-export const lampFactory = new HsmFactory(LampTop);
-
 export function createLamp(brightness: number) {
-	return lampFactory.create({ brightness, entryCount: 0 });
+	return makeHsm(LampTop, { brightness, entryCount: 0 });
 }

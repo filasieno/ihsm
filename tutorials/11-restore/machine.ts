@@ -1,4 +1,4 @@
-import { Hsm, HsmFactory, HsmInitialState, HsmTopState } from '../../src';
+import { Hsm, makeHsm, HsmInitialState, HsmTopState } from '../../src';
 
 export interface SessionCtx {
 	userId: string;
@@ -44,13 +44,11 @@ export interface PersistedSession {
 	ctx: SessionCtx;
 }
 
-export const sessionFactory = new HsmFactory(SessionTop);
-
 /** In-memory stand-in for disk / DB (session id → JSON payload). */
 export const sessionDb = new Map<string, string>();
 
 export function createSession(userId: string) {
-	return sessionFactory.create({ userId, lastPage: 'home', entryLog: [] });
+	return makeHsm(SessionTop, { userId, lastPage: 'home', entryLog: [] });
 }
 
 function stateNameOf(sm: Hsm<SessionCtx, SessionProtocol>): SessionStateName {
@@ -75,7 +73,7 @@ export function suspendSession(sm: Hsm<SessionCtx, SessionProtocol>): string {
 export function resumeSession(json: string) {
 	const { stateName, ctx } = JSON.parse(json) as PersistedSession;
 	const stateClass = SESSION_STATES[stateName];
-	const sm = sessionFactory.create({ userId: '', lastPage: '', entryLog: [] }, false);
+	const sm = makeHsm(SessionTop, { userId: '', lastPage: '', entryLog: [] }, false);
 	sm.restore(stateClass, ctx);
 	return sm;
 }

@@ -1,4 +1,4 @@
-import { HsmFactory, HsmInitialState, HsmTopState, HsmTraceLevel } from '../../src';
+import { makeHsm, HsmInitialState, HsmTopState, HsmTraceLevel } from '../../src';
 import { CollectingTraceWriter } from '../_shared/trace';
 
 export interface PingCtx {
@@ -19,10 +19,8 @@ export class PingTop extends HsmTopState<PingCtx, PingProtocol> implements PingP
 @HsmInitialState
 export class Ready extends PingTop {}
 
-export const pingFactory = new HsmFactory(PingTop);
-
 export function createTracedPing(writer: CollectingTraceWriter) {
-	return pingFactory.create({ pings: 0 }, true, HsmTraceLevel.VERBOSE_DEBUG, writer);
+	return makeHsm(PingTop, { pings: 0 }, true, HsmTraceLevel.VERBOSE_DEBUG, writer);
 }
 
 export function createPingMachine(writer: CollectingTraceWriter) {

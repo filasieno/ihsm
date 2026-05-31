@@ -1,0 +1,51 @@
+# Leaf → sibling leaf
+
+## Topology
+
+Two leaves share the same parent composite. **LCA = parent** (`MidWest`).
+
+```plantuml
+@startuml
+left to right direction
+state MidWest {
+  [*] --> LeafWestA
+  LeafWestA -right-> LeafWestB : goSiblingWest
+}
+@enduml
+```
+
+
+### Expected trace
+
+```trace
+{{TRACE}}
+```
+
+## Starting point
+
+`LeafWestA`
+
+## What happens
+
+| Step | Action |
+| ---- | ------ |
+| 1 | LCA = **`MidWest`** (common parent of `LeafWestA` and `LeafWestB`) |
+| 2 | Exit **`LeafWestA`** only — `MidWest`, `StackWest`, `DeepTop` stay active |
+| 3 | Enter **`LeafWestB`** |
+| 4 | Final leaf = **`LeafWestB`** |
+
+Ancestors above the LCA do **not** run `onExit` / `onEntry`.
+
+## Code
+
+```typescript
+sm.post('goSiblingWest');
+await sm.sync();
+```
+
+
+## Verify
+
+```shell
+npm run test:tutorials -- --grep '05 · 03 sibling'
+```

@@ -1,0 +1,21 @@
+LeafWestA: begin event dispatch of #goCrossToLeafEastB
+#goCrossToLeafEastB|LeafWestA: started event dispatch
+#goCrossToLeafEastB|lookup|LeafWestA: started lookup of #goCrossToLeafEastB event handler
+#goCrossToLeafEastB|lookup|LeafWestA: not found in state LeafWestA
+#goCrossToLeafEastB|lookup|LeafWestA: not found in state MidWest
+#goCrossToLeafEastB|lookup|LeafWestA: not found in state StackWest
+#goCrossToLeafEastB|lookup|LeafWestA: done: #goCrossToLeafEastB found in state DeepTop
+#goCrossToLeafEastB|execute|LeafWestA: started event handler execution
+#goCrossToLeafEastB|execute|LeafWestA: done: event handler execution successful
+#goCrossToLeafEastB|LeafWestA: requested transition from LeafWestA to LeafEastB 
+#goCrossToLeafEastB|LeafWestA: transition cache miss for LeafWestA to LeafEastB 
+#goCrossToLeafEastB|transition from LeafWestA to LeafEastB|LeafWestA: started transition from LeafWestA to LeafEastB 
+#goCrossToLeafEastB|transition from LeafWestA to LeafEastB|LeafWestA: LeafWestA.onExit() done
+#goCrossToLeafEastB|transition from LeafWestA to LeafEastB|LeafWestA: MidWest.onExit() done
+#goCrossToLeafEastB|transition from LeafWestA to LeafEastB|LeafWestA: StackWest.onExit() done
+#goCrossToLeafEastB|transition from LeafWestA to LeafEastB|LeafWestA: StackEast.onEntry() done
+#goCrossToLeafEastB|transition from LeafWestA to LeafEastB|LeafWestA: MidEast.onEntry() done
+#goCrossToLeafEastB|transition from LeafWestA to LeafEastB|LeafWestA: LeafEastB.onEntry() done
+#goCrossToLeafEastB|transition from LeafWestA to LeafEastB|LeafWestA: done: final state is LeafEastB
+#goCrossToLeafEastB|LeafEastB: done: event dispatch successful
+LeafEastB: end event dispatch

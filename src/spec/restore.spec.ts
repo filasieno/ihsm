@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { HsmFactory, HsmTopState, HsmInitialState, HsmAny } from '../';
+import { makeHsm, HsmTopState, HsmInitialState, HsmAny } from '../';
 import { clearLastError, TRACE_LEVELS, createTestDispatchErrorCallback } from './spec.utils';
 
 class TopState extends HsmTopState {
@@ -17,9 +17,7 @@ class C extends TopState {}
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Restore (traceLevel = ${traceLevel})`, () => {
-		const factory = new HsmFactory(TopState);
-		factory.traceLevel = traceLevel;
-		factory.dispatchErrorCallback = createTestDispatchErrorCallback(true);
+		const dispatchErrorCallback = createTestDispatchErrorCallback(true);
 
 		beforeEach(async () => {
 			clearLastError();
@@ -30,7 +28,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			const first = { value: 'first' };
 			const second = { value: 'second' };
 
-			const hsm = factory.create(initial, false);
+			const hsm = makeHsm(TopState, initial, false, traceLevel, undefined, dispatchErrorCallback);
 			const query: HsmAny = { value: undefined };
 			hsm.post('getValue', query);
 			await hsm.sync();

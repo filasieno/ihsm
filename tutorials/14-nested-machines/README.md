@@ -1,4 +1,4 @@
-# Tutorial 14: Nested Machines
+# Nested Machines
 
 ## Problem
 
@@ -30,8 +30,6 @@ state ShippingTop {
 
 The `OrderCoordinator` owns both actors and orchestrates `fulfill()`.
 
-## Walkthrough
-
 Payment region:
 
 ```typescript
@@ -58,8 +56,8 @@ Coordinator composes both:
 
 ```typescript
 export class OrderCoordinator {
-	readonly payment = paymentFactory.create({ paid: false });
-	readonly shipping = shippingFactory.create({ shipped: false });
+	readonly payment = makeHsm(PaymentTop, { paid: false });
+	readonly shipping = makeHsm(ShippingTop, { shipped: false });
 
 	async fulfill(): Promise<void> {
 		this.payment.post('markPaid');
@@ -72,7 +70,7 @@ export class OrderCoordinator {
 
 ## Reading the trace
 
-ihsm logs every dispatch step when `HsmTraceLevel.VERBOSE_DEBUG` is set and a custom `HsmTraceWriter` collects lines. Setup: [Tutorial 02 — Tracing](../02-tracing/README.md).
+With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
@@ -82,15 +80,9 @@ Each line is **`domain|…|StateName: message`**. Domains nest as the runtime de
 
 **What to notice:** Each actor has its own trace stream — payment and shipping queues are independent.
 
-## Run the test
+## Verify
 
 ```shell
 npm run test:tutorials -- --grep 'Tutorial 14'
 ```
 
-## What you learned
-
-- Orthogonality = multiple machines + composition.
-- Each region has its own mailbox.
-
-Next: [Tutorial 15 — Complex workflow](../15-complex-workflow/README.md)

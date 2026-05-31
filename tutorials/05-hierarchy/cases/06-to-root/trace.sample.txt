@@ -1,0 +1,21 @@
+LeafWestA: begin event dispatch of #goRoot
+#goRoot|LeafWestA: started event dispatch
+#goRoot|lookup|LeafWestA: started lookup of #goRoot event handler
+#goRoot|lookup|LeafWestA: not found in state LeafWestA
+#goRoot|lookup|LeafWestA: not found in state MidWest
+#goRoot|lookup|LeafWestA: not found in state StackWest
+#goRoot|lookup|LeafWestA: done: #goRoot found in state DeepTop
+#goRoot|execute|LeafWestA: started event handler execution
+#goRoot|execute|LeafWestA: done: event handler execution successful
+#goRoot|LeafWestA: requested transition from LeafWestA to DeepTop 
+#goRoot|LeafWestA: transition cache miss for LeafWestA to DeepTop 
+#goRoot|transition from LeafWestA to DeepTop|LeafWestA: started transition from LeafWestA to DeepTop 
+#goRoot|transition from LeafWestA to DeepTop|LeafWestA: LeafWestA.onExit() done
+#goRoot|transition from LeafWestA to DeepTop|LeafWestA: MidWest.onExit() done
+#goRoot|transition from LeafWestA to DeepTop|LeafWestA: StackWest.onExit() done
+#goRoot|transition from LeafWestA to DeepTop|LeafWestA: StackWest.onEntry() done
+#goRoot|transition from LeafWestA to DeepTop|LeafWestA: MidWest.onEntry() done
+#goRoot|transition from LeafWestA to DeepTop|LeafWestA: LeafWestA.onEntry() done
+#goRoot|transition from LeafWestA to DeepTop|LeafWestA: done: final state is LeafWestA
+#goRoot|LeafWestA: done: event dispatch successful
+LeafWestA: end event dispatch
