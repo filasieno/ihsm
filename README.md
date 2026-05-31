@@ -1,9 +1,9 @@
-[![CI](https://img.shields.io/github/actions/workflow/status/filasieno/ihsm/ci.yml?branch=master&label=CI)](https://github.com/filasieno/ihsm/actions/workflows/ci.yml)
-[![Documentation](https://img.shields.io/github/actions/workflow/status/filasieno/ihsm/docs.yml?branch=master&label=docs)](https://github.com/filasieno/ihsm/actions/workflows/docs.yml)
-[![Coverage](https://img.shields.io/coverallsCoverage/github/filasieno/ihsm?branch=master)](https://coveralls.io/github/filasieno/ihsm?branch=master)
-[![License: MIT](https://img.shields.io/github/license/filasieno/ihsm)](https://github.com/filasieno/ihsm/blob/master/LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/filasieno/ihsm/ci.yml?label=CI)](https://github.com/filasieno/ihsm/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/github/actions/workflow/status/filasieno/ihsm/docs.yml?label=docs)](https://github.com/filasieno/ihsm/actions/workflows/docs.yml)
+[![Coverage](https://img.shields.io/coverallsCoverage/github/filasieno/ihsm)](https://coveralls.io/github/filasieno/ihsm)
+[![License: MIT](https://img.shields.io/github/license/filasieno/ihsm)](https://github.com/filasieno/ihsm/blob/HEAD/LICENSE)
 [![npm version](https://img.shields.io/npm/v/ihsm)](https://www.npmjs.com/package/ihsm)
-[![Node](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js)](https://github.com/filasieno/ihsm/blob/master/package.json)
+[![Node](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js)](https://github.com/filasieno/ihsm/blob/HEAD/package.json)
 
 # ihsm
 
