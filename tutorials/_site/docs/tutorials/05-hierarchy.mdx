@@ -1,0 +1,205 @@
+---
+title: "05 · Hierarchy"
+id: 05-hierarchy
+slug: /tutorials/05-hierarchy
+---
+
+import InteractiveTutorial from '@site/src/components/InteractiveTutorial';
+import { interactive } from '@tutorials/05-hierarchy/interactive';
+
+# 05 · Hierarchy
+
+## Problem
+
+Hierarchy alone does not explain **when** `onEntry` and `onExit` run. Crossing branches requires cleanup and setup in **LCA order** — easy to get wrong by hand. You need a shallow example first, then a shared deep machine where every topological case is visible.
+
+## Solution
+
+Call `this.transition(Destination)`. ihsm finds the **lowest common ancestor** on the class prototype chain, runs **`onExit`** from the current leaf up to (not including) the LCA, then **`onEntry`** down toward the target — following `@HsmInitialState` chains when the target is a composite.
+
+Two machines in this topic:
+
+| Machine | File | Purpose |
+| ------- | ---- | ------- |
+| Shallow siblings `A → B → C` | [`trace-sibling.ts`](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/trace-sibling.ts) | Entry/exit order, sibling LCA |
+| Two deep stacks | [`machine.ts`](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/machine.ts) | Every transition topology |
+
+---
+
+## Entry and exit — shallow sibling chain
+
+Three siblings under one root. **LCA = `TraceTop`** for `A → B` and `B → C`; the root is never exited.
+
+```plantuml
+@startuml
+left to right direction
+skinparam ranksep 25
+state TraceTop {
+  [*] --> A
+  A --> B : goToB
+  B --> C : goToC
+}
+@enduml
+```
+
+### Expected trace
+
+Dispatch `goToB` and `goToC`, then compare the trace to the shallow sibling chain below.
+
+External transitions only (arrows). Handlers that stay in the same state use in-state `StateName : event / action` text — no self-loop arrow. See [Internal transitions](/tutorials/07-internal-transitions).
+
+### Handler (state machine)
+
+```typescript
+export class TraceTop extends HsmTopState<TraceCtx, TraceProtocol> implements TraceProtocol {
+	onEntry(): void {
+		this.ctx.log.push('enter:Top');
+	}
+	onExit(): void {
+		this.ctx.log.push('exit:Top');
+	}
+	goToB(): void {
+		this.transition(B);
+	}
+	goToC(): void {
+		this.transition(C);
+	}
+}
+
+@HsmInitialState
+export class A extends TraceTop {
+	onEntry(): void { this.ctx.log.push('enter:A'); }
+	onExit(): void { this.ctx.log.push('exit:A'); }
+}
+```
+
+`B` and `C` define their own `onEntry` / `onExit` the same way.
+
+### Client (caller)
+
+```typescript
+const sm = createTracer();
+await sm.sync();
+// log: enter:Top, enter:A
+
+sm.post('goToB');
+await sm.sync();
+// exit:A, enter:B — TraceTop stays active
+
+sm.post('goToC');
+await sm.sync();
+// exit:B, enter:C — still no exit:Top
+```
+
+Chained siblings under one parent are the same rule as [03 · Sibling](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/cases/03-sibling) under `MidWest` — only the depth changes.
+
+---
+
+## Deep stacks — transition topology
+
+All cases share [`machine.ts`](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/machine.ts) — one actor, two symmetric stacks:
+
+```
+DeepTop                          ← root / LCA for cross-stack moves
+├── StackWest  (@HsmInitialState)  ← west stack (4 levels)
+│   └── MidWest (@HsmInitialState)
+│       ├── LeafWestA (@HsmInitialState)  ← default after create()
+│       └── LeafWestB
+└── StackEast                      ← east stack (4 levels)
+    └── MidEast (@HsmInitialState)
+        ├── LeafEastA (@HsmInitialState)
+        └── LeafEastB
+```
+
+After `create()` + `await sync()`, the active leaf is **`LeafWestA`**. Handlers live on `DeepTop`; `ctx.trace` records `enter:` / `exit:` / `handler:` lines.
+
+## Full statechart (both stacks)
+
+```plantuml
+@startuml
+left to right direction
+skinparam ranksep 30
+skinparam nodesep 24
+state DeepTop {
+  [*] --> StackWest
+  state "StackWest\n(initial branch)" as StackWest {
+    [*] --> MidWest
+    state MidWest {
+      [*] --> LeafWestA
+      LeafWestA : tick / value++
+      LeafWestA -right-> LeafWestB : goSiblingWest
+      LeafWestA -down-> MidWest : goParentWest
+      LeafWestB -down-> StackWest : goAncestorWest
+      LeafWestA -up-> DeepTop : goRoot
+    }
+  }
+  state StackEast {
+    [*] --> MidEast
+    state MidEast {
+      [*] --> LeafEastA
+      LeafEastB -left-> LeafEastA : goSiblingEast
+    }
+  }
+  LeafWestA -down-> LeafEastB : goCrossToLeafEastB
+  LeafWestA -down-> StackEast : goCrossToBranchEast
+  LeafEastA -up-> LeafWestB : goCrossToLeafWestB
+}
+@enduml
+```
+
+### Expected trace
+
+
+## How ihsm applies a transition
+
+1. Handler calls `this.transition(TargetStateClass)`.
+2. Runtime finds the **LCA** on the class prototype chain (`HsmTopState` is not part of your hierarchy).
+3. **`onExit`** from the current leaf **up to but not including** the LCA.
+4. **`onEntry`** from the LCA **down toward** the target; if the target is a **composite**, follow each `@HsmInitialState` until the deepest leaf.
+5. Active state is always a **leaf class**.
+
+Transition paths are **cached** keyed by `FromState=>ToState`.
+
+Reference: [§5 Transitions](/reference#_5-transitions) · [§5 Transition taxonomy](/reference#transition-taxonomy).
+
+## Transition cases
+
+| Case | Topology | From → To | LCA |
+| ---- | -------- | --------- | --- |
+| [01 · Initialization](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/cases/01-initialization) | Initial chain | `create()` → `LeafWestA` | — |
+| [02 · Internal](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/cases/02-internal) | No `transition()` | `LeafWestA` (stays) | — |
+| [03 · Sibling](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/cases/03-sibling) | Leaf → sibling leaf | `LeafWestA` → `LeafWestB` | `MidWest` |
+| [04 · Parent](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/cases/04-to-parent) | Leaf → parent composite | `LeafWestA` → `MidWest` | `MidWest` |
+| [05 · Ancestor](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/cases/05-to-ancestor) | Leaf → ancestor composite | `LeafWestB` → `StackWest` | `StackWest` |
+| [06 · Root](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/cases/06-to-root) | Leaf → root | `LeafWestA` → `DeepTop` | `DeepTop` |
+| [07 · Cross leaf](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/cases/07-cross-leaf) | Leaf → leaf other stack | `LeafWestA` → `LeafEastB` | `DeepTop` |
+| [08 · Cross branch](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/cases/08-cross-branch) | Leaf → branch composite | `LeafWestA` → `StackEast` | `DeepTop` |
+| [09 · Cross mid](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/cases/09-cross-mid) | Leaf → mid composite | `LeafWestA` → `MidEast` | `DeepTop` |
+| [10 · Self](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/cases/10-self) | Leaf → same leaf | `LeafWestA` → `LeafWestA` | — |
+| [11 · East sibling](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/cases/11-east-sibling) | Leaf → sibling (east stack) | `LeafEastB` → `LeafEastA` | `MidEast` |
+| [12 · Cross return](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/cases/12-cross-return) | East → west leaf | `LeafEastA` → `LeafWestB` | `DeepTop` |
+| [13 · Async cross](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/cases/13-async-cross) | `await` then cross-stack | `LeafWestA` → `LeafEastA` | `DeepTop` |
+
+Errors (`onExit` throw, unhandled events) are in [`tutorial.spec.ts`](https://github.com/filasieno/ihsm/tree/master/tutorials/05-hierarchy/tutorial.spec.ts) under `14 errors`.
+
+## Try it
+
+<InteractiveTutorial meta={interactive} />
+
+## Verify
+
+```shell
+npm run test:tutorials -- --grep 'Tutorial 05'
+```
+
+One deep-stack case:
+
+```shell
+npm run test:tutorials -- --grep '05 · 03 sibling'
+```
+
+Shallow entry/exit chain:
+
+```shell
+npm run test:tutorials -- --grep '05 · entry exit'
+```

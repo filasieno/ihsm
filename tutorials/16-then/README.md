@@ -114,9 +114,7 @@ With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each
 
 Each line is **`domain|…|StateName: message`**. Look for the `then` domain after the `#weigh` handler completes.
 
-```trace
-{{TRACE}}
-```
+On the [documentation page](https://filasieno.github.io/ihsm/tutorials/16-then), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:tutorials` headlessly.
 
 **What to notice:** `Checking.then()` runs in the same `#weigh` dispatch, before the trace records `end event dispatch`.
 

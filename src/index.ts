@@ -3,19 +3,19 @@ import { HsmObject } from './internal/hsm';
 import { hasInitialState, quoteError } from './internal/utils';
 
 /**
- * todo
+ * Default context and protocol map when a machine is created without explicit typing.
  * @category Factory
  */
 export type HsmAny = Record<string, any>;
 
 /**
- * todo
+ * Rejects an async {@link Hsm.call} service with an error.
  * @category Event handler
  */
 export type HsmRejectCallback = (error: Error) => void;
 
 /**
- * todo
+ * Resolves an async {@link Hsm.call} service with a typed reply.
  * @category Event handler
  */
 export type HsmResolveCallback<Reply> = (result: Reply) => void;
@@ -25,7 +25,7 @@ export type HsmResolveCallback<Reply> = (result: Reply) => void;
 //
 
 /**
- * todo
+ * Called when event dispatch fails and the runtime does not recover via `onError`.
  * @category Factory
  */
 export interface HsmDispatchErrorCallback<Context, Protocol extends {} | undefined> {
@@ -34,7 +34,7 @@ export interface HsmDispatchErrorCallback<Context, Protocol extends {} | undefin
 // export type HsmDispatchErrorCallback<Context, Protocol extends {} | undefined> = (hsm: Hsm<Context, Protocol>, traceWriter: HsmTraceWriter, err: Error) => void;
 
 /**
- * todo
+ * Trace verbosity for dispatch logging.
  * @category Factory
  */
 export enum HsmTraceLevel {
@@ -44,7 +44,7 @@ export enum HsmTraceLevel {
 }
 
 /**
- * todo
+ * Receives trace lines from the runtime and from handlers via `this.traceWriter.write`.
  * @category Factory
  */
 export interface HsmTraceWriter {
@@ -52,7 +52,7 @@ export interface HsmTraceWriter {
 }
 
 /**
- * @category State machine machine
+ * @category State machine
  */
 export interface HsmProperties<Context, Protocol extends {} | undefined> {
 	readonly currentState: HsmStateClass<Context, Protocol>;
@@ -70,7 +70,7 @@ export interface HsmProperties<Context, Protocol extends {} | undefined> {
 }
 
 /**
- * @category State machine machine
+ * @category State machine
  */
 export interface HsmBase<Context, Protocol extends {} | undefined> extends HsmProperties<Context, Protocol> {
 	post<EventName extends keyof Protocol>(eventName: HsmEventHandlerName<Protocol, EventName>, ...eventPayload: HsmEventHandlerPayload<Protocol, EventName>): void;
@@ -78,7 +78,7 @@ export interface HsmBase<Context, Protocol extends {} | undefined> extends HsmPr
 }
 
 /**
- * @category State machine machine
+ * @category State machine
  */
 export interface HsmState<Context, Protocol extends {} | undefined> extends HsmBase<Context, Protocol> {
 	readonly ctx: Context;
@@ -90,7 +90,7 @@ export interface HsmState<Context, Protocol extends {} | undefined> extends HsmB
 }
 
 /**
- * todo
+ * Actor handle returned by {@link makeHsm} — client API (`post`, `call`, `sync`, `restore`).
  * @category State machine
  */
 export interface Hsm<Context = HsmAny, Protocol extends {} | undefined = undefined> extends HsmBase<Context, Protocol> {
@@ -113,7 +113,7 @@ export type HsmEventHandlerName<Protocol extends {} | undefined, EventName exten
 export type HsmEventHandlerPayload<Protocol extends {} | undefined, EventName extends keyof Protocol> = Protocol extends undefined ? any[] : Protocol[EventName] extends (...payload: infer Payload) => Promise<void> | void ? (Payload extends any[] ? Payload : never) : never;
 
 /**
- * todo
+ * Constructor type for a state class in the machine hierarchy.
  * @category State machine
  */
 export type HsmStateClass<Context = HsmAny, Protocol extends {} | undefined = undefined> = Function & { prototype: HsmTopState<Context, Protocol> };
@@ -134,7 +134,7 @@ export type HsmServiceResponse<Protocol, EventName extends keyof Protocol> = Pro
 export type HsmServiceName<Protocol, EventName> = Protocol extends undefined ? string : EventName extends keyof HsmState<any, any> | 'then' ? never : EventName;
 
 /**
- * todo
+ * Optional lifecycle hooks implemented by state classes (`onEntry`, `onExit`, `then`, …).
  * @category State machine
  */
 export interface HsmStateMachineEvents<Context, Protocol extends {} | undefined> {
@@ -146,7 +146,7 @@ export interface HsmStateMachineEvents<Context, Protocol extends {} | undefined>
 }
 
 /**
- * todo
+ * Root of the state class hierarchy; hosts mailbox machinery. Subclass or pass to {@link makeHsm}.
  * @category State machine
  */
 export abstract class HsmTopState<Context = HsmAny, Protocol extends {} | undefined = undefined> implements HsmState<Context, Protocol>, HsmStateMachineEvents<Context, Protocol> {
@@ -353,19 +353,13 @@ export class HsmInitializationError<Context, Protocol extends {} | undefined> ex
 }
 
 /**
- * todo
+ * Terminal error state class used when the machine cannot recover.
  * @category State machine
  */
 export class HsmFatalErrorState<Context, Protocol extends {} | undefined> extends HsmTopState<Context, Protocol> {}
 
 /**
- * todo
- *
- * @param {State<Context, Protocol>} TargetState
- *
- * @typeparam DispatchContext
- * @typeparam DispatchProtocol
- *
+ * Marks `TargetState` as the initial substate of its parent composite state.
  * @category Factory
  */
 export function HsmInitialState<Context, Protocol extends {} | undefined>(TargetState: HsmStateClass<Context, Protocol>): void {

@@ -12,10 +12,10 @@
 
 ## Checklist
 
-- [ ] `npm test` passes locally (**100%** coverage maintained)
+- [ ] `nix flake check` passes (build, unit/tutorial tests, lint, docs)
 - [ ] New/changed behavior covered by tests in `src/spec/`
 - [ ] No new production `dependencies` added
-- [ ] ESLint and Prettier pass (`npm run lint`)
+- [ ] ESLint and Prettier pass (`nix build .#lint` or `npm run lint` in `nix develop`)
 - [ ] Public API changes include JSDoc updates
 - [ ] README updated if needed
 - [ ] I have read and agree to the [Code of Conduct](../CODE_OF_CONDUCT.md)
@@ -25,8 +25,7 @@
 <!-- Steps for reviewers to verify the change -->
 
 ```shell
-npm ci
-npm test
+nix flake check
 ```
 
 ## Additional notes

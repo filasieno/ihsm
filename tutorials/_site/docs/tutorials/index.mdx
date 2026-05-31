@@ -1,0 +1,38 @@
+---
+sidebar_position: 3
+title: Tutorial index
+slug: /tutorials
+id: tutorial-index
+---
+
+# Tutorials
+
+Each tutorial is a documentation page with prose, code, and an embedded **playground** where you run
+the state machine in the browser: pick a **Sender** and **Message**, edit payload fields, **Send**, and
+read the live **Trace**. **Reset** rebuilds the machine from its initial configuration.
+
+All tutorials are verified by Mocha specs:
+
+```bash
+npm run test:tutorials
+# or: nix flake check
+```
+
+| # | Tutorial | Focus |
+|---|----------|-------|
+| 01 | [Hello state machine](/tutorials/01-hello-state-machine) | `post`, transitions |
+| 02 | [Tracing](/tutorials/02-tracing) | trace writer, verbose log |
+| 03 | [Context](/tutorials/03-context) | mutable `ctx` |
+| 04 | [Protocol typing](/tutorials/04-protocol-typing) | typed events |
+| 05 | [Hierarchy](/tutorials/05-hierarchy) | entry/exit, LCA transitions |
+| 07 | [Internal transitions](/tutorials/07-internal-transitions) | handlers without `transition()` |
+| 08 | [post and sync](/tutorials/08-post-and-sync) | queued events |
+| 09 | [deferredPost](/tutorials/09-deferred-post) | timers |
+| 10 | [call services](/tutorials/10-call-services) | sync/async services |
+| 11 | [restore](/tutorials/11-restore) | hydrate snapshots |
+| 12 | [Error recovery](/tutorials/12-error-recovery) | handler errors |
+| 13 | [Async handlers](/tutorials/13-async-handlers) | `await` in handlers |
+| 14 | [Nested machines](/tutorials/14-nested-machines) | multiple actors |
+| 15 | [Complex workflow](/tutorials/15-complex-workflow) | async + `then()` |
+| 16 | [then()](/tutorials/16-then) | decision pseudo-states |
+| 17 | [postNow()](/tutorials/17-post-now) | hi-priority queue |

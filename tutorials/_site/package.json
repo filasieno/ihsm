@@ -1,0 +1,26 @@
+{
+	"name": "ihsm-site",
+	"private": true,
+	"version": "0.0.19",
+	"scripts": {
+		"start": "docusaurus start",
+		"build": "docusaurus build --out-dir ../../docs-build",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@docusaurus/core": "^3.10.1",
+		"@docusaurus/preset-classic": "^3.10.1",
+		"prism-react-renderer": "^2.4.1",
+		"react": "^19.2.6",
+		"react-dom": "^19.2.6"
+	},
+	"devDependencies": {
+		"@docusaurus/module-type-aliases": "^3.10.1",
+		"@docusaurus/tsconfig": "^3.10.1",
+		"@docusaurus/types": "^3.10.1",
+		"@types/react": "^19.2.15",
+		"@types/react-dom": "^19.2.3",
+		"swc-loader": "^0.2.7",
+		"typescript": "^6.0.3"
+	}
+}

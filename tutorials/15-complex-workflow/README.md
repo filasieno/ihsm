@@ -105,9 +105,7 @@ With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y` → `then`.
 
-```trace
-{{TRACE}}
-```
+On the [documentation page](https://filasieno.github.io/ihsm/tutorials/15-complex-workflow), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:tutorials` headlessly.
 
 **What to notice:** Async `#submit` finishes validation, enters `Validating`, then `Validating.then()` schedules the transition to `Approved` or `Rejected` in the same dispatch.
 

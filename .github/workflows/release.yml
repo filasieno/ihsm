@@ -39,26 +39,19 @@ jobs:
       - name: Verify version matches tag
         run: |
           TAG="${{ steps.tag.outputs.ref }}"
-          PKG="$(node -p "require('./package.json').version")"
+          PKG="$(nix develop --command node -p "require('./package.json').version")"
           test "v${PKG}" = "${TAG}" || {
             echo "package.json version ${PKG} does not match tag ${TAG}"
             exit 1
           }
 
-      - name: Run Nix checks (build, test, lint)
+      - name: Run Nix checks (build, test, lint, docs)
         run: nix flake check --print-build-logs
 
-      - name: Build documentation site
-        run: nix build .#docs --print-build-logs
-
-      - name: Setup Node.js registry auth
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
-
       - name: Publish to npm
-        run: nix develop --command npm publish --provenance --access public
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" >> "${HOME}/.npmrc"
+          nix develop --command npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

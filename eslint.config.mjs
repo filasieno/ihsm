@@ -10,11 +10,10 @@ export default tseslint.config(
 		ignores: [
 			'lib/**',
 			'coverage/**',
-			'docs/**',
 			'.typedoc-out/**',
 			'node_modules/**',
 			'scripts/**',
-			'site/**',
+			'tutorials/_site/**',
 		],
 	},
 	{

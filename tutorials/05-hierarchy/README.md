@@ -35,9 +35,7 @@ state TraceTop {
 
 ### Expected trace
 
-```trace
-{{TRACE_SHALLOW}}
-```
+Dispatch `goToB` and `goToC`, then compare the trace to the shallow sibling chain below.
 
 External transitions only (arrows). Handlers that stay in the same state use in-state `StateName : event / action` text — no self-loop arrow. See [Internal transitions](../07-internal-transitions/README.md).
 
@@ -142,9 +140,7 @@ state DeepTop {
 
 ### Expected trace
 
-```trace
-{{TRACE}}
-```
+When exercising the deep stacks below, use the embedded playground on the [documentation page](https://filasieno.github.io/ihsm/tutorials/05-hierarchy), or run `npm run test:tutorials` headlessly.
 
 ## How ihsm applies a transition
 

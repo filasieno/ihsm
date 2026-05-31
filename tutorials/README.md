@@ -2,6 +2,8 @@
 
 Runnable ihsm examples with UML statecharts, handler/client code, and specs in `machine.ts` and `tutorial.spec.ts`.
 
+Each tutorial is published on the [documentation site](https://filasieno.github.io/ihsm/tutorials/) as a single page: prose, code, and an embedded playground to dispatch events and read the trace.
+
 | # | Topic | Feature |
 | - | ----- | ------- |
 | 01 | [Hello state machine](./01-hello-state-machine/README.md) | `makeHsm`, `post`, `sync` |
@@ -28,4 +30,4 @@ npm run test:tutorials
 npm run test:tutorials -- --grep 'Tutorial 01'
 ```
 
-Background: [Reference manual](../docs/REFERENCE.md) · [Published site](https://filasieno.github.io/ihsm/reference/)
+Background: [Reference manual](../reference/REFERENCE.md) · [Published tutorials](https://filasieno.github.io/ihsm/tutorials/)

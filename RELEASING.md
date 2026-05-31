@@ -10,21 +10,27 @@
 
 ## Pre-release checklist
 
-Run locally (same gates as CI + release workflow):
+Run locally on **`dev`**, then merge to **`master`** when green:
 
 ```shell
 nix flake check
-nix build .#docs --option sandbox false
-bash scripts/verify-docs-site.sh site/build
+nix build .#docs
+bash scripts/verify-docs-site.sh docs-build
 ```
 
-Confirm `package.json` **`version`** matches the tag you will push (`v0.0.18` → `"0.0.18"`).
+Confirm `package.json` **`version`** matches the tag you will push (`v0.0.19` → `"0.0.19"`).
 
 Update **`CHANGELOG.md`** for the new version.
 
+Sync generated docs before commit:
+
+```shell
+npm run sync:docs
+```
+
 ## Publish
 
-1. Commit and push to **`master`** on GitHub (`upstream` remote):
+1. Merge **`dev`** → **`master`** and push:
 
    ```shell
    git push upstream master
@@ -35,12 +41,12 @@ Update **`CHANGELOG.md`** for the new version.
 2. Tag and push the release:
 
    ```shell
-   git tag v0.0.18
-   git push upstream v0.0.18
+   git tag v0.0.19
+   git push upstream v0.0.19
    ```
 
 3. **Release workflow** (`.github/workflows/release.yml`) runs on the tag:
-   - full test suite + lint
+   - full test suite + lint + docs
    - `npm publish --provenance` → [npmjs.com/package/ihsm](https://www.npmjs.com/package/ihsm)
    - GitHub Release with auto-generated notes
 
@@ -52,7 +58,7 @@ After the first push to `master` post-release:
 |-------|--------|
 | CI | GitHub Actions `ci.yml` on `master` |
 | docs | GitHub Actions `docs.yml` on `master` |
-| Coverage | Coveralls — uploaded from CI (Node 24 job, push only) |
+| Coverage | Coveralls — uploaded from CI (push only) |
 | npm | Updates after `npm publish` |
 | License | GitHub license API |
 
@@ -66,3 +72,7 @@ nix develop --command npm publish --access public
 ```
 
 Use only if the release workflow is unavailable.
+
+## Maintainer
+
+Fabio Nicola Filasieno — `fabio.filasieno@users.noreply.github.com` (GitHub noreply).

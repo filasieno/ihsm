@@ -5,6 +5,30 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.19] - 2026-05-31
+
+### Added
+
+- **`index.browser.js`** — browser entry built from `src/index.browser.ts` (`package.json` `"browser"` field).
+- Full **reference manual** published on the documentation site (`/reference`), generated from `reference/REFERENCE.md`.
+- **`scripts/generate-reference-mdx.mjs`** and `npm run sync:reference` for docs sync.
+- **`SECURITY.md`** — private vulnerability reporting via GitHub Security Advisories.
+- Tutorial pages embed the **playground on the same page** as prose (generated from each tutorial README).
+
+### Changed
+
+- **Maintainer:** Fabio Nicola Filasieno (`fabio.filasieno@users.noreply.github.com`).
+- Documentation site: **Docusaurus** with Nix CI, unified tutorials + playground, output under `docs-build/`.
+- `npm run build` now runs **node + browser** TypeScript builds.
+- `prepublishOnly` runs **all tests** (unit + tutorials) before publish.
+- Tutorial and reference cross-links point at on-site `/reference` and `/tutorials` paths.
+- CHANGELOG corrected for the 0.0.18 documentation stack (Docusaurus, not VitePress).
+
+### Fixed
+
+- Broken `browser` field (missing `lib/index.browser.js`).
+- Reference page stub replaced with the full manual on GitHub Pages.
+
 ## [0.0.18] - 2026-05-31
 
 ### Added
@@ -14,9 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`postNow()`** — hi-priority extended transitions scheduled before normal mailbox posts from the same handler.
 - Tutorials **16 · then()** and **17 · postNow()**.
 - Hierarchy tutorial **05** expanded with per-case walkthroughs (initialization, sibling, cross-branch, async, …).
-- VitePress documentation site (reference manual, tutorials, TypeDoc API) deployed to GitHub Pages.
-- PlantUML rendering via [Kroki](https://kroki.io) — no local Java required for doc builds.
-- `.nvmrc` pinning Node.js 22.
+- **Docusaurus** documentation site (reference, tutorials with embedded playgrounds) deployed to GitHub Pages.
+- **Nix flake** for deterministic build, test, lint, and docs (`nix flake check`).
+- PlantUML blocks in tutorial READMEs (rendered as code blocks on the docs site).
 
 ### Changed
 
@@ -28,11 +52,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- XState benchmark scripts and dev dependency (`benchmark/`, `npm run benchmark`).
+- Legacy VitePress `docs/` tree and XState benchmark scripts (`benchmark/`, `npm run benchmark`).
 
-## [0.0.14] - 2024
+## [0.0.14] - 2022-03-15
 
 Last npm release before the documentation and API refresh above.
 
+[0.0.19]: https://github.com/filasieno/ihsm/compare/v0.0.18...v0.0.19
 [0.0.18]: https://github.com/filasieno/ihsm/compare/v0.0.14...v0.0.18
 [0.0.14]: https://github.com/filasieno/ihsm/releases/tag/v0.0.14

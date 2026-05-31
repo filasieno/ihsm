@@ -78,12 +78,25 @@ await door.sync();           // wait for init (onEntry chain + then() if defined
 
 The client never calls `open()` directly — it enqueues the event by name:
 
+```typescript
 door.post('open');           // fire-and-forget — enqueues open handler
 await door.sync();           // wait until open handler + transition complete
 
 door.post('close');
-await door.sync();
+await door.sync();           // same pattern for the next event
 ```
+
+Each **`post` + `sync`** pair is similar to a single **`await call(...)`**: the client waits until one enqueued dispatch finishes (handler + transition). The difference is that `post` has no typed return value — use `call` when you need a reply in the same step ([Call services](../10-call-services/README.md)).
+
+To wait until **several** posts have been processed, enqueue them all first, then **`sync` once**:
+
+```typescript
+door.post('open');
+door.post('close');
+await door.sync();           // drain the whole batch before continuing
+```
+
+See [Post and sync](../08-post-and-sync/README.md) for handler-side chaining and ordering rules.
 
 | Side | Code | Waits? |
 | ---- | ---- | ------ |
@@ -91,17 +104,13 @@ await door.sync();
 | Client | `door.post('open')` | No — returns immediately |
 | Client | `await door.sync()` | Yes — drain queue through handler + transition |
 
-`post` returns immediately; `sync()` is how the **client** waits when there is no return value. For a typed reply in one step, use `call()` ([Call services](../10-call-services/README.md)). To batch several posts with one wait, see [Post and sync](../08-post-and-sync/README.md).
-
 ## Reading the trace
 
 With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
-```trace
-{{TRACE}}
-```
+On the [documentation page](https://filasieno.github.io/ihsm/tutorials/01-hello-state-machine), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:tutorials` headlessly.
 
 **What to notice:** `initialize` descends to `Closed`. Each `post` opens a `#open` / `#close` domain. After the handler, `requested transition` and `started transition` show the LCA path; `final state is` confirms the new leaf.
 

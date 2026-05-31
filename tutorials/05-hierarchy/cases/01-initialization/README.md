@@ -22,9 +22,7 @@ state DeepTop {
 
 ### Expected trace
 
-```trace
-{{TRACE}}
-```
+See the **Trace** panel on the [interactive docs site](https://filasieno.github.io/ihsm/tutorials/), or run `npm run test:tutorials` headlessly.
 
 ## Starting point
 

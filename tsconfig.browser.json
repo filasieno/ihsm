@@ -1,8 +1,18 @@
 {
 	"extends": "./tsconfig.json",
 	"compilerOptions": {
-		"moduleResolution": "node16",
+		"outDir": "./lib",
+		"rootDir": "./src",
+		"tsBuildInfoFile": "./.tsc.browser",
 		"target": "ES2018",
-		"module": "node16"
-	}
+		"module": "node16",
+		"moduleResolution": "node16",
+		"types": [],
+		"lib": ["ES2020", "DOM"],
+		"declaration": true,
+		"declarationMap": false,
+		"sourceMap": false
+	},
+	"include": ["src/index.browser.ts"],
+	"exclude": ["src/spec"]
 }

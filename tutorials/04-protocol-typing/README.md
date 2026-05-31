@@ -64,9 +64,7 @@ With `HsmTraceLevel.VERBOSE_DEBUG` and a custom `HsmTraceWriter`, ihsm logs each
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
-```trace
-{{TRACE}}
-```
+On the [documentation page](https://filasieno.github.io/ihsm/tutorials/04-protocol-typing), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:tutorials` headlessly.
 
 **What to notice:** Same internal pattern as context: `#setTarget` handler completes without a transition block.
 

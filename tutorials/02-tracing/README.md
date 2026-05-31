@@ -78,9 +78,7 @@ ihsm logs every dispatch step when `HsmTraceLevel.VERBOSE_DEBUG` is set and a cu
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
-```trace
-{{TRACE}}
-```
+On the [documentation page](https://filasieno.github.io/ihsm/tutorials/02-tracing), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:tutorials` headlessly.
 
 **What to notice:** Lines mirror `ConsoleTraceWriter` format. Handlers may call `this.traceWriter.write(...)` for domain logs. Compare `DEBUG` (boundaries only) vs `VERBOSE_DEBUG` (cache hits, skipped onEntry, etc.).
 

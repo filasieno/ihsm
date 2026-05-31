@@ -19,13 +19,7 @@ An idiomatic hierarchical state machine package for TypeScript — **Samek/QP-st
 | **Functions** | 100% |
 | **Lines** | 100% |
 
-Run the suite locally:
-
-```shell
-npm test
-```
-
-Coverage is enforced via `nyc` over all runtime sources under `src/` (excluding specs). Every dispatch path — production, debug, and verbose trace levels — is exercised.
+CI enforces full coverage on every push (`nix flake check`).
 
 ## Features
 
@@ -50,13 +44,15 @@ Coverage is enforced via `nyc` over all runtime sources under `src/` (excluding 
 | Resource | Link |
 |----------|------|
 | **Documentation site** | [filasieno.github.io/ihsm](https://filasieno.github.io/ihsm/) |
-| **Reference manual** | [docs/REFERENCE.md](./docs/REFERENCE.md) · [published](https://filasieno.github.io/ihsm/reference/) |
-| **Tutorials** | [tutorials/](./tutorials/) · [in the docs site](https://filasieno.github.io/ihsm/reference/tutorials/) |
-| **API reference** | [TypeDoc on the site](https://filasieno.github.io/ihsm/api/) |
+| **Reference manual** | [reference/REFERENCE.md](./reference/REFERENCE.md) · [published](https://filasieno.github.io/ihsm/reference/) |
+| **Tutorials** | [tutorials/](./tutorials/) · [published](https://filasieno.github.io/ihsm/tutorials/) |
 | Examples | [`src/spec/`](./src/spec/) |
 | Code of conduct | [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) |
+| Security | [SECURITY.md](./SECURITY.md) |
 
-The full site (reference, tutorials, API) is rebuilt on every push to `master` / `main` (`.github/workflows/docs.yml`).
+Each tutorial page on the documentation site combines prose, code samples, and an embedded playground
+(sender/message forms, live trace, reset). The same machines are verified headlessly by Mocha specs under
+`tutorials/*/tutorial.spec.ts`.
 
 ## Install
 
@@ -64,79 +60,57 @@ The full site (reference, tutorials, API) is rebuilt on every push to `master` /
 npm install ihsm@latest
 ```
 
-Requires **Node.js 22+** (provided by the Nix dev shell / package build).
+Requires **Node.js 22+** at runtime.
 
-## Development
+## Requirements
 
-**Prerequisite:** [Nix](https://nixos.org/download/) with flakes enabled. No separate Node.js or npm install is required.
+**[Nix](https://nixos.org/download/)** with flakes enabled — the only prerequisite to build and test
+from source.
+
+## Building
 
 ```shell
 git clone https://github.com/filasieno/ihsm.git
 cd ihsm
-nix develop          # optional: enter dev shell (direnv: allow once)
 ```
 
-With [direnv](https://direnv.net/), run `direnv allow` once — the `.envrc` loads the flake dev shell automatically.
-
-**Nixpkgs:** the flake follows `nixpkgs-unstable` for current Node.js and tooling, with the exact commit pinned in `flake.lock` (currently `e9a7635a57597d9754eccebdfc7045e6c8600e6b`). Reproducible builds use that lock; bump when you want newer packages:
-
-```shell
-nix flake update nixpkgs   # refresh lock to latest unstable
-nix flake check            # verify after bump
-```
-
-### Nix build commands
-
-| Command | Purpose |
-| ------- | ------- |
-| `nix build` | Compile TypeScript → `lib/`, run unit + tutorial tests |
+| Command | What it builds / runs |
+| ------- | --------------------- |
+| `nix flake check` | Library compile, unit tests, tutorial tests, lint, docs site (full CI gate) |
+| `nix build` | Library → `result/lib/` |
 | `nix build .#lint` | ESLint, Prettier, tutorial typecheck |
-| `nix build .#docs` | Docusaurus site with interactive React tutorials |
-| `nix flake check` | Library + lint (CI gate) |
+| `nix build .#docs` | Documentation site → `result/share/doc/ihsm/` |
 
-Build outputs land in `./result/` (symlink). Library artifacts: `result/lib/`. Docs: `result/share/doc/ihsm/`.
-
-Typical check before a PR:
+Full check before opening a PR:
 
 ```shell
 nix flake check
-nix build .#docs
-bash scripts/verify-docs-site.sh site/build
-```
-
-### Dev shell scripts
-
-Inside `nix develop`, `node_modules` comes from the same pinned `package-lock.json` as the Nix build:
-
-| Command | Purpose |
-| ------- | ------- |
-| `npm test` | Unit tests + **100%** coverage (`nyc mocha`) |
-| `npm run test:tutorials` | Hands-on tutorial specs |
-| `npm run test:all` | Both test suites |
-| `npm run lint` | ESLint + Prettier |
-| `npm run build` | Compile TypeScript → `lib/` |
-| `npm run doc:preview` | Docusaurus dev server with interactive tutorials |
-| `npm run doc:site` | Static site → `site/build/` |
-| `npm run verify:doc` | Assert production site output (same as CI) |
-
-When `package-lock.json` changes, refresh the Nix npm hash:
-
-```shell
-nix run nixpkgs#prefetch-npm-deps -- package-lock.json
-# → update npmDepsHash in flake.nix
 ```
 
 ### Documentation site
 
-Interactive tutorials run ihsm in the browser (React + Docusaurus). Each page has sender/message
-forms, a read-only trace panel, and a reset button. Mocha specs under `tutorials/*/tutorial.spec.ts`
-exercise the same machines headlessly.
+| Command | Purpose |
+| ------- | ------- |
+| `nix build .#docs` | Production static site |
+| `nix develop --command npm run doc:preview` | Local preview at [localhost:3000/ihsm/](http://localhost:3000/ihsm/) |
+| `nix develop --command npm run doc:site` | Production build → `docs-build/` |
+| `nix develop --command npm run verify:doc` | Verify production site output |
 
-```shell
-npm run doc:preview      # http://localhost:3000/ihsm/
-npm run doc:site         # production build → site/build/
-npm run verify:doc
-```
+After `nix build .#docs`, copy artifacts from `result/share/doc/ihsm/` or run
+`bash scripts/verify-docs-site.sh result/share/doc/ihsm`.
+
+### Library and tests
+
+| Command | Purpose |
+| ------- | ------- |
+| `nix build` | Compile TypeScript → `lib/`, run unit + tutorial tests |
+| `nix develop --command npm test` | Unit tests + coverage report |
+| `nix develop --command npm run test:tutorials` | Tutorial specs only |
+| `nix develop --command npm run test:all` | Both test suites |
+| `nix develop --command npm run lint` | ESLint + Prettier |
+| `nix develop --command npm run build` | Compile TypeScript → `lib/` |
+
+Release process: [RELEASING.md](./RELEASING.md).
 
 ## Contributing
 
