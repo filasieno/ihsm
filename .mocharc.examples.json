@@ -3,7 +3,7 @@
 	"extension": ["ts"],
 	"require": ["ts-node/register/transpile-only"],
 	"node-option": ["no-experimental-strip-types"],
-	"spec": ["tutorials/**/*.spec.ts"],
+	"spec": ["examples/**/*.spec.ts"],
 	"package": "./package.json",
 	"reporter": "spec",
 	"slow": 75,

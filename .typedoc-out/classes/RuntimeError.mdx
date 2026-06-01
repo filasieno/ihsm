@@ -1,0 +1,140 @@
+Error base for failures during **event dispatch**, with correlated event metadata.
+
+## Extends
+
+- [`HsmError`](HsmError.mdx)\<`Context`, `Protocol`\>
+
+## Extended by
+
+- [`TransitionError`](TransitionError.mdx)
+- [`EventHandlerError`](EventHandlerError.mdx)
+- [`UnhandledEventError`](UnhandledEventError.mdx)
+- [`FatalError`](FatalError.mdx)
+
+## Type Parameters
+
+### Context
+
+`Context`
+
+Domain context
+
+### Protocol
+
+`Protocol` *extends* \{ \} \| `undefined`
+
+Vocabulary interface
+
+### EventName
+
+`EventName` *extends* keyof `Protocol`
+
+Event or service key being processed
+
+## Constructors
+
+### Constructor
+
+> `protected` **new RuntimeError**\<`Context`, `Protocol`, `EventName`\>(`errorName`, `hsm`, `message`, `cause?`): `RuntimeError`\<`Context`, `Protocol`, `EventName`\>
+
+#### Parameters
+
+##### errorName
+
+`string`
+
+##### hsm
+
+[`State`](../interfaces/State.mdx)\<`Context`, `Protocol`\>
+
+##### message
+
+`string`
+
+##### cause?
+
+`Error`
+
+#### Returns
+
+`RuntimeError`\<`Context`, `Protocol`, `EventName`\>
+
+#### Overrides
+
+[`HsmError`](HsmError.mdx).[`constructor`](HsmError.mdx#constructor)
+
+## Properties
+
+### name
+
+> **name**: `string`
+
+Discriminator matching the class name (`EventHandlerError`, etc.).
+
+#### Inherited from
+
+[`HsmError`](HsmError.mdx).[`name`](HsmError.mdx#name)
+
+***
+
+### topStateName
+
+> **topStateName**: `string`
+
+[Properties.topStateName](../interfaces/Properties.mdx#topstatename) when the error was constructed.
+
+#### Inherited from
+
+[`HsmError`](HsmError.mdx).[`topStateName`](HsmError.mdx#topstatename)
+
+***
+
+### stateName
+
+> **stateName**: `string`
+
+[Properties.currentStateName](../interfaces/Properties.mdx#currentstatename) when the error was constructed.
+
+#### Inherited from
+
+[`HsmError`](HsmError.mdx).[`stateName`](HsmError.mdx#statename)
+
+***
+
+### context
+
+> **context**: `Context`
+
+Snapshot of [State.ctx](../interfaces/State.mdx#ctx) when the error was constructed.
+
+#### Inherited from
+
+[`HsmError`](HsmError.mdx).[`context`](HsmError.mdx#context-1)
+
+***
+
+### cause?
+
+> `optional` **cause?**: `Error`
+
+Original thrown value when this error wraps a handler or lifecycle failure.
+
+#### Inherited from
+
+[`HsmError`](HsmError.mdx).[`cause`](HsmError.mdx#cause)
+
+***
+
+### eventName
+
+> **eventName**: [`PostedEvent`](../type-aliases/PostedEvent.mdx)\<`Protocol`, `EventName`\>
+
+Event or service name that was active when the failure occurred.
+
+***
+
+### eventPayload
+
+> **eventPayload**: [`EventPayload`](../type-aliases/EventPayload.mdx)\<`Protocol`, `EventName`\>
+
+Client-supplied arguments (excluding resolve/reject for services).

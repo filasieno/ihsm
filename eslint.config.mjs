@@ -21,7 +21,7 @@ export default tseslint.config(
 		],
 	},
 	{
-		files: ['src/**/*.ts', 'tutorials/**/*.ts'],
+		files: ['src/**/*.ts', 'examples/**/*.ts'],
 		rules: {
 			'@typescript-eslint/no-explicit-any': 'off',
 			'@typescript-eslint/explicit-function-return-type': 'off',

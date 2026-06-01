@@ -9,7 +9,7 @@ const outDir = path.join(repoRoot, '.test-browser');
 
 const suiteArg = process.argv.indexOf('--suite');
 const suites =
-	suiteArg >= 0 ? [process.argv[suiteArg + 1]] : ['unit', 'tutorials'];
+	suiteArg >= 0 ? [process.argv[suiteArg + 1]] : ['unit', 'examples'];
 
 const build = spawnSync(process.execPath, [path.join(repoRoot, 'scripts/build-browser-tests.mjs')], {
 	cwd: repoRoot,

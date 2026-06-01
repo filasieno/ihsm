@@ -27,7 +27,7 @@ nix develop --command npm run doc:preview
 ihsm/
 ├── src/                         # Library (npm package ihsm → lib/)
 ├── reference/REFERENCE.md       # Reference manual source
-├── tutorials/                   # Runnable examples + README prose
+├── examples/                   # Runnable examples + README prose
 ├── website/
 │   ├── docs-src/                # Committed MDX sources only
 │   ├── docs/                    # GITIGNORED — built by npm run sync:docs
@@ -51,11 +51,11 @@ ihsm/
 Enforced by:
 
 - `.gitignore`
-- `bash scripts/verify-no-generated-in-source.sh` (CI + Nix sandbox; also fails on stray compiled output under `src/`/`tutorials/`)
+- `bash scripts/verify-no-generated-in-source.sh` (CI + Nix sandbox; also fails on stray compiled output under `src/`/`examples/`)
 
 **PlantUML:** `npm run sync:docs` renders ` ```plantuml ` blocks to SVG via the `plantuml` CLI (Graphviz required). The Nix dev shell and `nix build .#docs` provide both.
 
-Hand-written site pages live in **`website/docs-src/`** only (`intro.mdx`, `tutorials/index.mdx`).
+Hand-written site pages live in **`website/docs-src/`** only (`intro.mdx`, `examples/index.mdx`).
 
 ## TypeScript
 
@@ -66,7 +66,7 @@ Single [project-reference](https://www.typescriptlang.org/docs/handbook/project-
 | `tsconfig.json` | Solution entry |
 | `tsconfig.lib.json` | CommonJS library → `lib/cjs/` |
 | `tsconfig.esm.json` | ESM library → `lib/esm/` |
-| `tsconfig.tutorials.json` | Example machines (Mocha + webpack) |
+| `tsconfig.examples.json` | Example machines (Mocha + webpack) |
 | `website/tsconfig.json` | Docusaurus + React |
 
 ## npm scripts (docs-related)
@@ -77,7 +77,7 @@ Run from the **repo root** inside **`nix develop`**. Full list: [README.md](../R
 | ------- | ------- |
 | `npm run sync:docs` | Materialize `website/docs/`, `website/sidebars.ts`, and PlantUML SVGs from sources |
 | `npm run verify:source` | Fail if generated output appears in the source tree |
-| `npm run typecheck` | Type-check the full solution (lib + tutorials + website); runs `sync:docs` first |
+| `npm run typecheck` | Type-check the full solution (lib + examples + website); runs `sync:docs` first |
 | `npm run build` | Compile publishable library → `lib/cjs/` + `lib/esm/` (no Docusaurus bundle) |
 | `npm run doc:preview` | `sync:docs`, then Docusaurus dev server (port 3010) |
 | `npm run doc:site` | `sync:docs`, then production static site → `docs-build/` |
@@ -92,6 +92,6 @@ nix build .#docs       # production site + verify, outside npm
 
 ## Adding a tutorial
 
-1. Create `tutorials/NN-name/` with `README.md`, `machine.ts`, `interactive.ts`, `tutorial.spec.ts`.
-2. Add a row to `tutorials/README.md` (source index for contributors).
-3. Inside `nix develop`, run `npm run sync:docs` — regenerates tutorial MDX, the table on `/tutorials`, and the unified sidebar.
+1. Create `examples/NN-name/` with `README.md`, `machine.ts`, `interactive.ts`, `tutorial.spec.ts`.
+2. Add a row to `examples/README.md` (source index for contributors).
+3. Inside `nix develop`, run `npm run sync:docs` — regenerates tutorial MDX, the table on `/examples`, and the unified sidebar.

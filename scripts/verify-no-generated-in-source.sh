@@ -21,9 +21,9 @@ forbidden _config.yml
 
 # Generated TypeScript output must never live in the source tree (it belongs in
 # lib/ and .tsc/). Catch stray declaration/JS emitted next to .ts sources.
-stray_ts="$(find src tutorials \( -name '*.d.ts' -o -name '*.js' -o -name '*.js.map' -o -name '*.d.ts.map' \) -print 2>/dev/null || true)"
+stray_ts="$(find src examples \( -name '*.d.ts' -o -name '*.js' -o -name '*.js.map' -o -name '*.d.ts.map' \) -print 2>/dev/null || true)"
 if [[ -n "$stray_ts" ]]; then
-	echo "ERROR: generated TypeScript output must not be in src/ or tutorials/:" >&2
+	echo "ERROR: generated TypeScript output must not be in src/ or examples/:" >&2
 	echo "$stray_ts" >&2
 	errors=1
 fi

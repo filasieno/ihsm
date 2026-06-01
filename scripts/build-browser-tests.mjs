@@ -73,7 +73,7 @@ for (const asset of ['mocha.js', 'mocha.css']) {
 	fs.copyFileSync(path.join(mochaDir, asset), path.join(outDir, asset));
 }
 
-for (const suite of ['unit', 'tutorials']) {
+for (const suite of ['unit', 'examples']) {
 	await esbuild.build({
 		...shared,
 		entryPoints: [path.join(repoRoot, 'test/browser/entries', `${suite}.ts`)],

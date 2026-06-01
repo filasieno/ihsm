@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.20] - 2026-06-01
+
+### Added
+
+- Single **Reference** documentation page (`/reference`) with the full manual from
+  `reference/REFERENCE.md` and **inline interactive playgrounds** per section.
+- Runnable example machines relocated to top-level **`examples/`** (was `tutorials/`).
+
+### Changed
+
+- Documentation site: **Reference + API only** (removed per-topic Guide); `/guide` and
+  `/tutorials` redirect to `/reference`.
+- `npm run test:examples` replaces `test:tutorials`; browser suite entry renamed to `examples`.
+- **`package.json` `description`** and README tagline: class-based HSM + actor mailbox positioning.
+- CI: pure Nix gate (`nix flake check`); removed legacy `.travis.yml`.
+- GitHub Actions CI uses `verify-no-generated-in-source.sh` (fixed stale script name).
+
+### Removed
+
+- `tutorials/` tree (content merged into reference; machines live under `examples/`).
+- `scripts/generate-topics-mdx.mjs` and per-topic `/guide/*` pages.
+
 ## [0.0.19] - 2026-05-31
 
 ### Added

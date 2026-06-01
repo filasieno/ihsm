@@ -1,0 +1,87 @@
+> **makeHsm**\<`Context`, `Protocol`\>(`topState`, `ctx`, `initialize?`, `traceLevel?`, `traceWriter?`, `dispatchErrorCallback?`): [`Hsm`](../interfaces/Hsm.mdx)\<`Context`, `Protocol`\>
+
+Creates and optionally initializes a hierarchical state machine **actor** bound to `ctx`.
+
+The returned [Hsm](../interfaces/Hsm.mdx) is the single runtime object: external clients call `post` / `call` /
+`sync`; the active state is the instance prototype chain updated by [State.transition](../interfaces/State.mdx#transition).
+
+## Type Parameters
+
+### Context
+
+`Context`
+
+Domain context type (inferred from `ctx` when passed inline)
+
+### Protocol
+
+`Protocol` *extends* \{ \} \| `undefined`
+
+Event/service vocabulary (inferred from `topState` when it implements `Protocol`)
+
+## Parameters
+
+### topState
+
+[`StateClass`](../type-aliases/StateClass.mdx)\<`Context`, `Protocol`\>
+
+Root state **class** constructor (must extend [TopState](../classes/TopState.mdx))
+
+### ctx
+
+`Context`
+
+Mutable domain object shared by all states; stored on the instance as [Hsm.ctx](../interfaces/Hsm.mdx#ctx)
+
+### initialize?
+
+`boolean` = `defaultInitialize`
+
+When `true` (default), enqueue the initial walk: descend `@InitialState`
+  chains from `topState` and run [StateEvents.onEntry](../interfaces/StateEvents.mdx#onentry) on each entered state until the
+  initial leaf is active. When `false`, prototype starts at `topState` with **no** entry hooks
+
+### traceLevel?
+
+[`TraceLevel`](../enumerations/TraceLevel.mdx) = `defaultTraceLevel`
+
+Initial [TraceLevel](../enumerations/TraceLevel.mdx) (default [TraceLevel.DEBUG](../enumerations/TraceLevel.mdx#debug))
+
+### traceWriter?
+
+[`TraceWriter`](../interfaces/TraceWriter.mdx) = `defaultTraceWriter`
+
+[TraceWriter](../interfaces/TraceWriter.mdx) implementation (default: prefixes strings with state name and logs to `console`)
+
+### dispatchErrorCallback?
+
+[`DispatchErrorCallback`](../interfaces/DispatchErrorCallback.mdx)\<`Context`, `Protocol`\> = `defaultDispatchErrorCallback`
+
+Last-resort error hook (default: trace + rethrow)
+
+## Returns
+
+[`Hsm`](../interfaces/Hsm.mdx)\<`Context`, `Protocol`\>
+
+Client handle implementing [Hsm](../interfaces/Hsm.mdx) for the same `Context` and `Protocol`
+
+## Remarks
+
+- Await [Hsm.sync](../interfaces/Hsm.mdx#sync) after creation when `initialize: true` before asserting initial state
+- Zero runtime npm dependencies; safe to embed in browsers when state names are registered
+- Transition LCA paths are cached per machine instance for the lifetime of the actor
+
+## Examples
+
+```ts
+const door = makeHsm(DoorTop, { openCount: 0 });
+await door.sync();
+door.post('open');
+await door.sync();
+```
+
+```ts
+const writer = { write: (_hsm, msg) => logs.push(msg) };
+const sm = makeHsm(Top, ctx, true, TraceLevel.VERBOSE_DEBUG, writer);
+await sm.sync();
+```

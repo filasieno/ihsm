@@ -19,7 +19,7 @@
 
       # Regenerate when package-lock.json changes:
       #   nix run nixpkgs#prefetch-npm-deps -- package-lock.json
-      npmDepsHash = "sha256-85YDoG0KhWFyY4lUdJpY22AMJGi3pGB1i3vCyUXNU2s=";
+      npmDepsHash = "sha256-AOXz5mDJcGOxdEesRLgSddmNfO9SBVTI0LLwAXAnJpQ=";
 
       nixpkgsRev = (builtins.fromJSON (builtins.readFile ./flake.lock)).nodes.nixpkgs.locked.rev;
 
@@ -318,18 +318,18 @@
               echo "nixpkgs lock: ${nixpkgsRev}" >&2
               echo "" >&2
               echo "Build (deterministic, sandboxed):" >&2
-              echo "  nix build              library + unit/tutorial tests" >&2
+              echo "  nix build              library + unit/example tests" >&2
               echo "  nix build .#lint       TypeScript, ESLint, Prettier" >&2
               echo "  nix flake check        library + lint (CI gate)" >&2
               echo "  bash scripts/verify-reproducible.sh .#docs" >&2
               echo "" >&2
               echo "Docs:" >&2
-              echo "  nix build .#docs       Docusaurus site with interactive tutorials" >&2
+              echo "  nix build .#docs       Docusaurus site (reference + API)" >&2
               echo "" >&2
               echo "Dev (uses the same npm lockfile as nix build):" >&2
-              echo "  npm run test:all         Node + minified browser (unit + tutorials)" >&2
+              echo "  npm run test:all         Node + minified browser (unit + examples)" >&2
               echo "  Chromium for Playwright:  $PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH" >&2
-              echo "  npm run doc:preview    Docusaurus dev server (interactive tutorials)" >&2
+              echo "  npm run doc:preview    Docusaurus dev server (reference + playgrounds)" >&2
               echo "  npm run release:check  full local gate (needs network for doc)" >&2
             '';
           };

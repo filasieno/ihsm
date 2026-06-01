@@ -5,21 +5,21 @@
 		"declaration": true,
 		"emitDeclarationOnly": true,
 		"declarationMap": false,
-		"outDir": "./.tsc/tutorials",
+		"outDir": "./.tsc/examples",
 		"rootDir": ".",
-		"tsBuildInfoFile": "./.tsc/tutorials.tsbuildinfo",
+		"tsBuildInfoFile": "./.tsc/examples.tsbuildinfo",
 		"module": "node16",
 		"moduleResolution": "node16",
 		"types": ["mocha", "node"]
 	},
 	"include": [
-		"tutorials/**/machine.ts",
-		"tutorials/**/interactive.ts",
-		"tutorials/**/trace-*.ts",
-		"tutorials/shared/trace.ts",
-		"tutorials/shared/interactive-helpers.ts",
-		"tutorials/shared/interactive-types.ts",
-		"tutorials/shared/state-names.ts"
+		"examples/**/machine.ts",
+		"examples/**/interactive.ts",
+		"examples/**/trace-*.ts",
+		"examples/shared/trace.ts",
+		"examples/shared/interactive-helpers.ts",
+		"examples/shared/interactive-types.ts",
+		"examples/shared/state-names.ts"
 	],
 	"references": [{ "path": "./tsconfig.lib.json" }]
 }

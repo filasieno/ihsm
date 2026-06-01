@@ -5,6 +5,6 @@
 		"lib": ["ES2022"],
 		"types": ["node", "mocha"]
 	},
-	"include": ["src/**/*.ts", "tutorials/**/*.ts"],
+	"include": ["src/**/*.ts", "examples/**/*.ts"],
 	"exclude": ["lib", "node_modules", "website", "docs-build", ".tsc"]
 }

@@ -1,7 +1,7 @@
 {
 	"name": "ihsm-site",
 	"private": true,
-	"version": "0.0.19",
+	"version": "0.0.20",
 	"scripts": {
 		"prebuild": "node ../scripts/prepare-website-docs.mjs",
 		"prestart": "node ../scripts/prepare-website-docs.mjs",
@@ -10,6 +10,7 @@
 	},
 	"dependencies": {
 		"@docusaurus/core": "^3.10.1",
+		"@docusaurus/plugin-client-redirects": "^3.10.1",
 		"@docusaurus/preset-classic": "^3.10.1",
 		"prism-react-renderer": "^2.4.1",
 		"react": "^19.2.6",

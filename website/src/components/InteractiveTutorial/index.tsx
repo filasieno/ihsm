@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import type { InteractiveRuntime, TutorialInteractiveMeta, TutorialMessage } from '@tutorials/shared/interactive-types';
-import { dispatchMessage, resetRuntime, traceFromRuntime } from '@tutorials/shared/interactive-helpers';
+import type { InteractiveRuntime, TutorialInteractiveMeta, TutorialMessage } from '@examples/shared/interactive-types';
+import { dispatchMessage, resetRuntime, traceFromRuntime } from '@examples/shared/interactive-helpers';
 import styles from './styles.module.css';
 
 export interface InteractiveTutorialProps {

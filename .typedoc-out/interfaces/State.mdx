@@ -1,0 +1,512 @@
+Handler-facing API available inside state class methods (`this` / `this.hsm`).
+
+Extends [Base](Base.mdx) with context access, transitions, async sleep, explicit unhandled
+signaling, and [postNow](#postnow) hi-priority re-dispatch. Only code running **inside** an
+active handler should call [transition](#transition), [unhandled](#unhandled), or [postNow](#postnow).
+
+## Extends
+
+- [`Base`](Base.mdx)\<`Context`, `Protocol`\>
+
+## Type Parameters
+
+### Context
+
+`Context`
+
+### Protocol
+
+`Protocol` *extends* \{ \} \| `undefined`
+
+## Properties
+
+### currentState
+
+> `readonly` **currentState**: [`StateClass`](../type-aliases/StateClass.mdx)\<`Context`, `Protocol`\>
+
+Constructor (`Function`) of the **leaf** state class currently executing.
+
+Compare with [topState](Properties.mdx#topstate), which is always the root composite passed to
+[makeHsm](../functions/makeHsm.mdx). After a transition, this updates to the new leaf's constructor.
+
+#### Inherited from
+
+[`Base`](Base.mdx).[`currentState`](Base.mdx#currentstate)
+
+***
+
+### currentStateName
+
+> `readonly` **currentStateName**: `string`
+
+Human-readable name of [currentState](Properties.mdx#currentstate).
+
+Sourced from [defineStateName](../functions/defineStateName.mdx) / [registerStateNames](../functions/registerStateNames.mdx) when registered;
+otherwise `Class.name` (unreliable under minification — register names in browser builds).
+
+#### Inherited from
+
+[`Base`](Base.mdx).[`currentStateName`](Base.mdx#currentstatename)
+
+***
+
+### topState
+
+> `readonly` **topState**: [`StateClass`](../type-aliases/StateClass.mdx)\<`Context`, `Protocol`\>
+
+Constructor of the root state class supplied to [makeHsm](../functions/makeHsm.mdx).
+
+Constant for the lifetime of the instance unless you replace the entire machine.
+
+#### Inherited from
+
+[`Base`](Base.mdx).[`topState`](Base.mdx#topstate)
+
+***
+
+### topStateName
+
+> `readonly` **topStateName**: `string`
+
+Display name of [topState](Properties.mdx#topstate) (same naming rules as [currentStateName](Properties.mdx#currentstatename)).
+
+#### Inherited from
+
+[`Base`](Base.mdx).[`topStateName`](Base.mdx#topstatename)
+
+***
+
+### ctxTypeName
+
+> `readonly` **ctxTypeName**: `string`
+
+Runtime label derived from `ctx` constructor name, used as the first segment of
+[traceHeader](Properties.mdx#traceheader) in verbose traces.
+
+#### Inherited from
+
+[`Base`](Base.mdx).[`ctxTypeName`](Base.mdx#ctxtypename)
+
+***
+
+### traceHeader
+
+> `readonly` **traceHeader**: `string`
+
+Prefix for nested trace domains, built from internal dispatch stack frames.
+
+Empty at the top level; grows like `domain|subdomain|` during nested operations.
+Handlers rarely need to read this directly — it is prepended automatically by
+the default [TraceWriter](TraceWriter.mdx).
+
+#### Inherited from
+
+[`Base`](Base.mdx).[`traceHeader`](Base.mdx#traceheader)
+
+***
+
+### eventName
+
+> `readonly` **eventName**: `string`
+
+Name of the event or service currently being dispatched.
+
+Matches the string passed to [Base.post](Base.mdx#post), [Hsm.call](Hsm.mdx#call), or
+[State.postNow](#postnow). Empty string when no handler is running.
+
+#### Inherited from
+
+[`Base`](Base.mdx).[`eventName`](Base.mdx#eventname)
+
+***
+
+### eventPayload
+
+> `readonly` **eventPayload**: `any`[]
+
+Arguments passed with the current dispatch, excluding injected `resolve` / `reject`
+for [Hsm.call](Hsm.mdx#call) services.
+
+Empty array when idle. Typed as `any[]` at runtime; correlate with
+[EventPayload](../type-aliases/EventPayload.mdx) / [ServiceRequest](../type-aliases/ServiceRequest.mdx) at compile time on the client.
+
+#### Inherited from
+
+[`Base`](Base.mdx).[`eventPayload`](Base.mdx#eventpayload)
+
+***
+
+### traceLevel
+
+> **traceLevel**: [`TraceLevel`](../enumerations/TraceLevel.mdx)
+
+Active trace verbosity; changing this swaps dispatch tracing behavior immediately.
+
+#### See
+
+TraceLevel
+
+#### Inherited from
+
+[`Base`](Base.mdx).[`traceLevel`](Base.mdx#tracelevel)
+
+***
+
+### traceWriter
+
+> **traceWriter**: [`TraceWriter`](TraceWriter.mdx)
+
+Destination for runtime and handler-initiated trace lines.
+
+Replaceable at any time (e.g. swap in a test double before `post`/`call`).
+
+#### Inherited from
+
+[`Base`](Base.mdx).[`traceWriter`](Base.mdx#tracewriter)
+
+***
+
+### dispatchErrorCallback
+
+> **dispatchErrorCallback**: [`DispatchErrorCallback`](DispatchErrorCallback.mdx)\<`Context`, `Protocol`\>
+
+Last-resort error hook when [StateEvents.onError](StateEvents.mdx#onerror) / [StateEvents.onUnhandled](StateEvents.mdx#onunhandled)
+do not recover.
+
+#### See
+
+DispatchErrorCallback
+
+#### Inherited from
+
+[`Base`](Base.mdx).[`dispatchErrorCallback`](Base.mdx#dispatcherrorcallback)
+
+***
+
+### ctx
+
+> `readonly` **ctx**: `Context`
+
+Mutable domain data object shared across all states of this machine instance.
+
+Passed as the second argument to [makeHsm](../functions/makeHsm.mdx); survives transitions unless replaced
+by [Hsm.restore](Hsm.mdx#restore). Update fields freely for internal transitions (no `transition()`).
+
+#### Remarks
+
+Context is **not** the active state name — state is which class prototype is active;
+context is arbitrary application data (counters, buffers, IDs, flags).
+
+## Methods
+
+### post()
+
+> **post**\<`EventName`\>(`eventName`, ...`eventPayload`): `void`
+
+Enqueue a **normal-priority** event for later dispatch on the active state.
+
+Returns immediately; the handler runs asynchronously when the mailbox reaches this job.
+Dispatch walks the **prototype chain** from the current leaf upward until a method named
+`eventName` is found.
+
+#### Type Parameters
+
+##### EventName
+
+`EventName` *extends* `string` \| `number` \| `symbol`
+
+Literal key of `Protocol` being posted
+
+#### Parameters
+
+##### eventName
+
+[`PostedEvent`](../type-aliases/PostedEvent.mdx)\<`Protocol`, `EventName`\>
+
+Event or service name. Must be `keyof Protocol` and must **not** collide
+  with reserved State method names (`transition`, `post`, `ctx`, …)
+
+##### eventPayload
+
+...[`EventPayload`](../type-aliases/EventPayload.mdx)\<`Protocol`, `EventName`\>
+
+Arguments tuple inferred from `Protocol[eventName]` handler parameters.
+  For **events**, pass every parameter **except** `resolve` / `reject`. For fire-and-forget
+  events, the handler return type must be `void` or `Promise<void>`
+
+#### Returns
+
+`void`
+
+#### Remarks
+
+**Client usage:** `door.post('open')` then `await door.sync()` to wait for completion.
+
+**Handler usage:** `this.post('tick')` schedules work **after** the current handler returns
+and after any [State.transition](#transition) it requested. Normal-priority posts run **after** all
+[State.postNow](#postnow) hi-priority jobs drained for the current turn.
+
+**Ordering:** FIFO among normal-priority jobs. Multiple posts before one `sync()` are
+processed in submission order.
+
+**Typing:** With `Protocol extends undefined`, accepts any `string` and `any[]` (legacy mode).
+
+#### Examples
+
+```ts
+door.post('open');
+await door.sync(); // handler + transition complete
+```
+
+```ts
+approve(): void {
+  this.ctx.approved = true;
+  this.post('notify'); // runs after this handler finishes
+}
+```
+
+#### Inherited from
+
+[`Base`](Base.mdx).[`post`](Base.mdx#post)
+
+***
+
+### deferredPost()
+
+> **deferredPost**\<`EventName`\>(`millis`, `eventName`, ...`eventPayload`): `void`
+
+Schedule a normal-priority [post](Base.mdx#post) after a wall-clock delay.
+
+Uses `setTimeout` internally; when the timer fires, the event is enqueued like an ordinary
+`post`. Timers are **not** cancelled if the machine transitions or the scheduling handler throws.
+
+#### Type Parameters
+
+##### EventName
+
+`EventName` *extends* `string` \| `number` \| `symbol`
+
+Literal key of `Protocol` being scheduled
+
+#### Parameters
+
+##### millis
+
+`number`
+
+Delay in milliseconds before enqueueing (≥ 0). Subject to event-loop timer granularity
+
+##### eventName
+
+[`PostedEvent`](../type-aliases/PostedEvent.mdx)\<`Protocol`, `EventName`\>
+
+Event name (same constraints as [post](Base.mdx#post))
+
+##### eventPayload
+
+...[`EventPayload`](../type-aliases/EventPayload.mdx)\<`Protocol`, `EventName`\>
+
+Handler arguments tuple (same as [post](Base.mdx#post))
+
+#### Returns
+
+`void`
+
+#### Remarks
+
+Available on State and [Hsm](Hsm.mdx). Typical pattern: handler schedules reminder,
+client waits with `await sleep(millis); await hsm.sync()`.
+
+Does **not** block the calling handler — returns as soon as the timer is registered.
+
+#### Example
+
+```ts
+scheduleReminder(text: string): void {
+  this.deferredPost(50, 'deliver', text);
+}
+deliver(text: string): void {
+  this.ctx.message = text;
+}
+```
+
+#### Inherited from
+
+[`Base`](Base.mdx).[`deferredPost`](Base.mdx#deferredpost)
+
+***
+
+### transition()
+
+> **transition**(`nextState`): `void`
+
+Schedule an **external** transition to `nextState` after the current handler completes.
+
+Does **not** run exit/entry immediately. When the handler returns successfully (including
+after awaiting an `async` handler's Promise), the runtime:
+
+1. Computes the **lowest common ancestor (LCA)** on the class prototype chain
+2. Runs `onExit()` from the current leaf up to (but not including) the LCA
+3. Switches the instance prototype to `nextState` (descending `@InitialState` chains for composites)
+4. Runs `onEntry()` down from the LCA to the target leaf
+
+#### Parameters
+
+##### nextState
+
+[`StateClass`](../type-aliases/StateClass.mdx)\<`Context`, `Protocol`\>
+
+Destination state **class** constructor (not an instance)
+
+#### Returns
+
+`void`
+
+#### Throws
+
+[TransitionError](../classes/TransitionError.mdx) when `onExit` or `onEntry` throws along the path (may transition to [FatalErrorState](../classes/FatalErrorState.mdx))
+
+#### Throws
+
+[EventHandlerError](../classes/EventHandlerError.mdx) when the triggering handler threw before transition phase
+
+#### Remarks
+
+- **Self-transition** to the same leaf with unchanged initial descent: optimized to skip exit/entry
+- **Internal transition:** omit `transition()` — active class unchanged, no exit/entry
+- **`transition()` inside `onEntry`/`onExit`:** scheduled transition is **cleared** when that lifecycle dispatch ends — use [post](#post) from `onEntry` for follow-up work
+- Transition paths are **cached** per `From=>To` pair for hot loops
+- Only the **last** `transition()` call wins if invoked multiple times in one handler
+
+#### Example
+
+```ts
+open(): void {
+  this.ctx.openCount += 1;
+  this.transition(Open);
+}
+```
+
+***
+
+### unhandled()
+
+> **unhandled**(): `never`
+
+Declare that the current event has **no handler** on this state (explicit super-call pattern).
+
+Throws [UnhandledEventError](../classes/UnhandledEventError.mdx) unless an ancestor's [StateEvents.onUnhandled](StateEvents.mdx#onunhandled)
+catches it. Prefer **omitting** the method entirely when a state should inherit a parent's
+handler — only call `unhandled()` when you intentionally defer to the error model.
+
+#### Returns
+
+`never`
+
+`never` — always throws or redirects via `onUnhandled`
+
+#### Throws
+
+[UnhandledEventError](../classes/UnhandledEventError.mdx) by default
+
+#### Remarks
+
+Runtime dispatch already throws when no method exists on the prototype chain; `unhandled()`
+is for handlers that exist but choose not to handle the event.
+
+***
+
+### sleep()
+
+> **sleep**(`millis`): `Promise`\<`void`\>
+
+Pause the **current handler** without blocking the JavaScript event loop.
+
+Returns a Promise resolved after `millis` milliseconds via `setTimeout`. The mailbox
+remains **locked** to this handler until the Promise settles — other `post`/`call` jobs
+queue but do not run.
+
+#### Parameters
+
+##### millis
+
+`number`
+
+Sleep duration in milliseconds (≥ 0)
+
+#### Returns
+
+`Promise`\<`void`\>
+
+Promise that resolves (never rejects) when the delay elapses
+
+#### Remarks
+
+Use for simple delays inside handlers. For calendar-time deferral of **new** events,
+prefer [deferredPost](#deferredpost). Composable with `async` handlers: `await this.sleep(100)`.
+
+#### Example
+
+```ts
+async pulse(): Promise<void> {
+  await this.sleep(50);
+  this.ctx.pulses += 1;
+}
+```
+
+***
+
+### postNow()
+
+> **postNow**\<`EventName`\>(`eventName`, ...`eventPayload`): `void`
+
+Enqueue a **hi-priority** event processed before normal [post](#post) jobs from the same turn.
+
+Only valid **inside** a running handler (`this.postNow`). Clients must use [post](#post).
+Hi-priority jobs drain immediately after the current handler and its transition complete,
+**before** any normal-priority posts the handler enqueued (including chained `this.post`).
+
+#### Type Parameters
+
+##### EventName
+
+`EventName` *extends* `string` \| `number` \| `symbol`
+
+Literal key of `Protocol`
+
+#### Parameters
+
+##### eventName
+
+[`PostedEvent`](../type-aliases/PostedEvent.mdx)\<`Protocol`, `EventName`\>
+
+Event name (same typing rules as [post](#post))
+
+##### eventPayload
+
+...[`EventPayload`](../type-aliases/EventPayload.mdx)\<`Protocol`, `EventName`\>
+
+Handler arguments (same tuple as [post](#post))
+
+#### Returns
+
+`void`
+
+#### Remarks
+
+Models **extended transitions**: multiple internal steps (lock, capture, validate) that
+must complete before deferred side effects. See tutorial `17-post-now`.
+
+Multiple `postNow` calls run in FIFO order within the hi-priority queue. You may need
+an extra [Hsm.sync](Hsm.mdx#sync) after the first to drain postNow follow-ups.
+
+#### Example
+
+```ts
+confirm(): void {
+  this.post('cancel');           // normal — runs last
+  this.postNow('lockInventory'); // hi — runs first among follow-ups
+  this.postNow('capturePayment');
+  this.transition(Confirmed);
+}
+```

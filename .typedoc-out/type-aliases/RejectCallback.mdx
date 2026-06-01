@@ -1,0 +1,25 @@
+> **RejectCallback** = (`error`) => `void`
+
+Rejects an in-flight [Hsm.call](../interfaces/Hsm.mdx#call) service by rejecting the client's `Promise`.
+
+The runtime injects this callback as the **second** parameter of service handlers.
+Call it with any `Error` (or subclass) when the service cannot complete successfully.
+After `reject` is invoked, the client's `await call(...)` throws; no further handler
+code should call `resolve`.
+
+## Parameters
+
+### error
+
+`Error`
+
+Failure reason propagated to the `call()` caller
+
+## Returns
+
+`void`
+
+## Remarks
+
+Pair with [ResolveCallback](ResolveCallback.mdx) on the same handler signature. Service methods are
+recognized by the `(resolve, reject, ...payload)` parameter pattern on `Protocol`.

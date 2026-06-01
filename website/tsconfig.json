@@ -17,10 +17,10 @@
 		"paths": {
 			"@site/*": ["./src/*"],
 			"@ihsm/*": ["../src/*"],
-			"@tutorials/*": ["../tutorials/*"]
+			"@examples/*": ["../examples/*"]
 		}
 	},
 	"include": ["src/**/*", "*.ts"],
 	"exclude": [".docusaurus", "../docs-build"],
-	"references": [{ "path": "../tsconfig.lib.json" }, { "path": "../tsconfig.tutorials.json" }]
+	"references": [{ "path": "../tsconfig.lib.json" }, { "path": "../tsconfig.examples.json" }]
 }

@@ -14,7 +14,7 @@ typed **`call()`** request/response channel.
 | Runtime test coverage | **100%** (statements, branches, functions, lines) |
 | Node.js | **22+** |
 
-Hands-on walkthroughs: [tutorials](https://filasieno.github.io/ihsm/tutorials/) · [source index](../tutorials/README.md)
+Documentation: [Reference](https://filasieno.github.io/ihsm/reference) · [API](https://filasieno.github.io/ihsm/api)
 
 ---
 
@@ -58,6 +58,18 @@ parallel regions, or deep frontend/Stately integration. See
 ## 1. Key concepts
 
 ### State as class
+
+```plantuml
+@startuml
+left to right direction
+skinparam ranksep 25
+state DoorTop {
+  [*] --> Closed
+  Closed -down-> Open : open / openCount++
+  Open -up-> Closed : close
+}
+@enduml
+```
 
 Each state is a **class** extending `TopState` or a parent state class. The
 active state is the **prototype** of a single instance object — switched with
@@ -171,7 +183,6 @@ await door.sync(); // wait for initialization
 Mutable domain object passed as the second argument to `makeHsm`. Survives transitions
 unless you replace it in `restore()`.
 
-Tutorial: [../tutorials/03-context/README.md](../tutorials/03-context/README.md)
 
 ### Protocol
 
@@ -180,7 +191,6 @@ on state classes (or inherited from parents). The typing strategy — events vs
 services, payload inference, reserved names — is documented in
 [§3 Advanced: Protocol typing](#advanced-protocol-typing-and-compile-time-safety).
 
-Tutorial: [../tutorials/04-protocol-typing/README.md](../tutorials/04-protocol-typing/README.md)
 
 ### Hierarchical states
 
@@ -188,7 +198,6 @@ Child states extend parent states. The prototype chain defines the **state tree*
 Entering a composite runs `onEntry` from outer to inner initial leaf; exiting
 walks up the LCA path.
 
-Tutorial: [../tutorials/05-hierarchy/README.md](../tutorials/05-hierarchy/README.md)
 
 ### `@InitialState`
 
@@ -210,7 +219,6 @@ initial substates if entering a composite).
 
 Transition paths are **cached** keyed by `FromState=>ToState` for hot loops.
 
-Tutorial: [../tutorials/05-hierarchy/README.md](../tutorials/05-hierarchy/README.md) (entry/exit and deep-stack topology)
 
 ### Entry and exit
 
@@ -224,7 +232,6 @@ If the handler **does not** call `transition()`, the active state class
 unchanged and **no** exit/entry runs. Updating `this.ctx` alone is an internal
 transition.
 
-Tutorial: [../tutorials/07-internal-transitions/README.md](../tutorials/07-internal-transitions/README.md)
 
 ### Guards
 
@@ -247,14 +254,12 @@ approve(amount: number): void {
 Store “where we were” in `ctx`, or call `restore(stateClass, ctx)` to rehydrate.
 No shallow/deep history pseudostates — you keep explicit control.
 
-Tutorial: [../tutorials/11-restore/README.md](../tutorials/11-restore/README.md)
 
 ### Orthogonal regions
 
 Run **multiple machines** and coordinate with `post` / `call` between instances.
 Each region has its own queue and cache.
 
-Tutorial: [../tutorials/14-nested-machines/README.md](../tutorials/14-nested-machines/README.md)
 
 ---
 
@@ -282,7 +287,6 @@ wallet.post('charge', 10);              // ✓ event name + payload
 const balance = await wallet.call('getBalance'); // ✓ Promise<number>
 ```
 
-Tutorial: [../tutorials/04-protocol-typing/README.md](../tutorials/04-protocol-typing/README.md)
 
 ---
 
@@ -623,7 +627,7 @@ The **Protocol** interface types both: handler signatures on state classes, clie
 
 ### Reading UML statecharts
 
-ihsm tutorials and the reference use **PlantUML state diagrams**. Map symbols to
+this reference use **PlantUML state diagrams**. Map symbols to
 runtime behavior as follows:
 
 | Chart element | ihsm runtime |
@@ -634,7 +638,7 @@ runtime behavior as follows:
 | **`StateName : event / action` inside a state box** | **Internal transition** — handler runs, no `transition()`, no exit/entry |
 | **Arrow crossing box boundary** | External transition between substates or branches |
 
-**Diagram layout (PlantUML):** tutorials use [PlantUML state diagrams](https://plantuml.com/state-diagram).
+**Diagram layout (PlantUML):** examples use [PlantUML state diagrams](https://plantuml.com/state-diagram).
 To reduce overlapping transition lines when several events leave the same state:
 
 - **`left to right direction`** — default flow for most tutorial charts.
@@ -655,7 +659,7 @@ initial leaf is active (same order as following `[ * ]` arrows inward).
 **leaf class** in normal operation, not “parent and child simultaneously”.
 
 Full deep-hierarchy walkthrough with **trace for every transition kind**:
-[tutorial 05](../tutorials/05-hierarchy/README.md) and
+[tutorial 05](/reference) and
 [§5 Transition taxonomy](#transition-taxonomy).
 
 ### `post(event, ...payload)`
@@ -685,7 +689,6 @@ await door.sync(); // handler + transition complete
 Inside a state handler, `this.post('tick')` schedules work **after** the current
 handler completes (and after any transition it requested).
 
-Tutorial: [../tutorials/08-post-and-sync/README.md](../tutorials/08-post-and-sync/README.md)
 
 ### `call(service, ...payload)` — typed request/response
 
@@ -722,7 +725,6 @@ Benefits:
 - Client uses familiar `async`/`await`
 - Return type inferred from `Protocol`
 
-Tutorial: [../tutorials/10-call-services/README.md](../tutorials/10-call-services/README.md)
 
 **XState:** read snapshot via `actor.getSnapshot()`, spawn promise actors, or
 use `waitFor` — no single typed `call` on the interpreter.
@@ -752,7 +754,6 @@ await sleep(100); // wait for timer
 await sm.sync();  // wait for deliver handler
 ```
 
-Tutorial: [../tutorials/09-deferred-post/README.md](../tutorials/09-deferred-post/README.md)
 
 ### `sync()`
 
@@ -772,11 +773,27 @@ await sm.sync();   // one sync drains all three posts
 ```
 
 After a handler **chains** `this.post(...)` calls, call `sync()` again to wait
-for those jobs (see [tutorial 08](../tutorials/08-post-and-sync/README.md)).
+for those jobs (see [tutorial 08](/reference)).
 Use at test boundaries and integration seams in application code.
 
 **Note:** `call()` returns a Promise tied to the service handler; you usually
 do not need a separate `sync()` after `await call(...)`.
+
+### `postNow(event, ...payload)`
+
+Handler-only hi-priority enqueue. After the current handler and its transition
+finish, the runtime drains **all** hi-priority jobs before normal-priority
+`post` work from the same turn (including `this.post` calls made inside the
+handler).
+
+Only available inside handlers as `this.postNow(...)`. External clients use
+ordinary `post`.
+
+Use for **extended transitions**: several internal steps (lock, capture,
+validate) that must complete before deferred side effects scheduled with
+`post`. Multiple `postNow` calls run FIFO within the hi-priority queue.
+
+See the interactive example under [`postNow()`](#_4-messaging-post-call-sync) below.
 
 ---
 
@@ -792,14 +809,13 @@ from the current leaf up to (but not including) the LCA, then `onEntry` down
 toward the target — **descending `@InitialState` chains** when the target
 is a composite.
 
-Tutorial: [../tutorials/05-hierarchy/README.md](../tutorials/05-hierarchy/README.md)
-(shallow entry/exit chain and [case-by-case topology](../tutorials/05-hierarchy/cases/)).
+(shallow entry/exit chain and [case-by-case topology](/reference)).
 
 ### Transition taxonomy
 
 The table lists **external** transitions (handler calls `transition()`). An
 **internal** transition omits `transition()` — only the handler body runs (see
-[tutorial 07](../tutorials/07-internal-transitions/README.md)).
+[tutorial 07](/reference)).
 
 | Kind | Example (tutorial 05) | Chart notation | Exit / entry | Notes |
 | ---- | --------------------- | -------------- | ------------ | ----- |
@@ -815,7 +831,7 @@ The table lists **external** transitions (handler calls `transition()`). An
 
 **Trace convention** (tutorial 05): push `enter:StateName` / `exit:StateName` from
 `onEntry` / `onExit`; `handler:event` from the handler. Compare with
-`npm run test:tutorials -- --grep 'Tutorial 05'`.
+`npm run test:examples -- --grep 'Tutorial 05'`.
 
 ### LCA algorithm (prototype chain)
 
@@ -846,7 +862,7 @@ sm.post('goAsyncCross');
 await sm.sync(); // handler + transition + entry/exit complete
 ```
 
-See [§4 `sync()`](#sync) and [tutorial 08](../tutorials/08-post-and-sync/README.md).
+See [§4 `sync()`](#sync) and [tutorial 08](/reference).
 
 ### Errors during transitions
 
@@ -899,15 +915,15 @@ interface TraceWriter {
 
 Default logs to `console` as `domain|…|StateName: message`. Inject a custom
 writer for structured logging or tests (`CollectingTraceWriter` in
-`tutorials/shared/trace.ts`).
+`examples/shared/trace.ts`).
 
 Inside states: `this.traceHeader`, `this.traceWriter`, `this.traceLevel`.
 
-**Docs site:** each tutorial page includes a live **Trace** panel in the browser. Tutorial
-READMEs describe how to read `VERBOSE_DEBUG` output; run `npm run test:tutorials` for
+**Docs site:** the reference page includes a live **Trace** panel in the browser. Tutorial
+READMEs describe how to read `VERBOSE_DEBUG` output; run `npm run test:examples` for
 headless verification.
 
-Tutorial: [../tutorials/02-tracing/README.md](../tutorials/02-tracing/README.md) (**start here** after tutorial 01). Every other tutorial includes a **Reading the trace** section.
+Tutorial: [../tutorials/02-tracing/README.md](/reference) (**start here** after tutorial 01). Every other tutorial includes a **Reading the trace** section.
 
 **XState:** `@xstate/inspect`, Stately visualizer — external tooling vs
 in-process trace hooks.
@@ -1031,7 +1047,6 @@ Use for:
 
 Does not replay history automatically — you choose the concrete state class and supply `ctx`.
 
-Tutorial: [../tutorials/11-restore/README.md](../tutorials/11-restore/README.md)
 
 **XState:** `snapshot` / `restore` on actors (v5 persisted state API).
 
@@ -1054,7 +1069,6 @@ Hooks:
 
 Fatal error state: `FatalErrorState` when transition recovery fails.
 
-Tutorial: [../tutorials/12-error-recovery/README.md](../tutorials/12-error-recovery/README.md)
 
 ---
 
@@ -1105,7 +1119,6 @@ await sm.sync(); // through open, read, write, close + transition
 While `await`ing, the mailbox **still accepts** `post`/`call` — messages queue
 until the current handler finishes.
 
-Tutorial: [../tutorials/13-async-handlers/README.md](../tutorials/13-async-handlers/README.md)
 
 **XState:** often models async with `invoke` + `done` events — separate states
 for in-flight work.
@@ -1165,7 +1178,6 @@ Pass `initialize: false` when you will immediately `restore()` a snapshot (tutor
 Pass `traceLevel`, `traceWriter`, and `dispatchErrorCallback` on each call when
 tests or deployments need non-default behavior.
 
-Tutorial: [../tutorials/01-hello-state-machine/README.md](../tutorials/01-hello-state-machine/README.md)
 
 ---
 
@@ -1199,7 +1211,7 @@ npm test
 
 All three dispatch implementations (production, debug, verbose) are exercised.
 
-Tutorial tests: `npm run test:tutorials`
+Tutorial tests: `npm run test:examples`
 
 ---
 
@@ -1309,7 +1321,5 @@ non-state values are ignored. Recommended for minified browser bundles. See
 
 ## Learning path
 
-1. Read §1–4 of this manual.
-2. Work through [tutorials 01–02](/tutorials) (hello + **tracing**), then 03–15.
-3. Read §5–10; complete tutorials 06–13.
-4. Study [tutorial 15](/tutorials/15-complex-workflow) for integration.
+1. Read [Key concepts](#_1-key-concepts) and [Tracing](#_6-tracing), then use the interactive examples on this page.
+2. Study [Rules of thumb](#rules-of-thumb) for integration patterns.

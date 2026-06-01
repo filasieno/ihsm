@@ -6,22 +6,21 @@ title: Home
 
 # ihsm
 
-An idiomatic hierarchical state machine package for TypeScript.
+**Class-based hierarchical state machines and actor mailboxes for TypeScript** — typed `post`/`call`, zero production dependencies.
 
-This site is the **single documentation hub**: the [reference manual](/reference) and
-[interactive tutorials](/tutorials) live here — one sidebar, one search index, one build.
+This site has two sections: the **[Reference](/reference)** (concepts, semantics, and interactive examples on one page) and the **[API reference](/api)** (TSDoc from `src/index.ts`).
 
 ## Quick start
 
 ```bash
-nix develop
-nix flake check          # build + unit/tutorial tests
-npm run doc:preview      # Docusaurus dev server
+npm install ihsm
 ```
+
+See [Key concepts](/reference#_1-key-concepts) on the Reference page for your first `makeHsm` actor.
 
 ## Where to go next
 
-- [Reference manual](/reference) — concepts, semantics, API overview
-- [Tutorials](/tutorials) — guided examples with in-page playgrounds
+- [Reference](/reference) — full manual with embedded playgrounds
+- [API reference](/api) — typed exports from `src/index.ts`
 
-Source repos for contributors: `reference/REFERENCE.md`, `tutorials/NN-*/README.md`.
+Source for contributors: `reference/REFERENCE.md`, runnable machines under `examples/`.

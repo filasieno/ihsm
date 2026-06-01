@@ -21,12 +21,12 @@ bash scripts/verify-docs-site.sh docs-build
 `nix flake check` already runs `scripts/verify-no-generated-in-source.sh` (via the
 `lint` and `docs` derivations), so no separate generated-artifact check is needed.
 
-Confirm `package.json` **`version`** matches the tag you will push (`0.0.19` → tag `0.0.19`, no `v` prefix).
+Confirm `package.json` **`version`** matches the tag you will push (`0.0.20` → tag `0.0.20`, no `v` prefix).
 
 Update **`CHANGELOG.md`** for the new version.
 
 **Do not** run `npm run sync:docs` for commit — generated docs are built in CI/Nix only.
-Edit sources: `tutorials/`, `reference/REFERENCE.md`, `website/docs-src/`.
+Edit sources: `examples/`, `reference/REFERENCE.md`, `website/docs-src/`.
 
 ## Publish
 
@@ -41,8 +41,8 @@ Edit sources: `tutorials/`, `reference/REFERENCE.md`, `website/docs-src/`.
 2. Tag and push the release:
 
    ```shell
-   git tag 0.0.19
-   git push upstream 0.0.19
+   git tag 0.0.20
+   git push upstream 0.0.20
    ```
 
 3. **Release workflow** (`.github/workflows/release.yml`) runs on the tag:

@@ -7,7 +7,7 @@ import type { Config, LoadContext, Plugin } from '@docusaurus/types';
 const require = createRequire(import.meta.url);
 const siteDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(siteDir, '..');
-const tutorialsDir = path.join(repoRoot, 'tutorials');
+const examplesDir = path.join(repoRoot, 'examples');
 
 function ihsmSourcesPlugin(_context: LoadContext): Plugin {
 	return {
@@ -17,14 +17,14 @@ function ihsmSourcesPlugin(_context: LoadContext): Plugin {
 				resolve: {
 					alias: {
 						'@ihsm': path.join(repoRoot, 'src'),
-						'@tutorials': tutorialsDir,
+						'@examples': examplesDir,
 					},
 				},
 				module: {
 					rules: [
 						{
 							test: /\.tsx?$/,
-							include: [path.join(repoRoot, 'src'), tutorialsDir],
+							include: [path.join(repoRoot, 'src'), examplesDir],
 							use: {
 								loader: require.resolve('swc-loader'),
 								options: {
@@ -94,7 +94,29 @@ const config: Config = {
 			},
 		],
 	],
-	plugins: [ihsmSourcesPlugin],
+	plugins: [
+		ihsmSourcesPlugin,
+		[
+			'@docusaurus/plugin-client-redirects',
+			{
+				redirects: [
+					{ from: '/guide', to: '/reference' },
+					{ from: '/tutorials', to: '/reference' },
+				],
+				createRedirects(existingPath: string) {
+					const guideTopic = existingPath.match(/^\/guide\/(\d{2}-[^/]+)\/?$/);
+					if (guideTopic) {
+						return [`/tutorials/${guideTopic[1]}`, `/reference#_${guideTopic[1]}`];
+					}
+					const tutorialTopic = existingPath.match(/^\/tutorials\/(\d{2}-[^/]+)\/?$/);
+					if (tutorialTopic) {
+						return [`/reference#_${tutorialTopic[1]}`];
+					}
+					return undefined;
+				},
+			},
+		],
+	],
 	themeConfig: {
 		navbar: {
 			title: 'ihsm',

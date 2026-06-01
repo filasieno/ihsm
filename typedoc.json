@@ -1,0 +1,23 @@
+{
+	"$schema": "https://typedoc.org/schema.json",
+	"entryPoints": ["src/index.ts"],
+	"tsconfig": "tsconfig.typedoc.json",
+	"out": ".typedoc-out",
+	"plugin": ["typedoc-plugin-markdown"],
+	"readme": "none",
+	"disableSources": true,
+	"excludePrivate": true,
+	"excludeInternal": true,
+	"excludeExternals": true,
+	"hideGenerator": true,
+	"sort": ["source-order"],
+	"kindSortOrder": ["Class", "Interface", "Enum", "TypeAlias", "Function"],
+	"categoryOrder": ["Factory", "State machine", "Event handler", "Error", "*"],
+	"router": "member",
+	"fileExtension": ".mdx",
+	"entryFileName": "index",
+	"hidePageHeader": true,
+	"hidePageTitle": true,
+	"hideBreadcrumbs": true,
+	"useHTMLAnchors": false
+}

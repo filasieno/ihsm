@@ -1,0 +1,31 @@
+Controls how much diagnostic detail the runtime emits through [TraceWriter](../interfaces/TraceWriter.mdx).
+
+Set at construction via [makeHsm](../functions/makeHsm.mdx) or mutate [Properties.traceLevel](../interfaces/Properties.mdx#tracelevel) on a
+live instance. Changing the level swaps the internal dispatch tracer implementation.
+
+## Enumeration Members
+
+### PRODUCTION
+
+> **PRODUCTION**: `0`
+
+Production mode: minimal tracing overhead, no verbose dispatch steps.
+Use in hot paths and shipped bundles when trace output is disabled.
+
+***
+
+### DEBUG
+
+> **DEBUG**: `1`
+
+Debug mode: transition boundaries, handler entry/exit, and error summaries.
+Default for [makeHsm](../functions/makeHsm.mdx). Suitable for development and integration tests.
+
+***
+
+### VERBOSE\_DEBUG
+
+> **VERBOSE\_DEBUG**: `2`
+
+Verbose debug: includes prototype-chain lookup walks, cache hits/misses, and
+nested trace domains. Use when correlating handler code with tutorial trace panels.

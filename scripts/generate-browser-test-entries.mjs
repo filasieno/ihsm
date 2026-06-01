@@ -41,10 +41,10 @@ ${imports}
 }
 
 const unitSpecs = walkSpecs(path.join(repoRoot, 'src/spec'), '.spec.ts');
-const tutorialSpecs = [
-	...walkSpecs(path.join(repoRoot, 'tutorials'), 'tutorial.spec.ts'),
-	path.join(repoRoot, 'tutorials/shared/interactive.spec.ts'),
+const exampleSpecs = [
+	...walkSpecs(path.join(repoRoot, 'examples'), 'tutorial.spec.ts'),
+	path.join(repoRoot, 'examples/shared/interactive.spec.ts'),
 ].sort();
 
 writeEntry('unit', unitSpecs);
-writeEntry('tutorials', tutorialSpecs);
+writeEntry('examples', exampleSpecs);

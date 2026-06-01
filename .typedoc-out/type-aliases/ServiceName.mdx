@@ -1,0 +1,18 @@
+> **ServiceName**\<`Protocol`, `EventName`\> = `Protocol` *extends* `undefined` ? `string` : `EventName` *extends* keyof [`State`](../interfaces/State.mdx)\<`any`, `any`\> ? `never` : `EventName`
+
+Valid first argument to [Hsm.call](../interfaces/Hsm.mdx#call) — protocol keys whose handlers use the service signature
+`(resolve, reject, ...payload)`.
+
+## Type Parameters
+
+### Protocol
+
+`Protocol`
+
+Machine vocabulary interface
+
+### EventName
+
+`EventName`
+
+Candidate key (unused generic for symmetry with other aliases)

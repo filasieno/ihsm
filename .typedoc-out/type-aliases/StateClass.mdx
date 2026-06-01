@@ -1,0 +1,27 @@
+> **StateClass**\<`Context`, `Protocol`\> = `Function` & `object`
+
+Constructor type for a state class participating in the hierarchy.
+
+Satisfied by any `Function` whose `prototype` derives from [TopState](../classes/TopState.mdx). Used wherever
+the runtime expects a state **class**, not an instance:
+[makeHsm](../functions/makeHsm.mdx), [State.transition](../interfaces/State.mdx#transition), [InitialState](../functions/InitialState.mdx), [Hsm.restore](../interfaces/Hsm.mdx#restore).
+
+## Type Declaration
+
+### prototype
+
+> **prototype**: [`TopState`](../classes/TopState.mdx)\<`Context`, `Protocol`\>
+
+## Type Parameters
+
+### Context
+
+`Context` = [`Any`](Any.mdx)
+
+Domain context carried by the machine
+
+### Protocol
+
+`Protocol` *extends* \{ \} \| `undefined` = `undefined`
+
+Event/service vocabulary

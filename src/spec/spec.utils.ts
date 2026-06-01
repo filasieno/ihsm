@@ -1,5 +1,5 @@
 import { Base, TraceLevel } from '../';
-import { registerStateNamesFromExports } from '../../tutorials/shared/state-names';
+import { registerStateNamesFromExports } from '../../examples/shared/state-names';
 
 export const TRACE_LEVELS: TraceLevel[] = [TraceLevel.VERBOSE_DEBUG, TraceLevel.DEBUG, TraceLevel.PRODUCTION];
 

@@ -32,7 +32,7 @@ fs.cpSync(docsSrc, docsOut, { recursive: true });
 // Contributor README only — not a doc page
 fs.rmSync(path.join(docsOut, 'README.md'), { force: true });
 
-run('generate-tutorial-mdx.mjs');
 run('generate-reference-mdx.mjs');
+run('generate-api-docs.mjs');
 
 console.log('website/docs/ prepared (gitignored)');
