@@ -1,11 +1,19 @@
 name: Build documentation site
 description: Build the Docusaurus site with interactive React tutorials.
 
+inputs:
+  attic-token:
+    description: Push/pull token for the nix.1tdb.io Attic cache (optional).
+    required: false
+    default: ""
+
 runs:
   using: composite
   steps:
     - name: Setup Nix
       uses: ./.github/actions/nix
+      with:
+        attic-token: ${{ inputs.attic-token }}
 
     - name: Build site
       run: nix build .#docs --print-build-logs

@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   nix:
@@ -21,6 +20,8 @@ jobs:
 
       - name: Setup Nix
         uses: ./.github/actions/nix
+        with:
+          attic-token: ${{ secrets.ATTIC_TOKEN }}
 
       - name: Check formatting
         run: nix fmt -- --check flake.nix
@@ -39,6 +40,8 @@ jobs:
 
       - name: Setup Nix
         uses: ./.github/actions/nix
+        with:
+          attic-token: ${{ secrets.ATTIC_TOKEN }}
 
       # nyc instruments test:node only; browser suites are already exercised in
       # the nix flake check job (with Chromium from the Nix store).

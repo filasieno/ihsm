@@ -35,6 +35,8 @@ jobs:
 
       - name: Setup Nix
         uses: ./.github/actions/nix
+        with:
+          attic-token: ${{ secrets.ATTIC_TOKEN }}
 
       - name: Verify version matches tag
         run: |
@@ -52,11 +54,23 @@ jobs:
         run: nix flake check --print-build-logs
 
       - name: Publish to npm
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" >> "${HOME}/.npmrc"
-          nix develop --command npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          VERSION="$(jq -r .version package.json)"
+          # Idempotent: a re-run (e.g. workflow_dispatch on an existing tag)
+          # must not fail just because the version is already on the registry.
+          if nix develop --command npm view "ihsm@${VERSION}" version >/dev/null 2>&1; then
+            echo "ihsm@${VERSION} is already published — skipping npm publish."
+            exit 0
+          fi
+          # Append registry auth to the project .npmrc (keeps engine-strict etc).
+          # npm expands ${NODE_AUTH_TOKEN} at read time, so the token itself is
+          # never written to disk; restore the pristine file afterwards.
+          cp .npmrc .npmrc.release-bak
+          trap 'mv .npmrc.release-bak .npmrc' EXIT
+          printf '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n' >> .npmrc
+          nix develop --command npm publish --provenance --access public
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3

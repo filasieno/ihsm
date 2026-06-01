@@ -1,15 +1,37 @@
 name: Setup Nix
-description: Install Nix with flakes enabled and warm the binary cache.
+description: >-
+  Install upstream (plain) Nix with flakes enabled and wire up the self-hosted
+  nix.1tdb.io Attic binary cache. Pulls are public (no token); pushes require
+  the ATTIC_TOKEN secret, forwarded via the attic-token input.
+
+inputs:
+  attic-token:
+    description: >-
+      Push/pull token for the nix.1tdb.io Attic cache (cache "ihsm"). Leave
+      empty for untrusted contexts (e.g. fork PRs): pulls still work because
+      the cache is public, and pushing is skipped.
+    required: false
+    default: ""
 
 runs:
   using: composite
   steps:
+    # Plain upstream Nix — no Determinate Systems installer / magic-nix-cache.
     - name: Install Nix
-      uses: DeterminateSystems/nix-installer-action@v22
+      uses: cachix/install-nix-action@v31
       with:
-        extra-conf: |
+        extra_nix_config: |
           experimental-features = nix-command flakes
           accept-flake-config = true
+          extra-substituters = https://nix.1tdb.io/ihsm
+          extra-trusted-public-keys = ihsm:cJxMn/OKEuWsUey106elatootFvpikdb5CwvDNOCmqo=
 
-    - name: Magic Nix cache
-      uses: DeterminateSystems/magic-nix-cache-action@v14
+    # Pull from (and, when a token is present, push every built path to) the
+    # self-hosted cache. skip-push keeps fork PRs from failing on a 401.
+    - name: Configure nix.1tdb.io binary cache (Attic)
+      uses: ryanccn/attic-action@v0
+      with:
+        endpoint: https://nix.1tdb.io
+        cache: ihsm
+        token: ${{ inputs.attic-token }}
+        skip-push: ${{ inputs.attic-token == '' }}
