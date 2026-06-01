@@ -12,17 +12,22 @@ on:
 
 permissions:
   contents: write
-  id-token: write
+  id-token: write # OIDC for npm Trusted Publishing + provenance
 
 jobs:
   release:
     name: Test, publish npm, GitHub release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          # workflow_dispatch must checkout the tag ref, not default branch.
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
 
       - name: Resolve tag
         id: tag
@@ -53,24 +58,47 @@ jobs:
       - name: Run Nix checks (build, test, lint, docs)
         run: nix flake check --print-build-logs
 
-      - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Stage built package for npm
         run: |
+          nix build .#ihsm --print-build-logs -o result
+          rm -rf lib
+          cp -r result/lib ./lib
+
+      # npm Trusted Publishing (OIDC) — no NPM_TOKEN / NODE_AUTH_TOKEN anywhere.
+      # Package settings: npmjs.com/package/ihsm → Trusted publishing →
+      # filasieno/ihsm, workflow release.yml, action npm publish.
+      - name: Setup Node for npm publish (OIDC)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      - name: Publish to npm via Trusted Publishing
+        run: |
+          set -euo pipefail
           VERSION="$(jq -r .version package.json)"
-          # Idempotent: a re-run (e.g. workflow_dispatch on an existing tag)
-          # must not fail just because the version is already on the registry.
-          if nix develop --command npm view "ihsm@${VERSION}" version >/dev/null 2>&1; then
+          if npm view "ihsm@${VERSION}" version >/dev/null 2>&1; then
             echo "ihsm@${VERSION} is already published — skipping npm publish."
             exit 0
           fi
-          # Append registry auth to the project .npmrc (keeps engine-strict etc).
-          # npm expands ${NODE_AUTH_TOKEN} at read time, so the token itself is
-          # never written to disk; restore the pristine file afterwards.
-          cp .npmrc .npmrc.release-bak
-          trap 'mv .npmrc.release-bak .npmrc' EXIT
-          printf '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n' >> .npmrc
-          nix develop --command npm publish --provenance --access public
+          node <<'NODE'
+          const { execSync } = require('node:child_process');
+          const [a, b, c] = execSync('npm -v', { encoding: 'utf8' }).trim().split(/[.-]/).map(Number);
+          if (a < 11 || (a === 11 && b < 5) || (a === 11 && b === 5 && c < 1)) {
+            console.error(`npm ${a}.${b}.${c} too old for Trusted Publishing (need >= 11.5.1)`);
+            process.exit(1);
+          }
+          NODE
+          # Strip any token setup-node or a leftover GitHub secret may have written.
+          npm config delete //registry.npmjs.org/:_authToken --location=user 2>/dev/null || true
+          npm config delete //registry.npmjs.org/:_authToken --location=project 2>/dev/null || true
+          if grep -q '_authToken' .npmrc 2>/dev/null; then
+            echo "Refusing to publish: project .npmrc still contains _authToken" >&2
+            exit 1
+          fi
+          unset NODE_AUTH_TOKEN NPM_TOKEN
+          npm publish --access public --ignore-scripts
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
