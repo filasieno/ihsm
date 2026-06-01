@@ -39,7 +39,7 @@ jobs:
       - name: Verify version matches tag
         run: |
           TAG="${{ steps.tag.outputs.ref }}"
-          PKG="$(nix develop --command node -p "require('./package.json').version")"
+          PKG="$(jq -r .version package.json)"
           test "v${PKG}" = "${TAG}" || {
             echo "package.json version ${PKG} does not match tag ${TAG}"
             exit 1

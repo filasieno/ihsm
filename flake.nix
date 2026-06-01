@@ -295,7 +295,7 @@
               export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
               export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${pkgs.chromium}/bin/chromium"
               if [ -e node_modules ] && [ ! -L node_modules ]; then
-                echo "ihsm: remove local node_modules/ to use Nix store deps (rm -rf node_modules)."
+                echo "ihsm: remove local node_modules/ to use Nix store deps (rm -rf node_modules)." >&2
               else
                 ln -snf ${node_modules}/node_modules node_modules
               fi
@@ -314,23 +314,23 @@
                 esac
               fi
 
-              echo "ihsm dev shell — Node $(node --version)"
-              echo "nixpkgs lock: ${nixpkgsRev}"
-              echo ""
-              echo "Build (deterministic, sandboxed):"
-              echo "  nix build              library + unit/tutorial tests"
-              echo "  nix build .#lint       TypeScript, ESLint, Prettier"
-              echo "  nix flake check        library + lint (CI gate)"
-              echo "  bash scripts/verify-reproducible.sh .#docs"
-              echo ""
-              echo "Docs:"
-              echo "  nix build .#docs       Docusaurus site with interactive tutorials"
-              echo ""
-              echo "Dev (uses the same npm lockfile as nix build):"
-              echo "  npm run test:all         Node + minified browser (unit + tutorials)"
-              echo "  Chromium for Playwright:  $PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"
-              echo "  npm run doc:preview    Docusaurus dev server (interactive tutorials)"
-              echo "  npm run release:check  full local gate (needs network for doc)"
+              echo "ihsm dev shell — Node $(node --version)" >&2
+              echo "nixpkgs lock: ${nixpkgsRev}" >&2
+              echo "" >&2
+              echo "Build (deterministic, sandboxed):" >&2
+              echo "  nix build              library + unit/tutorial tests" >&2
+              echo "  nix build .#lint       TypeScript, ESLint, Prettier" >&2
+              echo "  nix flake check        library + lint (CI gate)" >&2
+              echo "  bash scripts/verify-reproducible.sh .#docs" >&2
+              echo "" >&2
+              echo "Docs:" >&2
+              echo "  nix build .#docs       Docusaurus site with interactive tutorials" >&2
+              echo "" >&2
+              echo "Dev (uses the same npm lockfile as nix build):" >&2
+              echo "  npm run test:all         Node + minified browser (unit + tutorials)" >&2
+              echo "  Chromium for Playwright:  $PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH" >&2
+              echo "  npm run doc:preview    Docusaurus dev server (interactive tutorials)" >&2
+              echo "  npm run release:check  full local gate (needs network for doc)" >&2
             '';
           };
         }
