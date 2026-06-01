@@ -3,11 +3,11 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - '*.*.*'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing tag to publish (e.g. v0.0.18)'
+        description: 'Existing tag to publish (e.g. 0.0.19)'
         required: true
 
 permissions:
@@ -40,7 +40,10 @@ jobs:
         run: |
           TAG="${{ steps.tag.outputs.ref }}"
           PKG="$(jq -r .version package.json)"
-          test "v${PKG}" = "${TAG}" || {
+          case "${TAG}" in
+            v*) echo "Tags must not use a v prefix (expected ${TAG#v}, got ${TAG})"; exit 1 ;;
+          esac
+          test "${PKG}" = "${TAG}" || {
             echo "package.json version ${PKG} does not match tag ${TAG}"
             exit 1
           }

@@ -21,7 +21,7 @@ bash scripts/verify-docs-site.sh docs-build
 `nix flake check` already runs `scripts/verify-no-generated-in-source.sh` (via the
 `lint` and `docs` derivations), so no separate generated-artifact check is needed.
 
-Confirm `package.json` **`version`** matches the tag you will push (`v0.0.19` → `"0.0.19"`).
+Confirm `package.json` **`version`** matches the tag you will push (`0.0.19` → tag `0.0.19`, no `v` prefix).
 
 Update **`CHANGELOG.md`** for the new version.
 
@@ -41,8 +41,8 @@ Edit sources: `tutorials/`, `reference/REFERENCE.md`, `website/docs-src/`.
 2. Tag and push the release:
 
    ```shell
-   git tag v0.0.19
-   git push upstream v0.0.19
+   git tag 0.0.19
+   git push upstream 0.0.19
    ```
 
 3. **Release workflow** (`.github/workflows/release.yml`) runs on the tag:

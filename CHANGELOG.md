@@ -100,6 +100,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Last npm release before the documentation and API refresh above.
 
-[0.0.19]: https://github.com/filasieno/ihsm/compare/v0.0.18...v0.0.19
-[0.0.18]: https://github.com/filasieno/ihsm/compare/v0.0.14...v0.0.18
-[0.0.14]: https://github.com/filasieno/ihsm/releases/tag/v0.0.14
+[0.0.19]: https://github.com/filasieno/ihsm/compare/0.0.18...0.0.19
+[0.0.18]: https://github.com/filasieno/ihsm/compare/0.0.14...0.0.18
+[0.0.14]: https://github.com/filasieno/ihsm/releases/tag/0.0.14
