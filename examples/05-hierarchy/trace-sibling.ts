@@ -1,4 +1,11 @@
+/**
+ * Shallow hierarchy — A → B → C siblings under TraceTop.
+ *
+ * Use this file to learn entry/exit order before the deep machine in machine.ts.
+ * LCA for A→B and B→C is TraceTop; root onExit/onEntry do not repeat.
+ */
 import * as ihsm from '../../src';
+import { PlaygroundTopState } from '../shared/playground-top';
 
 export interface TraceCtx {
 	log: string[];
@@ -10,7 +17,7 @@ export interface TraceProtocol {
 }
 
 /** Shallow sibling chain — entry/exit order without deep nesting. */
-export class TraceTop extends ihsm.TopState<TraceCtx, TraceProtocol> implements TraceProtocol {
+export class TraceTop extends PlaygroundTopState<TraceCtx, TraceProtocol> {
 	onEntry(): void {
 		this.ctx.log.push('enter:Top');
 	}

@@ -1,15 +1,312 @@
+/**
+ * ihsm docs — LibreDB Studio–inspired theme
+ * Palette: https://github.com/libredb/libredb-studio/blob/dev/src/app/globals.css
+ * Marketing layout cues: https://libredb.org/
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 :root {
-	--ifm-font-family-monospace: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+	--ihsm-layout-max-width: 1920px;
+	/** Horizontal inset inside the capped column (sidebar + content stay inset on ultra-wide screens). */
+	--ihsm-layout-gutter: clamp(1rem, 2vw, 2rem);
+	--ihsm-radius: 0.5rem;
+	--ihsm-radius-lg: 0.75rem;
+
+	/* LibreDB light (:root) */
+	--ihsm-bg: #ffffff;
+	--ihsm-fg: #0a0a0a;
+	--ihsm-card: #ffffff;
+	--ihsm-muted: #737373;
+	--ihsm-border: #e5e5e5;
+	--ihsm-primary: #4f46e5;
+	--ihsm-primary-fg: #ffffff;
+	--ihsm-accent: #0891b2;
+	--ihsm-grid: rgba(99, 102, 241, 0.04);
+}
+
+[data-theme='dark'] {
+	/* LibreDB dark (.dark) + marketing slate-950 */
+	--ihsm-bg: #020617;
+	--ihsm-fg: #f8fafc;
+	--ihsm-card: #0a0a0a;
+	--ihsm-muted: #a1a1aa;
+	--ihsm-border: #27272a;
+	--ihsm-primary: #6366f1;
+	--ihsm-primary-fg: #fafafa;
+	--ihsm-accent: #22d3ee;
+	--ihsm-grid: rgba(99, 102, 241, 0.03);
+
+	--ifm-background-color: var(--ihsm-bg);
+	--ifm-background-surface-color: var(--ihsm-card);
+	--ifm-font-color-base: var(--ihsm-fg);
+	--ifm-font-color-secondary: var(--ihsm-muted);
+	--ifm-color-emphasis-0: #18181b;
+	--ifm-color-emphasis-100: #27272a;
+	--ifm-color-emphasis-200: #3f3f46;
+	--ifm-color-emphasis-300: #52525b;
+	--ifm-color-emphasis-400: #71717a;
+	--ifm-color-emphasis-500: #a1a1aa;
+	--ifm-color-emphasis-600: #d4d4d8;
+	--ifm-color-emphasis-700: #e4e4e7;
+	--ifm-color-emphasis-800: #f4f4f5;
+	--ifm-color-emphasis-900: #fafafa;
+
+	--ifm-color-primary: var(--ihsm-primary);
+	--ifm-color-primary-dark: #4f46e5;
+	--ifm-color-primary-darker: #4338ca;
+	--ifm-color-primary-darkest: #3730a3;
+	--ifm-color-primary-light: #818cf8;
+	--ifm-color-primary-lighter: #a5b4fc;
+	--ifm-color-primary-lightest: #c7d2fe;
+
+	--ifm-color-success: #22c55e;
+	--ifm-color-info: var(--ihsm-accent);
+	--ifm-color-warning: #f59e0b;
+	--ifm-color-danger: #ef4444;
+
+	--ifm-link-color: #818cf8;
+	--ifm-link-hover-color: #a5b4fc;
+	--ifm-navbar-background-color: rgba(2, 6, 23, 0.82);
+	--ifm-navbar-link-color: #94a3b8;
+	--ifm-navbar-link-hover-color: #f8fafc;
+	--ifm-footer-background-color: #09090b;
+	--ifm-footer-color: #a1a1aa;
+	--ifm-footer-link-color: #94a3b8;
+	--ifm-footer-link-hover-color: #f8fafc;
+	--ifm-menu-color: var(--ihsm-muted);
+	--ifm-menu-color-active: var(--ihsm-fg);
+	--ifm-menu-color-background-active: rgba(99, 102, 241, 0.12);
+	--ifm-toc-border-color: var(--ihsm-border);
+	--ifm-hr-background-color: var(--ihsm-border);
+	--ifm-table-border-color: var(--ihsm-border);
+	--ifm-code-background: #18181b;
+	--ifm-code-border-radius: var(--ihsm-radius);
+	--ifm-pre-background: #18181b;
+	--ifm-pre-border-radius: var(--ihsm-radius-lg);
+	--ifm-card-background-color: var(--ihsm-card);
+	--ifm-global-border-width: 1px;
+	--ifm-global-radius: var(--ihsm-radius);
+	--docusaurus-highlighted-code-line-bg: rgba(99, 102, 241, 0.15);
+}
+
+[data-theme='light'] {
+	--ifm-background-color: var(--ihsm-bg);
+	--ifm-background-surface-color: #f5f5f5;
+	--ifm-font-color-base: var(--ihsm-fg);
+	--ifm-color-primary: var(--ihsm-primary);
+	--ifm-color-primary-dark: #4338ca;
+	--ifm-color-primary-darker: #3730a3;
+	--ifm-color-primary-darkest: #312e81;
+	--ifm-color-primary-light: #6366f1;
+	--ifm-color-primary-lighter: #818cf8;
+	--ifm-color-primary-lightest: #a5b4fc;
+	--ifm-navbar-background-color: rgba(255, 255, 255, 0.9);
+	--ifm-link-color: var(--ihsm-primary);
+	--ifm-link-hover-color: #4338ca;
+}
+
+html {
+	font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+body {
+	background-color: var(--ihsm-bg);
+	background-image:
+		linear-gradient(var(--ihsm-grid) 1px, transparent 1px),
+		linear-gradient(90deg, var(--ihsm-grid) 1px, transparent 1px);
+	background-size: 64px 64px;
+}
+
+[data-theme='dark'] body::before {
+	content: '';
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	z-index: -1;
+	background:
+		radial-gradient(ellipse 50% 40% at 20% 20%, rgba(79, 70, 229, 0.18), transparent 70%),
+		radial-gradient(ellipse 45% 35% at 80% 70%, rgba(8, 145, 178, 0.12), transparent 70%);
+}
+
+/*
+ * Layout cap — entire docs chrome (sidebar + article + TOC) within 1920px, centered.
+ * Docusaurus puts `docs-wrapper` on <html>; the flex row lives in `.main-wrapper`.
+ */
+@media (min-width: 997px) {
+	.navbar__inner,
+	.footer .container,
+	html.docs-wrapper .main-wrapper {
+		max-width: var(--ihsm-layout-max-width);
+		margin-inline: auto;
+		width: 100%;
+		padding-inline: var(--ihsm-layout-gutter);
+		box-sizing: border-box;
+	}
+
+	/* docRoot: sidebar + main — fill the capped main column, not the viewport edge */
+	html.docs-wrapper .main-wrapper [class*='docRoot'] {
+		width: 100%;
+		max-width: 100%;
+	}
+}
+
+/* Navbar — frosted bar like libredb.org */
+.navbar {
+	backdrop-filter: blur(16px);
+	-webkit-backdrop-filter: blur(16px);
+	border-bottom: 1px solid rgba(39, 39, 42, 0.6);
+	box-shadow: none;
+}
+
+[data-theme='light'] .navbar {
+	border-bottom-color: var(--ihsm-border);
+}
+
+.navbar__title {
+	font-weight: 700;
+	background: linear-gradient(to right, #6366f1, #22d3ee);
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+}
+
+.navbar__link--active,
+.menu__link--active {
+	border-radius: var(--ihsm-radius);
+}
+
+/* Sidebar */
+.theme-doc-sidebar-container {
+	border-right: 1px solid var(--ihsm-border);
+	background: rgba(9, 9, 11, 0.6);
+	backdrop-filter: blur(8px);
+}
+
+[data-theme='light'] .theme-doc-sidebar-container {
+	background: var(--ifm-background-surface-color);
+}
+
+.menu__link {
+	border-radius: var(--ihsm-radius);
+	font-size: 0.9rem;
+}
+
+/* Main content — card-like reading column */
+.theme-doc-markdown {
+	--ifm-heading-font-weight: 600;
 }
 
 .markdown h1:first-child {
 	margin-bottom: 1rem;
+	font-weight: 700;
+	letter-spacing: -0.02em;
 }
 
-/* PlantUML diagrams (generated SVGs under /img/plantuml/) */
+[data-theme='dark'] .markdown h1:first-child {
+	background: linear-gradient(to right, #f8fafc, #a5b4fc);
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+}
+
+.markdown h2 {
+	border-bottom: 1px solid var(--ihsm-border);
+	padding-bottom: 0.35rem;
+	margin-top: 2.5rem;
+}
+
+.markdown h3 {
+	color: var(--ihsm-fg);
+}
+
+.markdown table {
+	display: block;
+	overflow-x: auto;
+	border: 1px solid var(--ihsm-border);
+	border-radius: var(--ihsm-radius-lg);
+}
+
+.markdown table th {
+	background: rgba(39, 39, 42, 0.5);
+}
+
+.markdown blockquote {
+	border-left: 3px solid var(--ihsm-primary);
+	background: rgba(99, 102, 241, 0.08);
+	border-radius: 0 var(--ihsm-radius) var(--ihsm-radius) 0;
+}
+
+/* Code */
+:root {
+	--ifm-font-family-monospace: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+		monospace;
+}
+
+.theme-code-block {
+	border: 1px solid var(--ihsm-border);
+	border-radius: var(--ihsm-radius-lg);
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* PlantUML diagrams */
 .markdown img[src*='/img/plantuml/'] {
 	display: block;
 	max-width: 100%;
 	height: auto;
-	margin: 1rem auto;
+	margin: 1.5rem auto;
+	padding: 1rem;
+	border: 1px solid var(--ihsm-border);
+	border-radius: var(--ihsm-radius-lg);
+	background: rgba(9, 9, 11, 0.5);
+}
+
+[data-theme='light'] .markdown img[src*='/img/plantuml/'] {
+	background: #fafafa;
+}
+
+/* Footer */
+.footer {
+	border-top: 1px solid var(--ihsm-border);
+}
+
+/* Home / intro hero */
+article header h1 {
+	font-size: clamp(2rem, 4vw, 2.75rem);
+}
+
+/* Scrollbar (LibreDB editor-scrollbar) */
+html {
+	scrollbar-width: thin;
+	scrollbar-color: #404040 transparent;
+}
+
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: #404040;
+	border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: #52525b;
+}
+
+/* Color mode toggle */
+.toggleButton_gllP,
+.toggleButton_gllP svg {
+	color: var(--ihsm-muted);
+}
+
+.toggleButton_gllP:hover {
+	color: var(--ihsm-fg);
 }

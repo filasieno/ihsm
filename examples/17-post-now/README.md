@@ -96,12 +96,12 @@ Use **`postNow`** to run internal protocol handlers in the same dispatch turn â€
 
 With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
 
-On the [documentation page](https://filasieno.github.io/ihsm/tutorials/17-post-now), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:tutorials` headlessly.
+On the [documentation page](https://filasieno.github.io/ihsm/reference), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:examples` headlessly.
 
 **What to notice:** `#lockInventory` and `#capturePayment` appear after `#confirm` completes its handler body but before `#cancel`.
 
 ## Verify
 
 ```shell
-npm run test:tutorials -- --grep 'Tutorial 17'
+npm run test:examples -- --grep 'Tutorial 17'
 ```

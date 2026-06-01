@@ -147,6 +147,8 @@ const door = makeHsm(DoorTop, { openCount: 0 });
 await door.sync(); // wait for initialization
 ```
 
+<!-- @example:01-hello-state-machine -->
+
 ---
 
 ## 2. Key features
@@ -183,6 +185,7 @@ await door.sync(); // wait for initialization
 Mutable domain object passed as the second argument to `makeHsm`. Survives transitions
 unless you replace it in `restore()`.
 
+<!-- @example:03-context -->
 
 ### Protocol
 
@@ -232,6 +235,7 @@ If the handler **does not** call `transition()`, the active state class
 unchanged and **no** exit/entry runs. Updating `this.ctx` alone is an internal
 transition.
 
+<!-- @example:07-internal-transitions -->
 
 ### Guards
 
@@ -260,6 +264,7 @@ No shallow/deep history pseudostates — you keep explicit control.
 Run **multiple machines** and coordinate with `post` / `call` between instances.
 Each region has its own queue and cache.
 
+<!-- @example:14-nested-machines -->
 
 ---
 
@@ -277,7 +282,7 @@ interface PaymentProtocol {
   ): void;
 }
 
-class PaymentTop extends TopState<Wallet, PaymentProtocol> implements PaymentProtocol {}
+class PaymentTop extends TopState<Wallet, PaymentProtocol> {}
 const wallet = makeHsm(PaymentTop, { balance: 0 });
 
 wallet.post('charge', 10);              // ✓ event name + payload
@@ -287,6 +292,7 @@ wallet.post('charge', 10);              // ✓ event name + payload
 const balance = await wallet.call('getBalance'); // ✓ Promise<number>
 ```
 
+<!-- @example:04-protocol-typing -->
 
 ---
 
@@ -345,8 +351,7 @@ export interface WalletProtocol {
   getBalance(resolve: ResolveCallback<number>, reject: RejectCallback): void;
 }
 
-export class WalletTop extends TopState<WalletCtx, WalletProtocol>
-  implements WalletProtocol {
+export class WalletTop extends TopState<WalletCtx, WalletProtocol> {
   deposit(amount: number): void { /* … */ }
   getBalance(resolve: ResolveCallback<number>, reject: RejectCallback): void { /* … */ }
 }
@@ -513,11 +518,14 @@ string you pass; TypeScript narrows `EventName` and applies the matching
 `...eventPayload: EventPayload<…>` types the variadic tail of `post`
 as an exact tuple derived from the handler, not as `any[]`.
 
-##### 10. `implements Protocol` on state classes
+##### 10. `implements Protocol` (optional)
 
-State handlers are ordinary class methods. Implementing `Protocol` forces the
-compiler to verify that every protocol member exists with a compatible
-signature on the state hierarchy (or a parent).
+`TopState<Context, Protocol>` already binds the protocol for `makeHsm`, `post`,
+and `call` — you do **not** need `implements Protocol` for client typing.
+
+Add `implements Protocol` only when you want an extra compile-time check that a
+state class (usually the root) declares every protocol method with a compatible
+signature. Handlers on child states inherit without re-implementing the interface.
 
 ##### 11. Separate aliases for services vs events
 
@@ -572,7 +580,7 @@ extracts from service methods.
 | Calling service with `post` | Service-shaped method may yield `never` payload or wrong inference — use `call` |
 | Calling event with `call` | Request/response inference fails; return type may be `never` |
 | Using reserved name | Event name resolves to `never` |
-| Drift between handler and Protocol | `implements Protocol` error on state class |
+| Drift between handler and Protocol | Optional `implements Protocol` on the class that owns handlers; or wrong runtime dispatch |
 
 #### End-to-end flow
 
@@ -580,7 +588,7 @@ extracts from service methods.
 @startuml
 left to right direction
 rectangle "Protocol interface" as P
-rectangle "State class\nimplements Protocol" as S
+rectangle "State class\nextends TopState<Ctx, Protocol>" as S
 rectangle "makeHsm\n(TopState, ctx)" as F
 rectangle "Hsm instance" as H
 rectangle "post / deferredPost" as post
@@ -689,6 +697,7 @@ await door.sync(); // handler + transition complete
 Inside a state handler, `this.post('tick')` schedules work **after** the current
 handler completes (and after any transition it requested).
 
+<!-- @example:08-post-and-sync -->
 
 ### `call(service, ...payload)` — typed request/response
 
@@ -729,6 +738,8 @@ Benefits:
 **XState:** read snapshot via `actor.getSnapshot()`, spawn promise actors, or
 use `waitFor` — no single typed `call` on the interpreter.
 
+<!-- @example:10-call-services -->
+
 ### `deferredPost(millis, event, ...payload)`
 
 Schedule an event after a delay via `setTimeout`, then enqueue normally.
@@ -754,6 +765,7 @@ await sleep(100); // wait for timer
 await sm.sync();  // wait for deliver handler
 ```
 
+<!-- @example:09-deferred-post -->
 
 ### `sync()`
 
@@ -795,6 +807,8 @@ validate) that must complete before deferred side effects scheduled with
 
 See the interactive example under [`postNow()`](#_4-messaging-post-call-sync) below.
 
+<!-- @example:17-post-now -->
+
 ---
 
 ## 5. Transitions
@@ -832,6 +846,8 @@ The table lists **external** transitions (handler calls `transition()`). An
 **Trace convention** (tutorial 05): push `enter:StateName` / `exit:StateName` from
 `onEntry` / `onExit`; `handler:event` from the handler. Compare with
 `npm run test:examples -- --grep 'Tutorial 05'`.
+
+<!-- @example:05-hierarchy -->
 
 ### LCA algorithm (prototype chain)
 
@@ -888,6 +904,8 @@ to propagate failures to application code.
 - **`transition()` inside `onEntry`/`onExit` of the same dispatch is cleared**
   when that dispatch finishes — schedule follow-up work with `post()` from
   `onEntry`, or branch in the event handler (see tutorial 15).
+
+<!-- @example:15-complex-workflow -->
 
 ---
 
@@ -1015,6 +1033,8 @@ Notes:
   (`npm run test:browser`, built with `minify: true`) keep their state names
   readable.
 
+<!-- @example:02-tracing -->
+
 ---
 
 ## 7. restore
@@ -1050,6 +1070,8 @@ Does not replay history automatically — you choose the concrete state class an
 
 **XState:** `snapshot` / `restore` on actors (v5 persisted state API).
 
+<!-- @example:11-restore -->
+
 ---
 
 ## 8. Error model
@@ -1069,6 +1091,7 @@ Hooks:
 
 Fatal error state: `FatalErrorState` when transition recovery fails.
 
+<!-- @example:12-error-recovery -->
 
 ---
 
@@ -1122,6 +1145,8 @@ until the current handler finishes.
 
 **XState:** often models async with `invoke` + `done` events — separate states
 for in-flight work.
+
+<!-- @example:13-async-handlers -->
 
 ---
 

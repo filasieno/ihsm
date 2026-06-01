@@ -118,6 +118,11 @@ const config: Config = {
 		],
 	],
 	themeConfig: {
+		colorMode: {
+			defaultMode: 'dark',
+			disableSwitch: false,
+			respectPrefersColorScheme: true,
+		},
 		navbar: {
 			title: 'ihsm',
 			items: [
@@ -141,7 +146,7 @@ const config: Config = {
 		},
 		prism: {
 			theme: prismThemes.github,
-			darkTheme: prismThemes.dracula,
+			darkTheme: prismThemes.oneDark,
 			additionalLanguages: ['typescript'],
 		},
 	},

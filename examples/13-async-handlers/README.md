@@ -116,13 +116,13 @@ With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispa
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
-On the [documentation page](https://filasieno.github.io/ihsm/tutorials/13-async-handlers), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:tutorials` headlessly.
+On the [documentation page](https://filasieno.github.io/ihsm/reference), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:examples` headlessly.
 
 **What to notice:** `#transfer` stays in `execute|Idle` for the whole async pipeline — no intermediate states for open/read/write/close. `transition from Idle to Done` appears **once**, after all `await`s complete.
 
 ## Verify
 
 ```shell
-npm run test:tutorials -- --grep 'Tutorial 13'
+npm run test:examples -- --grep 'Tutorial 13'
 ```
 

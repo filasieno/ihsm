@@ -1,4 +1,8 @@
+/**
+ * deferredPost — schedule deliver after 50ms without blocking scheduleReminder.
+ */
 import * as ihsm from '../../src';
+import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
 export interface ReminderCtx {
@@ -10,8 +14,9 @@ export interface ReminderProtocol {
 	deliver(text: string): void;
 }
 
-export class ReminderTop extends ihsm.TopState<ReminderCtx, ReminderProtocol> implements ReminderProtocol {
+export class ReminderTop extends PlaygroundTopState<ReminderCtx, ReminderProtocol> {
 	scheduleReminder(text: string): void {
+		// Returns immediately; deliver is enqueued when the timer fires.
 		this.deferredPost(50, 'deliver', text);
 	}
 
@@ -23,7 +28,7 @@ export class ReminderTop extends ihsm.TopState<ReminderCtx, ReminderProtocol> im
 @ihsm.InitialState
 export class Waiting extends ReminderTop {}
 
-ihsm.registerStateNames(self); // grabs every exported state automatically
+ihsm.registerStateNames(self);
 
 export function createReminder() {
 	return ihsm.makeHsm(ReminderTop, { message: '' });

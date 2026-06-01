@@ -1,4 +1,10 @@
+/**
+ * restore — suspend/resume session without init entry/exit.
+ *
+ * Teaches: makeHsm(..., false), restore(StateClass, ctx), JSON persistence helpers.
+ */
 import * as ihsm from '../../src';
+import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
 export interface SessionCtx {
@@ -12,7 +18,7 @@ export interface SessionProtocol {
 	navigate(page: string): void;
 }
 
-export class SessionTop extends ihsm.TopState<SessionCtx, SessionProtocol> implements SessionProtocol {
+export class SessionTop extends PlaygroundTopState<SessionCtx, SessionProtocol> {
 	navigate(page: string): void {
 		this.ctx.lastPage = page;
 	}
@@ -48,7 +54,7 @@ export interface PersistedSession {
 /** In-memory stand-in for disk / DB (session id → JSON payload). */
 export const sessionDb = new Map<string, string>();
 
-ihsm.registerStateNames(self); // grabs every exported state automatically
+ihsm.registerStateNames(self);
 
 export function createSession(userId: string) {
 	return ihsm.makeHsm(SessionTop, { userId, lastPage: 'home', entryLog: [] });

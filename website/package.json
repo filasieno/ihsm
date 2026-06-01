@@ -1,10 +1,10 @@
 {
 	"name": "ihsm-site",
 	"private": true,
-	"version": "0.0.20",
+	"version": "0.0.21",
 	"scripts": {
-		"prebuild": "node ../scripts/prepare-website-docs.mjs",
-		"prestart": "node ../scripts/prepare-website-docs.mjs",
+		"prebuild": "node ../scripts/ensure-website-docs.mjs",
+		"prestart": "node ../scripts/ensure-website-docs.mjs",
 		"start": "docusaurus start",
 		"build": "docusaurus build --out-dir ../docs-build"
 	},

@@ -1,4 +1,10 @@
+/**
+ * Async handlers — full I/O pipeline in one handler while staying in Idle.
+ *
+ * transition(Done) runs only after all awaits complete.
+ */
 import * as ihsm from '../../src';
+import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
 export interface FileCtx {
@@ -32,7 +38,7 @@ async function close(_fd: number): Promise<void> {
 	await Promise.resolve();
 }
 
-export class FileTop extends ihsm.TopState<FileCtx, FileProtocol> {}
+export class FileTop extends PlaygroundTopState<FileCtx, FileProtocol> {}
 
 @ihsm.InitialState
 export class Idle extends FileTop {
@@ -69,7 +75,7 @@ export class Idle extends FileTop {
 
 export class Done extends FileTop {}
 
-ihsm.registerStateNames(self); // grabs every exported state automatically
+ihsm.registerStateNames(self);
 
 export function createFileActor() {
 	return ihsm.makeHsm(FileTop, {

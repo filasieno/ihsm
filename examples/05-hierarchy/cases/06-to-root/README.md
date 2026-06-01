@@ -21,7 +21,7 @@ state DeepTop {
 
 ### Expected trace
 
-See the **Trace** panel on the [interactive docs site](https://filasieno.github.io/ihsm/tutorials/), or run `npm run test:tutorials` headlessly.
+See the **Trace** panel on the [interactive docs site](https://filasieno.github.io/ihsm/reference), or run `npm run test:examples` headlessly.
 
 ## Starting point
 
@@ -50,5 +50,5 @@ await sm.sync();
 ## Verify
 
 ```shell
-npm run test:tutorials -- --grep '05 · 06 to root'
+npm run test:examples -- --grep '05 · 06 to root'
 ```

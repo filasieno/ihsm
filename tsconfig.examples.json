@@ -17,6 +17,7 @@
 		"examples/**/interactive.ts",
 		"examples/**/trace-*.ts",
 		"examples/shared/trace.ts",
+		"examples/shared/playground-top.ts",
 		"examples/shared/interactive-helpers.ts",
 		"examples/shared/interactive-types.ts",
 		"examples/shared/state-names.ts"

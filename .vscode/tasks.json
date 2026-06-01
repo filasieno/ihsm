@@ -45,9 +45,9 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "test:tutorials",
+			"label": "test:examples",
 			"type": "shell",
-			"command": "npm run test:tutorials",
+			"command": "npm run test:examples",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},

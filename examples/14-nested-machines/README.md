@@ -33,7 +33,7 @@ The `OrderCoordinator` owns both actors and orchestrates `fulfill()`.
 Payment region:
 
 ```typescript
-export class PaymentTop extends TopState<PaymentCtx, PaymentProtocol> implements PaymentProtocol {
+export class PaymentTop extends TopState<PaymentCtx, PaymentProtocol> {
 	markPaid(): void {
 		this.ctx.paid = true;
 		this.transition(PaymentDone); // ← payment actor only
@@ -44,7 +44,7 @@ export class PaymentTop extends TopState<PaymentCtx, PaymentProtocol> implements
 Shipping region — independent queue and cache:
 
 ```typescript
-export class ShippingTop extends TopState<ShippingCtx, ShippingProtocol> implements ShippingProtocol {
+export class ShippingTop extends TopState<ShippingCtx, ShippingProtocol> {
 	markShipped(): void {
 		this.ctx.shipped = true;
 		this.transition(ShippingDone);
@@ -74,13 +74,13 @@ With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispa
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
-On the [documentation page](https://filasieno.github.io/ihsm/tutorials/14-nested-machines), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:tutorials` headlessly.
+On the [documentation page](https://filasieno.github.io/ihsm/reference), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:examples` headlessly.
 
 **What to notice:** Each actor has its own trace stream — payment and shipping queues are independent.
 
 ## Verify
 
 ```shell
-npm run test:tutorials -- --grep 'Tutorial 14'
+npm run test:examples -- --grep 'Tutorial 14'
 ```
 

@@ -20,7 +20,7 @@ state StackWest {
 
 ### Expected trace
 
-See the **Trace** panel on the [interactive docs site](https://filasieno.github.io/ihsm/tutorials/), or run `npm run test:tutorials` headlessly.
+See the **Trace** panel on the [interactive docs site](https://filasieno.github.io/ihsm/reference), or run `npm run test:examples` headlessly.
 
 ## Starting point
 
@@ -49,5 +49,5 @@ await sm.sync();
 ## Verify
 
 ```shell
-npm run test:tutorials -- --grep '05 · 05 to ancestor'
+npm run test:examples -- --grep '05 · 05 to ancestor'
 ```

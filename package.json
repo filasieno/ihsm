@@ -47,7 +47,9 @@
 		"Fabio Nicola Filasieno <fabio.filasieno@users.noreply.github.com>"
 	],
 	"overrides": {
+		"diff": "^8.0.3",
 		"glob": "^13.0.6",
+		"serialize-javascript": "^7.0.5",
 		"uuid": "^11.1.0"
 	},
 	"engines": {
@@ -85,7 +87,7 @@
 		"build-cjs": "tsc -b tsconfig.lib.json",
 		"build-esm": "tsc -b tsconfig.esm.json",
 		"build": "tsc -b tsconfig.lib.json tsconfig.esm.json && node scripts/finalize-build.mjs",
-		"clean": "rm -rf ./lib ./.tsc ./.nyc_output ./coverage ./docs-build ./.typedoc-out website/.docusaurus website/docs website/sidebars.ts",
+		"clean": "rm -rf ./lib ./.tsc ./.nyc_output ./coverage ./docs-build ./.typedoc-out website/.docusaurus website/.docs-staging website/docs website/sidebars.ts website/static/img/plantuml",
 		"coverage": "nyc report --reporter=text-lcov",
 		"dist": "npm run build && npm run doc",
 		"doc": "npm run sync:docs && npm run build -w ihsm-site",
@@ -114,5 +116,5 @@
 		"pretypecheck": "npm run prepare:ide"
 	},
 	"types": "./lib/cjs/index.d.ts",
-	"version": "0.0.20"
+	"version": "0.0.21"
 }

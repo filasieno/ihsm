@@ -110,13 +110,13 @@ With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispa
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
-On the [documentation page](https://filasieno.github.io/ihsm/tutorials/01-hello-state-machine), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:tutorials` headlessly.
+On the [documentation page](https://filasieno.github.io/ihsm/reference), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:examples` headlessly.
 
 **What to notice:** `initialize` descends to `Closed`. Each `post` opens a `#open` / `#close` domain. After the handler, `requested transition` and `started transition` show the LCA path; `final state is` confirms the new leaf.
 
 ## Verify
 
 ```shell
-npm run test:tutorials -- --grep 'Tutorial 01'
+npm run test:examples -- --grep 'Tutorial 01'
 ```
 

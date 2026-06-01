@@ -1,4 +1,11 @@
+/**
+ * Deep hierarchy — two stacks under DeepTop; every transition topology from tutorial 05.
+ *
+ * Handlers on DeepTop; ctx.trace records enter/exit/handler lines. Playground uses this file.
+ * Pair with trace-sibling.ts for a shallow A→B→C chain first.
+ */
 import * as ihsm from '../../src';
+import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
 export interface DeepCtx {
@@ -29,7 +36,7 @@ function pushTrace(ctx: DeepCtx, line: string): void {
 }
 
 /** Root — LCA for every cross-stack transition. */
-export class DeepTop extends ihsm.TopState<DeepCtx, DeepProtocol> implements DeepProtocol {
+export class DeepTop extends PlaygroundTopState<DeepCtx, DeepProtocol> {
 	onEntry(): void {
 		pushTrace(this.ctx, 'enter:DeepTop');
 	}

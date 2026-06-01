@@ -7,14 +7,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { plantumlAssetDir, plantumlUrlPrefix, renderPlantumlInMarkdown } from './render-plantuml.mjs';
-import { playgroundPlacements } from './playground-placements.mjs';
+import { expandExampleMarkers } from './expand-reference-examples.mjs';
+import { referenceExamples } from './reference-examples.mjs';
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const referencePath = path.join(repoRoot, 'reference/REFERENCE.md');
-const docsOut = path.join(repoRoot, 'website/docs');
+const docsOut = process.env.IHSM_DOCS_DIR
+	? path.resolve(process.env.IHSM_DOCS_DIR)
+	: path.join(repoRoot, 'website/docs');
 const sidebarsPath = path.join(repoRoot, 'website/sidebars.ts');
-
-const playgroundBlock = name => `\n<InteractiveTutorial meta={${name}} />\n`;
 
 function slugifySection(title) {
 	return title
@@ -112,48 +113,11 @@ function applySectionAnchors(text) {
 	});
 }
 
-function injectPlaygrounds(text) {
-	const lines = text.split('\n');
-	const imports = [];
-	const importLines = [];
-	const blocks = [];
-
-	for (const placement of playgroundPlacements) {
-		const interactivePath = path.join(repoRoot, 'examples', placement.exampleId, 'interactive.ts');
-		if (!fs.existsSync(interactivePath)) {
-			throw new Error(`missing interactive.ts for ${placement.exampleId}`);
-		}
-		imports.push(
-			`import { interactive as ${placement.importName} } from '@examples/${placement.exampleId}/interactive';`
-		);
-		blocks.push({ ...placement, block: playgroundBlock(placement.importName) });
-	}
-
-	let matchCounts = new Map();
-	const result = [];
-
-	for (let i = 0; i < lines.length; i++) {
-		result.push(lines[i]);
-		for (const block of blocks) {
-			const count = matchCounts.get(block.after) ?? 0;
-			const wantIndex = block.matchIndex ?? 0;
-			if (lines[i] === block.after && count === wantIndex) {
-				result.push(block.block.trimEnd());
-				matchCounts.set(block.after, count + 1);
-			} else if (lines[i] === block.after) {
-				matchCounts.set(block.after, count + 1);
-			}
-		}
-	}
-
-	return { body: result.join('\n'), imports };
-}
-
 function buildReferenceMdx() {
 	let body = fs.readFileSync(referencePath, 'utf8');
 	body = transformSiteLinks(body);
 	body = applySectionAnchors(body);
-	const { body: withPlaygrounds, imports } = injectPlaygrounds(body);
+	const { body: withPlaygrounds, imports } = expandExampleMarkers(body, referenceExamples, repoRoot);
 	body = renderPlantumlInMarkdown(withPlaygrounds, {
 		assetDir: plantumlAssetDir(repoRoot),
 		urlPrefix: plantumlUrlPrefix,
@@ -205,5 +169,5 @@ export default sidebars;
 fs.mkdirSync(docsOut, { recursive: true });
 const mdx = buildReferenceMdx();
 fs.writeFileSync(path.join(docsOut, 'reference.mdx'), mdx);
-console.log('wrote website/docs/reference.mdx');
+console.log(`wrote ${path.relative(repoRoot, path.join(docsOut, 'reference.mdx'))}`);
 writeSidebars();

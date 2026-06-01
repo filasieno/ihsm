@@ -1,4 +1,10 @@
+/**
+ * call services — sync and async handlers with resolve/reject injected by runtime.
+ *
+ * Client: await wallet.call('getBalance') — no resolve/reject in the call arguments.
+ */
 import * as ihsm from '../../src';
+import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
 export interface WalletCtx {
@@ -12,7 +18,7 @@ export interface WalletProtocol {
 	withdraw(resolve: ihsm.ResolveCallback<number>, reject: ihsm.RejectCallback, amount: number): void;
 }
 
-export class WalletTop extends ihsm.TopState<WalletCtx, WalletProtocol> implements WalletProtocol {
+export class WalletTop extends PlaygroundTopState<WalletCtx, WalletProtocol> {
 	deposit(amount: number): void {
 		this.ctx.balance += amount;
 	}
@@ -42,7 +48,7 @@ export class WalletTop extends ihsm.TopState<WalletCtx, WalletProtocol> implemen
 @ihsm.InitialState
 export class Open extends WalletTop {}
 
-ihsm.registerStateNames(self); // grabs every exported state automatically
+ihsm.registerStateNames(self);
 
 export function createWallet(initialBalance: number) {
 	return ihsm.makeHsm(WalletTop, { balance: initialBalance });

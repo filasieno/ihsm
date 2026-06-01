@@ -1,7 +1,11 @@
+/**
+ * Orthogonal regions — two Hsm actors (payment + shipping) coordinated by OrderCoordinator.
+ */
 import * as ihsm from '../../src';
+import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
-/** Payment region */
+/** Payment region — own mailbox and transition cache. */
 export interface PaymentCtx {
 	paid: boolean;
 }
@@ -10,7 +14,7 @@ export interface PaymentProtocol {
 	markPaid(): void;
 }
 
-export class PaymentTop extends ihsm.TopState<PaymentCtx, PaymentProtocol> implements PaymentProtocol {
+export class PaymentTop extends PlaygroundTopState<PaymentCtx, PaymentProtocol> {
 	markPaid(): void {
 		this.ctx.paid = true;
 		this.transition(PaymentDone);
@@ -22,7 +26,7 @@ export class PaymentPending extends PaymentTop {}
 
 export class PaymentDone extends PaymentTop {}
 
-/** Shipping region */
+/** Shipping region — independent lifecycle from payment. */
 export interface ShippingCtx {
 	shipped: boolean;
 }
@@ -31,7 +35,7 @@ export interface ShippingProtocol {
 	markShipped(): void;
 }
 
-export class ShippingTop extends ihsm.TopState<ShippingCtx, ShippingProtocol> implements ShippingProtocol {
+export class ShippingTop extends PlaygroundTopState<ShippingCtx, ShippingProtocol> {
 	markShipped(): void {
 		this.ctx.shipped = true;
 		this.transition(ShippingDone);
@@ -43,7 +47,7 @@ export class ShippingWaiting extends ShippingTop {}
 
 export class ShippingDone extends ShippingTop {}
 
-/** Coordinator — not an Hsm itself; owns two actors */
+/** Coordinator — not an Hsm; owns two actors and sequences post/sync between them. */
 export class OrderCoordinator {
 	readonly payment: ihsm.Hsm<PaymentCtx, PaymentProtocol>;
 	readonly shipping: ihsm.Hsm<ShippingCtx, ShippingProtocol>;
@@ -67,7 +71,7 @@ export class OrderCoordinator {
 	}
 }
 
-ihsm.registerStateNames(self); // grabs every exported state automatically
+ihsm.registerStateNames(self);
 
 export function createOrderCoordinator() {
 	return new OrderCoordinator();

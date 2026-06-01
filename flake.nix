@@ -19,7 +19,7 @@
 
       # Regenerate when package-lock.json changes:
       #   nix run nixpkgs#prefetch-npm-deps -- package-lock.json
-      npmDepsHash = "sha256-AOXz5mDJcGOxdEesRLgSddmNfO9SBVTI0LLwAXAnJpQ=";
+      npmDepsHash = "sha256-yQygOIJUNN+5BkXmbZbRLGN35wCL/QA8SPK/7xpicO4=";
 
       nixpkgsRev = (builtins.fromJSON (builtins.readFile ./flake.lock)).nodes.nixpkgs.locked.rev;
 
@@ -61,6 +61,7 @@
             && !(lib.hasInfix "/docs-build" path)
             && !(lib.hasInfix "/website/docs/" path)
             && !(lib.hasInfix "/website/.docusaurus" path)
+            && !(lib.hasInfix "/website/.docs-staging" path)
             && !(lib.hasSuffix "/website/sidebars.ts" path)
             && base != "_config.yml";
         };
@@ -77,7 +78,7 @@
       };
 
       npmPreBuild = ''
-        rm -rf lib .tsc docs-build website/.docusaurus website/docs website/sidebars.ts .nyc_output coverage
+        rm -rf lib .tsc docs-build website/.docusaurus website/.docs-staging website/docs website/sidebars.ts .nyc_output coverage
       '';
 
       mkNpmEnv =
@@ -241,6 +242,7 @@
             buildPhase = ''
               runHook preBuild
               bash scripts/verify-no-generated-in-source.sh
+              export IHSM_REQUIRE_PLANTUML=1
               npm run build
               npm run build -w ihsm-site
               test -f docs-build/index.html

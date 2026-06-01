@@ -15,9 +15,14 @@ export function plantumlAssetDir(repoRoot) {
 	return path.join(repoRoot, 'website/static/img/plantuml');
 }
 
-function assertPlantumlAvailable() {
+/** @returns {boolean} */
+function isPlantumlAvailable() {
 	const check = spawnSync(PLANTUML_CMD, ['-version'], { encoding: 'utf8' });
-		if (check.error?.code === 'ENOENT') {
+	return check.error?.code !== 'ENOENT' && check.status === 0;
+}
+
+function requirePlantuml() {
+	if (!isPlantumlAvailable()) {
 		throw new Error(
 			`${PLANTUML_CMD} not found. Install PlantUML + Graphviz (e.g. \`apt install plantuml graphviz\`), or use \`nix develop\` / \`nix build .#docs\`.`
 		);
@@ -34,7 +39,17 @@ export function renderPlantumlInMarkdown(markdown, { assetDir, urlPrefix, fileBa
 		return markdown;
 	}
 
-	assertPlantumlAvailable();
+	const requireSvg = process.env.IHSM_REQUIRE_PLANTUML === '1';
+	if (!isPlantumlAvailable()) {
+		if (requireSvg) {
+			requirePlantuml();
+		}
+		console.warn(
+			`[ihsm] ${PLANTUML_CMD} not on PATH — leaving PlantUML fences as code blocks. Use nix develop or set IHSM_REQUIRE_PLANTUML=1 to fail fast.`
+		);
+		return markdown;
+	}
+
 	fs.mkdirSync(assetDir, { recursive: true });
 
 	let index = 0;

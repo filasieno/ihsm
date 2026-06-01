@@ -22,7 +22,7 @@ state PingTop {
 
 Tracing is orthogonal to state structure — same chart with observability layered on.
 
-Shared collector (used in specs under `tutorials/`) lives in `tutorials/shared/trace.ts`:
+Shared collector (used in specs under `tutorials/`) lives in `examples/shared/trace.ts`:
 
 ```typescript
 export class CollectingTraceWriter implements TraceWriter {
@@ -78,13 +78,13 @@ ihsm logs every dispatch step when `TraceLevel.VERBOSE_DEBUG` is set and a custo
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
-On the [documentation page](https://filasieno.github.io/ihsm/tutorials/02-tracing), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:tutorials` headlessly.
+On the [documentation page](https://filasieno.github.io/ihsm/reference), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:examples` headlessly.
 
 **What to notice:** Lines mirror `ConsoleTraceWriter` format. Handlers may call `this.traceWriter.write(...)` for domain logs. Compare `DEBUG` (boundaries only) vs `VERBOSE_DEBUG` (cache hits, skipped onEntry, etc.).
 
 ## Verify
 
 ```shell
-npm run test:tutorials -- --grep 'Tutorial 02'
+npm run test:examples -- --grep 'Tutorial 02'
 ```
 

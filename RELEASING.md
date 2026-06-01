@@ -21,7 +21,7 @@ bash scripts/verify-docs-site.sh docs-build
 `nix flake check` already runs `scripts/verify-no-generated-in-source.sh` (via the
 `lint` and `docs` derivations), so no separate generated-artifact check is needed.
 
-Confirm `package.json` **`version`** matches the tag you will push (`0.0.20` → tag `0.0.20`, no `v` prefix).
+Confirm `package.json` **`version`** matches the tag you will push (`0.0.21` → tag `0.0.21`, no `v` prefix).
 
 Update **`CHANGELOG.md`** for the new version.
 
@@ -41,8 +41,8 @@ Edit sources: `examples/`, `reference/REFERENCE.md`, `website/docs-src/`.
 2. Tag and push the release:
 
    ```shell
-   git tag 0.0.20
-   git push upstream 0.0.20
+   git tag 0.0.21
+   git push upstream 0.0.21
    ```
 
 3. **Release workflow** (`.github/workflows/release.yml`) runs on the tag:
@@ -105,7 +105,7 @@ Configure on the **package**, not only your npm account:
 
 9. Push the current `release.yml` (Node 24 `setup-node`, **no** `NODE_AUTH_TOKEN`, no `_authToken` in `.npmrc` during publish).
 
-10. Re-run: Actions → **Release** → **Run workflow** with tag `0.0.19`, or push tag `0.0.20` after bumping version.
+10. Re-run: Actions → **Release** → **Run workflow** with the release tag after bumping `package.json` version.
 
 11. Optional hardening (after first green OIDC publish): package **Settings** → **Publishing access** → *Require two-factor authentication and disallow tokens*.
 

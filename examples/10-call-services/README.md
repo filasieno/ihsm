@@ -177,13 +177,13 @@ With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispa
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
-On the [documentation page](https://filasieno.github.io/ihsm/tutorials/10-call-services), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:tutorials` headlessly.
+On the [documentation page](https://filasieno.github.io/ihsm/reference), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:examples` headlessly.
 
 **What to notice:** `#getBalance` is a service dispatch (same queue as events). Client `await call(...)` resolves when the handler calls `resolve(...)`.
 
 ## Verify
 
 ```shell
-npm run test:tutorials -- --grep 'Tutorial 10'
+npm run test:examples -- --grep 'Tutorial 10'
 ```
 

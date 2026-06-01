@@ -16,6 +16,7 @@ forbidden docs-build
 forbidden website/docs
 forbidden website/sidebars.ts
 forbidden website/.docusaurus
+forbidden website/.docs-staging
 forbidden website/static/img/plantuml
 forbidden _config.yml
 

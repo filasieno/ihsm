@@ -1,4 +1,8 @@
+/**
+ * Error recovery — onError and onUnhandled on Working state.
+ */
 import * as ihsm from '../../src';
+import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
 export interface WorkerCtx {
@@ -11,7 +15,7 @@ export interface WorkerProtocol {
 	unknown(): void;
 }
 
-export class WorkerTop extends ihsm.TopState<WorkerCtx, WorkerProtocol> implements WorkerProtocol {
+export class WorkerTop extends PlaygroundTopState<WorkerCtx, WorkerProtocol> {
 	risky(): void {
 		throw new Error('simulated failure');
 	}
@@ -33,7 +37,7 @@ export class Working extends WorkerTop {
 	}
 }
 
-ihsm.registerStateNames(self); // grabs every exported state automatically
+ihsm.registerStateNames(self);
 
 export function createWorker() {
 	return ihsm.makeHsm(WorkerTop, { failures: 0, recovered: 0 });

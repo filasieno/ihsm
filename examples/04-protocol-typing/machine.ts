@@ -1,4 +1,10 @@
+/**
+ * Protocol typing — compile-time checks on post() event names and payloads.
+ *
+ * Uncomment the lines at the bottom locally to see TypeScript reject typos.
+ */
 import * as ihsm from '../../src';
+import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
 export interface ThermostatCtx {
@@ -11,11 +17,12 @@ export interface ThermostatProtocol {
 	readTarget(): number;
 }
 
-export class ThermostatTop extends ihsm.TopState<ThermostatCtx, ThermostatProtocol> implements ThermostatProtocol {
+export class ThermostatTop extends PlaygroundTopState<ThermostatCtx, ThermostatProtocol> {
 	setTarget(celsius: number): void {
 		this.ctx.celsius = celsius;
 	}
 
+	/** Synchronous “service-like” method still typed on the protocol (not call() here). */
 	readTarget(): number {
 		return this.ctx.celsius;
 	}
@@ -24,7 +31,7 @@ export class ThermostatTop extends ihsm.TopState<ThermostatCtx, ThermostatProtoc
 @ihsm.InitialState
 export class Idle extends ThermostatTop {}
 
-ihsm.registerStateNames(self); // grabs every exported state automatically
+ihsm.registerStateNames(self);
 
 export function createThermostat(initialCelsius: number) {
 	return ihsm.makeHsm(ThermostatTop, { celsius: initialCelsius });

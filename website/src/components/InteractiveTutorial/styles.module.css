@@ -1,9 +1,17 @@
 .panel {
-	border: 1px solid var(--ifm-color-emphasis-300);
-	border-radius: 12px;
-	padding: 1rem;
+	border: 1px solid rgba(255, 255, 255, 0.06);
+	border-radius: 0.75rem;
+	padding: 1.25rem;
 	margin: 1.5rem 0;
-	background: var(--ifm-background-surface-color);
+	background: rgba(9, 9, 11, 0.55);
+	backdrop-filter: blur(12px);
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme='light'] .panel {
+	background: #ffffff;
+	border-color: #e5e5e5;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 }
 
 .toolbar {
@@ -24,35 +32,52 @@
 .fieldGroup label {
 	font-size: 0.85rem;
 	font-weight: 600;
+	color: var(--ifm-font-color-secondary);
 }
 
 .fieldGroup select,
 .fieldGroup input {
 	padding: 0.45rem 0.6rem;
 	border: 1px solid var(--ifm-color-emphasis-300);
-	border-radius: 8px;
-	background: var(--ifm-background-color);
+	border-radius: 0.5rem;
+	background: rgba(24, 24, 27, 0.8);
 	color: var(--ifm-font-color-base);
+}
+
+html[data-theme='light'] .fieldGroup select,
+html[data-theme='light'] .fieldGroup input {
+	background: var(--ifm-background-color);
 }
 
 .primaryButton,
 .secondaryButton {
 	padding: 0.55rem 0.9rem;
-	border-radius: 8px;
+	border-radius: 0.5rem;
 	border: 1px solid transparent;
 	font-weight: 600;
 	cursor: pointer;
+	transition: filter 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
 .primaryButton {
-	background: var(--ifm-color-primary);
-	color: var(--ifm-font-color-base-inverse);
+	background: linear-gradient(to right, #4f46e5, #6366f1);
+	color: #ffffff;
+	box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+}
+
+.primaryButton:hover:not(:disabled) {
+	filter: brightness(1.08);
 }
 
 .secondaryButton {
 	background: transparent;
 	border-color: var(--ifm-color-emphasis-400);
 	color: var(--ifm-font-color-base);
+}
+
+.secondaryButton:hover:not(:disabled) {
+	border-color: var(--ifm-color-primary);
+	background: rgba(99, 102, 241, 0.1);
 }
 
 .primaryButton:disabled,
@@ -90,8 +115,12 @@
 	line-height: 1.45;
 	padding: 0.75rem;
 	border: 1px solid var(--ifm-color-emphasis-300);
-	border-radius: 8px;
-	background: var(--ifm-code-background);
+	border-radius: 0.5rem;
+	background: #18181b;
 	color: var(--ifm-font-color-base);
 	resize: vertical;
+}
+
+html[data-theme='light'] .trace {
+	background: var(--ifm-code-background);
 }

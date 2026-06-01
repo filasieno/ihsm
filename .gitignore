@@ -73,6 +73,7 @@ result*/
 # Docusaurus — generated site (sources: website/docs-src/, tutorials/, reference/)
 /docs-build/
 /website/docs/
+/website/.docs-staging/
 /website/.docusaurus/
 /website/sidebars.ts
 /website/static/img/plantuml/

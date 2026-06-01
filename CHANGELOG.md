@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.21] - 2026-06-01
+
+### Added
+
+- **`scripts/ensure-website-docs.mjs`** — `prestart` / `prebuild` only regenerate `website/docs/` when API or reference output is missing.
+- **`scripts/expand-reference-examples.mjs`** and **`scripts/reference-examples.mjs`** — expanded Reference sections (when/why, state diagram, full commented sources, trace panel) from `examples/`.
+- Staging prepare (`website/.docs-staging/`) so a failed doc step never leaves an empty `website/docs/`.
+- **`examples/shared/playground-top.ts`** — `PlaygroundTopState` with `onUnhandled` that logs and ignores wrong events in trace-panel demos.
+
+### Changed
+
+- Reference page: per-example **when and why**, **full `machine.ts` listings**, diagram immediately above each **Trace** panel (removed redundant “before trace” heading).
+- Documentation site: dark LibreDB-style theme, **1920px** centered layout (sidebar + content).
+- Examples and reference: drop redundant **`implements Protocol`** on state classes — `TopState<Ctx, Protocol>` already binds typing for `makeHsm` / `post` / `call`.
+- `render-plantuml.mjs`: optional SVG render in dev when PlantUML is absent; **`IHSM_REQUIRE_PLANTUML=1`** in Nix/CI (unchanged strict verify).
+- `npm run clean` also removes `website/static/img/plantuml/`.
+- Example READMEs: `/reference` links and `npm run test:examples` (was `test:tutorials`).
+
+### Fixed
+
+- Docs dev server “Can't resolve `@site/docs/api/…`” after partial `sync:docs` (API generated before reference; cache cleared on successful prepare).
+- Trace panel no longer enters **FatalErrorState** when dispatching an event that is invalid for the active state (e.g. `open` while in `Open`).
+
 ## [0.0.20] - 2026-06-01
 
 ### Added
@@ -26,6 +49,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `tutorials/` tree (content merged into reference; machines live under `examples/`).
 - `scripts/generate-topics-mdx.mjs` and per-topic `/guide/*` pages.
+
+### Security
+
+- **`npm` overrides** pin `serialize-javascript` to `^7.0.5` (GHSA-5c6j-r48x-rmvq, high) and
+  `diff` to `^8.0.3` (GHSA-73rr-hh4g-fpgx, moderate) for transitive devDependencies
+  (Mocha, Docusaurus/webpack). `npm audit` reports **0 vulnerabilities**.
 
 ## [0.0.19] - 2026-05-31
 

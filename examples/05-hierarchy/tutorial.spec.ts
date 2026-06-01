@@ -225,14 +225,14 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 			expect(sm.currentState.name).equals('FatalErrorState');
 		});
 
-		it('unhandled event → FatalErrorState', async () => {
+		it('unhandled event is ignored (playground onUnhandled)', async () => {
 			const sm = createDeepMachine();
 			await sm.sync();
 
 			sm.post('notInProtocol' as 'tick');
 			await sm.sync();
 
-			expect(sm.currentState.name).equals('FatalErrorState');
+			expect(sm.currentState).equals(LeafWestA);
 		});
 	});
 });

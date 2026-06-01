@@ -9,7 +9,10 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const typedocOut = path.join(repoRoot, '.typedoc-out');
-const apiOut = path.join(repoRoot, 'website/docs/api');
+const docsRoot = process.env.IHSM_DOCS_DIR
+	? path.resolve(process.env.IHSM_DOCS_DIR)
+	: path.join(repoRoot, 'website/docs');
+const apiOut = path.join(docsRoot, 'api');
 const typedocBin = path.join(repoRoot, 'node_modules/.bin/typedoc');
 
 function runTypedoc() {

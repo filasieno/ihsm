@@ -1,8 +1,15 @@
+/**
+ * Internal transitions — update ctx without transition(); onEntry does not re-run.
+ *
+ * Compare entryCount: it only increments when entering On, not on dim/brighten.
+ */
 import * as ihsm from '../../src';
+import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
 export interface LampCtx {
 	brightness: number;
+	/** Increments only on onEntry — proves exit/entry did not run on dim/brighten. */
 	entryCount: number;
 }
 
@@ -11,14 +18,14 @@ export interface LampProtocol {
 	brighten(delta: number): void;
 }
 
-export class LampTop extends ihsm.TopState<LampCtx, LampProtocol> implements LampProtocol {
+export class LampTop extends PlaygroundTopState<LampCtx, LampProtocol> {
 	onEntry(): void {
 		this.ctx.entryCount += 1;
 	}
 
 	dim(delta: number): void {
 		this.ctx.brightness = Math.max(0, this.ctx.brightness - delta);
-		// Internal transition: no this.transition()
+		// Internal transition: no this.transition() → stay in On, no onEntry.
 	}
 
 	brighten(delta: number): void {
@@ -29,7 +36,7 @@ export class LampTop extends ihsm.TopState<LampCtx, LampProtocol> implements Lam
 @ihsm.InitialState
 export class On extends LampTop {}
 
-ihsm.registerStateNames(self); // grabs every exported state automatically
+ihsm.registerStateNames(self);
 
 export function createLamp(brightness: number) {
 	return ihsm.makeHsm(LampTop, { brightness, entryCount: 0 });

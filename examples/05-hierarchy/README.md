@@ -140,7 +140,7 @@ state DeepTop {
 
 ### Expected trace
 
-When exercising the deep stacks below, use the embedded playground on the [documentation page](https://filasieno.github.io/ihsm/tutorials/05-hierarchy), or run `npm run test:tutorials` headlessly.
+When exercising the deep stacks below, use the embedded playground on the [documentation page](https://filasieno.github.io/ihsm/reference), or run `npm run test:examples` headlessly.
 
 ## How ihsm applies a transition
 
@@ -177,18 +177,18 @@ Errors (`onExit` throw, unhandled events) are in [`tutorial.spec.ts`](./tutorial
 ## Verify
 
 ```shell
-npm run test:tutorials -- --grep 'Tutorial 05'
+npm run test:examples -- --grep 'Tutorial 05'
 ```
 
 One deep-stack case:
 
 ```shell
-npm run test:tutorials -- --grep '05 · 03 sibling'
+npm run test:examples -- --grep '05 · 03 sibling'
 ```
 
 Shallow entry/exit chain:
 
 ```shell
-npm run test:tutorials -- --grep '05 · entry exit'
+npm run test:examples -- --grep '05 · entry exit'
 ```
 

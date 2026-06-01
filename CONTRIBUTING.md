@@ -37,7 +37,7 @@ If you see `remove local node_modules/ to use Nix store deps`, delete a plain
 
 | Command | Purpose |
 | ------- | ------- |
-| `nix flake check` | Full CI gate: library compile, unit + tutorial tests, lint, docs site |
+| `nix flake check` | Full CI gate: library compile, unit + example tests, lint, docs site |
 | `nix build` | Compile library and run tests → `result/lib/` |
 | `nix build .#lint` | TypeScript (full solution), ESLint, Prettier |
 | `nix build .#docs` | Production documentation site → `result/share/doc/ihsm/` |
@@ -73,8 +73,8 @@ for docs-site layout and generated output.
 | ------- | ------- |
 | `npm test` | Unit tests in Node (`src/spec/`), then the same specs minified in headless Chromium |
 | `npm run test:node` | Node-only unit tests |
-| `npm run test:browser` | Minified browser bundles for unit + tutorial specs (Playwright + esbuild) |
-| `npm run test:examples` | Tutorial specs in Node, then minified in the browser |
+| `npm run test:browser` | Minified browser bundles for unit + example specs (Playwright + esbuild) |
+| `npm run test:examples` | Example specs in Node, then minified in the browser |
 | `npm run test:all` | `npm test` + `npm run test:examples` (both environments) |
 
 First-time browser setup: `npx playwright install chromium` (not needed inside Nix dev shell — Chromium path is preset).

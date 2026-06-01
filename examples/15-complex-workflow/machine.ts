@@ -1,4 +1,10 @@
+/**
+ * Complex workflow — async submit, Validating + postNow guard, terminal states.
+ *
+ * Teaches: postNow from onEntry; transition() cleared if only scheduled from onExit/onEntry.
+ */
 import * as ihsm from '../../src';
+import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
 export type OrderPhase = 'draft' | 'validating' | 'approved' | 'rejected' | 'completed';
@@ -19,7 +25,7 @@ export interface CheckoutProtocol {
 	getStatus(resolve: ihsm.ResolveCallback<OrderPhase>, reject: ihsm.RejectCallback): void;
 }
 
-export class CheckoutTop extends ihsm.TopState<CheckoutCtx, CheckoutProtocol> {
+export class CheckoutTop extends PlaygroundTopState<CheckoutCtx, CheckoutProtocol> {
 	getStatus(resolve: ihsm.ResolveCallback<OrderPhase>, _reject: ihsm.RejectCallback): void {
 		resolve(this.ctx.phase);
 	}
@@ -39,7 +45,7 @@ export class Draft extends CheckoutTop {
 	}
 }
 
-/** Decision pseudo state — guard runs via `postNow` after entry. */
+/** Decision pseudo state — guard runs via postNow after entry (hi-priority before normal post). */
 export class Validating extends CheckoutTop {
 	onEntry(): void {
 		this.postNow('applyValidation');
@@ -72,7 +78,7 @@ export class Completing extends CheckoutTop {
 	}
 }
 
-ihsm.registerStateNames(self); // grabs every exported state automatically
+ihsm.registerStateNames(self);
 
 export function createCheckout(orderId: string, amount: number, limit: number) {
 	return ihsm.makeHsm(CheckoutTop, {

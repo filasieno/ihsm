@@ -109,12 +109,12 @@ With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispa
 
 Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
 
-On the [documentation page](https://filasieno.github.io/ihsm/tutorials/15-complex-workflow), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:tutorials` headlessly.
+On the [documentation page](https://filasieno.github.io/ihsm/reference), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:examples` headlessly.
 
 **What to notice:** Async `#submit` finishes validation, enters `Validating`, then `#applyValidation` (via `postNow`) runs in the same dispatch before `end event dispatch`.
 
 ## Verify
 
 ```shell
-npm run test:tutorials -- --grep 'Tutorial 15'
+npm run test:examples -- --grep 'Tutorial 15'
 ```

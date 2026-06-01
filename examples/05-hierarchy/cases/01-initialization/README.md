@@ -22,7 +22,7 @@ state DeepTop {
 
 ### Expected trace
 
-See the **Trace** panel on the [interactive docs site](https://filasieno.github.io/ihsm/tutorials/), or run `npm run test:tutorials` headlessly.
+See the **Trace** panel on the [interactive docs site](https://filasieno.github.io/ihsm/reference), or run `npm run test:examples` headlessly.
 
 ## Starting point
 
@@ -46,5 +46,5 @@ Each composite on the path runs `onEntry` **outer → inner**.
 ## Verify
 
 ```shell
-npm run test:tutorials -- --grep '05 · 01 initialization'
+npm run test:examples -- --grep '05 · 01 initialization'
 ```
