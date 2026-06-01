@@ -5,11 +5,11 @@ runs:
   using: composite
   steps:
     - name: Install Nix
-      uses: DeterminateSystems/nix-installer-action@v16
+      uses: DeterminateSystems/nix-installer-action@v22
       with:
         extra-conf: |
           experimental-features = nix-command flakes
           accept-flake-config = true
 
     - name: Magic Nix cache
-      uses: DeterminateSystems/magic-nix-cache-action@v9
+      uses: DeterminateSystems/magic-nix-cache-action@v14
