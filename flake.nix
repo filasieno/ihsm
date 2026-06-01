@@ -284,6 +284,7 @@
               git
               plantuml
               graphviz
+              chromium
             ];
 
             shellHook = ''
@@ -291,6 +292,8 @@
               export SOURCE_DATE_EPOCH="${toString self.lastModified}"
               export TZ=UTC
               export LC_ALL=C.UTF-8
+              export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+              export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${pkgs.chromium}/bin/chromium"
               if [ -e node_modules ] && [ ! -L node_modules ]; then
                 echo "ihsm: remove local node_modules/ to use Nix store deps (rm -rf node_modules)."
               else
@@ -325,7 +328,7 @@
               echo ""
               echo "Dev (uses the same npm lockfile as nix build):"
               echo "  npm run test:all         Node + minified browser (unit + tutorials)"
-              echo "  npx playwright install chromium   first-time browser test setup"
+              echo "  Chromium for Playwright:  $PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"
               echo "  npm run doc:preview    Docusaurus dev server (interactive tutorials)"
               echo "  npm run release:check  full local gate (needs network for doc)"
             '';
