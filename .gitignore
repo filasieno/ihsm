@@ -24,12 +24,13 @@ lib-cov
 # Dependencies (also ignore the Nix store symlink, not just real dirs)
 /node_modules
 node_modules/
+packages/ihsm/node_modules/
 node_modules.bak/
 jspm_packages/
 
 # TypeScript — compiled library + project-reference cache (never commit)
-/lib/
-/.tsc/
+/packages/ihsm/lib/
+/packages/ihsm/.tsc/
 *.tsbuildinfo
 .t
 
@@ -58,8 +59,8 @@ jspm_packages/
 
 # Compiled output next to sources (lib/ is the only publishable JS output;
 # declarations belong in lib/ and the tutorial build cache in .tsc/)
-/src/**/*.js
-/src/**/*.d.ts
+/packages/ihsm/src/**/*.js
+/packages/ihsm/src/**/*.d.ts
 /tutorials/**/*.js
 /tutorials/**/*.d.ts
 **.map
@@ -70,13 +71,13 @@ jspm_packages/
 result*/
 **/result*/
 
-# Docusaurus — generated site (sources: website/docs-src/, tutorials/, reference/)
-/docs-build/
-/website/docs/
-/website/.docs-staging/
-/website/.docusaurus/
-/website/sidebars.ts
-/website/static/img/plantuml/
+# Docusaurus — generated site (sources: packages/ihsm/website/docs-src/, …)
+/packages/ihsm/docs-build/
+/packages/ihsm/website/docs/
+/packages/ihsm/website/.docs-staging/
+/packages/ihsm/website/.docusaurus/
+/packages/ihsm/website/sidebars.ts
+/packages/ihsm/website/static/img/plantuml/
 
 # IDE — .vscode/ is committed; ignore other local editor files
 .idea/

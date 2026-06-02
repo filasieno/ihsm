@@ -46,7 +46,7 @@ jobs:
       - name: Verify version matches tag
         run: |
           TAG="${{ steps.tag.outputs.ref }}"
-          PKG="$(jq -r .version package.json)"
+          PKG="$(jq -r .version packages/ihsm/package.json)"
           case "${TAG}" in
             v*) echo "Tags must not use a v prefix (expected ${TAG#v}, got ${TAG})"; exit 1 ;;
           esac
@@ -61,8 +61,8 @@ jobs:
       - name: Stage built package for npm
         run: |
           nix build .#ihsm --print-build-logs -o result
-          rm -rf lib
-          cp -r result/lib ./lib
+          rm -rf packages/ihsm/lib
+          cp -r result/lib ./packages/ihsm/lib
 
       # npm Trusted Publishing (OIDC) — no NPM_TOKEN / NODE_AUTH_TOKEN anywhere.
       # Package settings: npmjs.com/package/ihsm → Trusted publishing →
@@ -77,7 +77,7 @@ jobs:
       - name: Publish to npm via Trusted Publishing
         run: |
           set -euo pipefail
-          VERSION="$(jq -r .version package.json)"
+          VERSION="$(jq -r .version packages/ihsm/package.json)"
           if npm view "ihsm@${VERSION}" version >/dev/null 2>&1; then
             echo "ihsm@${VERSION} is already published — skipping npm publish."
             exit 0
@@ -93,11 +93,12 @@ jobs:
           # Strip any token setup-node or a leftover GitHub secret may have written.
           npm config delete //registry.npmjs.org/:_authToken --location=user 2>/dev/null || true
           npm config delete //registry.npmjs.org/:_authToken --location=project 2>/dev/null || true
+          unset NODE_AUTH_TOKEN NPM_TOKEN
+          cd packages/ihsm
           if grep -q '_authToken' .npmrc 2>/dev/null; then
-            echo "Refusing to publish: project .npmrc still contains _authToken" >&2
+            echo "Refusing to publish: packages/ihsm/.npmrc still contains _authToken" >&2
             exit 1
           fi
-          unset NODE_AUTH_TOKEN NPM_TOKEN
           npm publish --access public --ignore-scripts
 
       - name: Create GitHub release

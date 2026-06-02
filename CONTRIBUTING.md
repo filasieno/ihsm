@@ -9,6 +9,10 @@ git clone https://github.com/filasieno/ihsm.git
 cd ihsm
 ```
 
+All library sources, build scripts, npm lockfile, and Nix flake live in **`packages/ihsm/`**. The repo root forwards CI/Nix via a thin `flake.nix` wrapper.
+
+The publishable library and all npm scripts live in **`packages/ihsm/`**. The repo root is a thin workspace wrapper (dotfiles, Nix, CI).
+
 ### Requirements
 
 **[Nix](https://nixos.org/download/)** with flakes enabled — the only prerequisite to build and test from source.
@@ -18,14 +22,15 @@ cd ihsm
 **Always use the Nix dev shell** before running npm scripts. It provides Node 22, PlantUML, Graphviz, and a store-pinned `node_modules` symlink (same lockfile as CI).
 
 ```shell
+cd packages/ihsm
 nix develop
-# or: direnv allow    # .envrc → use flake; auto-enters the shell in supported terminals
+# or from repo root: direnv allow  (.envrc → packages/ihsm flake)
 ```
 
-Run npm commands **inside** that shell, or prefix each one with `nix develop --command`:
+Run npm commands **inside** `packages/ihsm`, or:
 
 ```shell
-nix develop --command npm test
+nix develop ./packages/ihsm --command npm test
 ```
 
 If you see `remove local node_modules/ to use Nix store deps`, delete a plain
@@ -49,12 +54,12 @@ nix flake check
 ```
 
 After `nix build .#docs`, copy artifacts from `result/share/doc/ihsm/` or run
-`bash scripts/verify-docs-site.sh result/share/doc/ihsm`.
+`bash packages/ihsm/scripts/verify-docs-site.sh result/share/doc/ihsm`.
 
 ### npm scripts
 
 All commands below assume **`nix develop`** (interactive shell) or
-**`nix develop --command …`** (one-shot). See [website/README.md](./website/README.md)
+**`nix develop --command …`** (one-shot). See [website/README.md](packages/ihsm/website/README.md)
 for docs-site layout and generated output.
 
 #### Build

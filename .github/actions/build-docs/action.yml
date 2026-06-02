@@ -21,7 +21,7 @@ runs:
 
     - name: Stage dist for Pages artifact
       run: |
-        rm -rf docs-build
-        mkdir -p docs-build
-        cp -r result/share/doc/ihsm/* docs-build/
+        rm -rf packages/ihsm/docs-build
+        mkdir -p packages/ihsm/docs-build
+        cp -r result/share/doc/ihsm/* packages/ihsm/docs-build/
       shell: bash

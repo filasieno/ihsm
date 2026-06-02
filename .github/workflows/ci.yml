@@ -24,7 +24,7 @@ jobs:
           attic-token: ${{ secrets.ATTIC_TOKEN }}
 
       - name: Check formatting
-        run: nix fmt -- --check flake.nix
+        run: nix fmt -- --check flake.nix packages/ihsm/flake.nix
 
       - name: Build, test, lint, and docs
         run: nix flake check --print-build-logs
@@ -46,7 +46,7 @@ jobs:
       # nyc instruments test:node only; browser suites are already exercised in
       # the nix flake check job (with Chromium from the Nix store).
       - name: Generate lcov
-        run: nix develop --command bash -c 'npm run test:node && npm run coverage'
+        run: nix develop ./packages/ihsm --command bash -c 'npm run test:node && npm run coverage'
 
       - name: Upload coverage to Coveralls
         uses: coverallsapp/github-action@v2

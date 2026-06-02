@@ -5,32 +5,15 @@
 			"label": "typecheck",
 			"type": "shell",
 			"command": "npm run typecheck",
-			"options": {
-				"cwd": "${workspaceFolder}"
-			},
-			"group": {
-				"kind": "build",
-				"isDefault": true
-			},
+			"options": { "cwd": "${workspaceFolder}/packages/ihsm" },
+			"group": { "kind": "build", "isDefault": true },
 			"problemMatcher": ["$tsc"]
 		},
 		{
 			"label": "test",
 			"type": "shell",
 			"command": "npm test",
-			"options": {
-				"cwd": "${workspaceFolder}"
-			},
-			"group": "test",
-			"problemMatcher": []
-		},
-		{
-			"label": "test:browser",
-			"type": "shell",
-			"command": "npm run test:browser",
-			"options": {
-				"cwd": "${workspaceFolder}"
-			},
+			"options": { "cwd": "${workspaceFolder}/packages/ihsm" },
 			"group": "test",
 			"problemMatcher": []
 		},
@@ -38,19 +21,7 @@
 			"label": "test:all",
 			"type": "shell",
 			"command": "npm run test:all",
-			"options": {
-				"cwd": "${workspaceFolder}"
-			},
-			"group": "test",
-			"problemMatcher": []
-		},
-		{
-			"label": "test:examples",
-			"type": "shell",
-			"command": "npm run test:examples",
-			"options": {
-				"cwd": "${workspaceFolder}"
-			},
+			"options": { "cwd": "${workspaceFolder}/packages/ihsm" },
 			"group": "test",
 			"problemMatcher": []
 		},
@@ -58,9 +29,7 @@
 			"label": "lint",
 			"type": "shell",
 			"command": "npm run lint",
-			"options": {
-				"cwd": "${workspaceFolder}"
-			},
+			"options": { "cwd": "${workspaceFolder}/packages/ihsm" },
 			"problemMatcher": ["$eslint-stylish"]
 		}
 	]

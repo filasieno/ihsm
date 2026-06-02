@@ -1,34 +1,34 @@
 {
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"typescript.enablePromptUseWorkspaceTsdk": true,
-	"eslint.workingDirectories": [{ "mode": "auto" }],
+	"eslint.workingDirectories": [{ "directory": "packages/ihsm", "changeProcessCWD": true }],
 	"eslint.useFlatConfig": true,
 	"files.watcherExclude": {
-		".tsc/**": true,
-		"lib/**": true,
-		"coverage/**": true,
-		"docs-build/**": true,
-		"website/.docusaurus/**": true,
-		"website/docs/**": true,
-		"website/static/img/plantuml/**": true
+		"packages/ihsm/.tsc/**": true,
+		"packages/ihsm/lib/**": true,
+		"packages/ihsm/coverage/**": true,
+		"packages/ihsm/docs-build/**": true,
+		"packages/ihsm/website/.docusaurus/**": true,
+		"packages/ihsm/website/docs/**": true,
+		"packages/ihsm/website/static/img/plantuml/**": true
 	},
 	"search.exclude": {
-		".tsc": true,
-		"lib": true,
-		"coverage": true,
-		"docs-build": true,
-		"website/.docusaurus": true,
-		"website/docs": true
+		"packages/ihsm/.tsc": true,
+		"packages/ihsm/lib": true,
+		"packages/ihsm/coverage": true,
+		"packages/ihsm/docs-build": true,
+		"packages/ihsm/website/.docusaurus": true,
+		"packages/ihsm/website/docs": true
 	},
 	"typescript.tsserver.watchOptions": {
 		"excludeDirectories": [
 			"**/node_modules",
-			".tsc",
-			"lib",
-			"coverage",
-			"docs-build",
-			"website/.docusaurus",
-			"website/docs"
+			"packages/ihsm/.tsc",
+			"packages/ihsm/lib",
+			"packages/ihsm/coverage",
+			"packages/ihsm/docs-build",
+			"packages/ihsm/website/.docusaurus",
+			"packages/ihsm/website/docs"
 		]
 	}
 }

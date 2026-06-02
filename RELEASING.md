@@ -15,13 +15,13 @@ Run locally on **`dev`**, then merge to **`master`** when green:
 ```shell
 nix flake check
 nix build .#docs
-bash scripts/verify-docs-site.sh docs-build
+bash packages/ihsm/scripts/verify-docs-site.sh packages/ihsm/docs-build
 ```
 
 `nix flake check` already runs `scripts/verify-no-generated-in-source.sh` (via the
 `lint` and `docs` derivations), so no separate generated-artifact check is needed.
 
-Confirm `package.json` **`version`** matches the tag you will push (`0.0.21` → tag `0.0.21`, no `v` prefix).
+Confirm `packages/ihsm/package.json` **`version`** matches the tag you will push (`0.0.21` → tag `0.0.21`, no `v` prefix).
 
 Update **`CHANGELOG.md`** for the new version.
 
