@@ -13,13 +13,13 @@
 		"@docusaurus/plugin-client-redirects": "^3.10.1",
 		"@docusaurus/preset-classic": "^3.10.1",
 		"prism-react-renderer": "^2.4.1",
-		"react": "^19.2.6",
-		"react-dom": "^19.2.6"
+		"react": "^19.2.7",
+		"react-dom": "^19.2.7"
 	},
 	"devDependencies": {
 		"@docusaurus/module-type-aliases": "^3.10.1",
 		"@docusaurus/types": "^3.10.1",
-		"@types/react": "^19.2.15",
+		"@types/react": "^19.2.17",
 		"@types/react-dom": "^19.2.3",
 		"swc-loader": "^0.2.7"
 	}
