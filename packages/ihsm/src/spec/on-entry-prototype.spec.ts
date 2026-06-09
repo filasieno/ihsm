@@ -17,9 +17,7 @@ interface Protocol {
 class OnEntryPrototypeTop extends TopState<OnEntryPrototypeCtx, Protocol> {
 	protected recordOnEntry(expected: StateClass<OnEntryPrototypeCtx, Protocol>): void {
 		if (this.currentState !== expected) {
-			throw new Error(
-				`onEntry invariant: expected active state ${expected.name}, got ${this.currentState.name}`,
-			);
+			throw new Error(`onEntry invariant: expected active state ${expected.name}, got ${this.currentState.name}`);
 		}
 		this.ctx.onEntryStates.push(expected);
 	}

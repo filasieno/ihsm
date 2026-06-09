@@ -53,15 +53,10 @@ export function getStateName<Context, Protocol extends {} | undefined>(state: St
  * @internal Switch the instance prototype to `state` immediately before `onEntry`.
  * Invariants and `this.currentState` must reflect the entering state during the hook.
  */
-export function adoptStateBeforeOnEntry<Context, Protocol extends {} | undefined>(
-	hsm: { _instance: object; currentState: StateClass<Context, Protocol> },
-	state: StateClass<Context, Protocol>,
-): void {
+export function adoptStateBeforeOnEntry<Context, Protocol extends {} | undefined>(hsm: { _instance: object; currentState: StateClass<Context, Protocol> }, state: StateClass<Context, Protocol>): void {
 	hsm.currentState = state;
 	const actual = Object.getPrototypeOf(hsm._instance).constructor;
 	if (actual !== state) {
-		throw new Error(
-			`ihsm: prototype must be ${getStateName(state)} before onEntry, was ${getStateName(actual as StateClass<Context, Protocol>)}`,
-		);
+		throw new Error(`ihsm: prototype must be ${getStateName(state)} before onEntry, was ${getStateName(actual as StateClass<Context, Protocol>)}`);
 	}
 }
