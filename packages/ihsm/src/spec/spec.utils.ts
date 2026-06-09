@@ -1,4 +1,4 @@
-import { Base, Disposable, EventObserver, TraceLevel, TracedMessage } from '../';
+import { Base, Disposable, EventObserver, TraceLevel } from '../';
 import { registerStateNamesFromExports } from '../../examples/shared/state-names';
 
 export const TRACE_LEVELS: TraceLevel[] = [TraceLevel.VERBOSE_DEBUG, TraceLevel.DEBUG, TraceLevel.PRODUCTION];

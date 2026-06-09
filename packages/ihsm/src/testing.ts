@@ -15,7 +15,7 @@
  *
  * @packageDocumentation
  */
-import { Any, ActorOptions, BasePort, Disjoint, Dispatch, Disposable, DispatchErrorCallback, EventObserver, Hsm, InboundPoster, MachineContext, MachineInternal, MachinePort, PortHandle, RandomService, TimerHandle, TopStateArg, TraceLevel, TracedMessage, defaultDispatchErrorCallback, defaultInitialize, defaultTraceWriter, makeHsm } from './index';
+import { Any, ActorOptions, BasePort, Disjoint, Dispatch, Disposable, DispatchErrorCallback, EventObserver, Hsm, MachinePort, PortHandle, RandomService, TimerHandle, TopStateArg, TraceLevel, TracedMessage, defaultDispatchErrorCallback, defaultInitialize, defaultTraceWriter, makeHsm } from './index';
 
 export * from './index';
 
