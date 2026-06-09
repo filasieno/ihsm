@@ -19,6 +19,9 @@
 		"node": ">=22"
 	},
 	"sideEffects": false,
+	"publishConfig": {
+		"access": "public"
+	},
 	"dependencies": {
 		"ihsm": "0.0.23"
 	},

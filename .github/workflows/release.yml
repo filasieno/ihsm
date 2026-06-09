@@ -102,6 +102,12 @@ jobs:
             npm publish --access public --ignore-scripts
           fi
 
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.tag.outputs.ref }}
+          generate_release_notes: true
+
       - name: Build @ihsm/core
         run: |
           set -euo pipefail
@@ -113,6 +119,7 @@ jobs:
           npm run build
 
       - name: Publish @ihsm/core to npm
+        continue-on-error: true
         run: |
           set -euo pipefail
           VERSION="$(jq -r .version packages/ihsm/package.json)"
@@ -122,9 +129,3 @@ jobs:
           fi
           cd packages/core
           npm publish --access public --ignore-scripts
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ steps.tag.outputs.ref }}
-          generate_release_notes: true
