@@ -30,6 +30,12 @@ import { executeTransitionRoutine } from 'ihsm/transition-routines';
 
 Release (`.github/workflows/release.yml`) publishes **`ihsm`** then **`@ihsm/core`** on every tag.
 
+### `@ihsm/tools` (in progress)
+
+[`tools/`](tools/) — development utilities (state discovery, transition-table generation,
+testdata oracle). Ships the Cursor agent skill for authoring and DST testing under
+[`tools/skill/SKILL.md`](tools/skill/SKILL.md) (companion: [`reference.md`](tools/skill/reference.md)).
+
 ### Phase 2 — later
 
 ```
