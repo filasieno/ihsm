@@ -98,7 +98,9 @@ the port/actor model keeps every generated scenario replayable once you capture 
 
 **How ihsm maps here:** golden traces are a lightweight oracle for ordering and side effects;
 combine them with domain invariants on `ctx` and explicit `expect` assertions. `TestPort.trace`
-and `Stubbed.calls` make regressions local.
+and `Stubbed.calls` make regressions local. For lifecycle hooks, assert `this.currentState` or
+call `_checkInvariant()` inside `onEntry` — the runtime adopts the entering state prototype
+before each hook (see `src/spec/on-entry-prototype.spec.ts`).
 
 ### G. Reproducibility & debugging workflow
 

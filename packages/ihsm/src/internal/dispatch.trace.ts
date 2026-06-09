@@ -1,7 +1,7 @@
 import { TopState, EventHandlerError, PostedEvent, EventPayload, FatalErrorState, InitializationError, FatalError, RuntimeError, StateClass, TransitionError, UnhandledEventError } from '../';
 
 import { DoneCallback, HsmWithTracing, Task, Transition } from './defs.private';
-import { asError, getInitialState, getTransitionKey, hasInitialState, quoteUnknown, getStateName } from './utils';
+import { asError, getInitialState, getTransitionKey, hasInitialState, quoteUnknown, getStateName, adoptStateBeforeOnEntry } from './utils';
 
 function finishEventDispatch<Context, Protocol extends {} | undefined>(hsm: HsmWithTracing<Context, Protocol>): void {
 	hsm._traceWrite(`end event dispatch`);
@@ -46,6 +46,7 @@ class TraceTransition<Context, Protocol extends {} | undefined> implements Trans
 		for (const state of this.entryList) {
 			const statePrototype = state.prototype;
 			const stateName = getStateName(state);
+			adoptStateBeforeOnEntry(hsm, state);
 			if (Object.prototype.hasOwnProperty.call(statePrototype, 'onEntry')) {
 				try {
 					const res = statePrototype.onEntry.call(hsm._instance);
@@ -282,6 +283,7 @@ async function executeInit<Context, Protocol extends {} | undefined>(hsm: HsmWit
 		hsm._tracePush(`initialize`, `started initialization from ${getStateName(hsm.topState)}`);
 		try {
 			while (true) {
+				adoptStateBeforeOnEntry(hsm, currState);
 				if (Object.prototype.hasOwnProperty.call(currState.prototype, 'onEntry')) {
 					currState.prototype['onEntry'].call(hsm._instance);
 					hsm._traceWrite(`${getStateName(currState)}.onEntry() done`);
@@ -299,7 +301,6 @@ async function executeInit<Context, Protocol extends {} | undefined>(hsm: HsmWit
 				}
 			}
 			hsm._tracePopDone(`final state is ${getStateName(currState)}`);
-			hsm.currentState = currState;
 		} catch (cause) {
 			if (cause instanceof TransitionError) {
 				throw cause;

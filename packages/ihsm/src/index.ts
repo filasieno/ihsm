@@ -1073,8 +1073,10 @@ export interface StateEvents<Context, Protocol extends {} | undefined> {
 	/**
 	 * Invoked when **entering** this state during initialization or an external transition.
 	 *
-	 * Runs during the entry phase after the prototype points at this state. Async `onEntry` is
-	 * awaited before entering nested initial substates or running deeper `onEntry` hooks.
+	 * Runs during the entry phase **after** the instance prototype points at this state
+	 * (the runtime adopts the entering state class immediately before invoking the hook).
+	 * Async `onEntry` is awaited before entering nested initial substates or running deeper
+	 * `onEntry` hooks.
 	 *
 	 * @throws {@link TransitionError} or {@link InitializationError} when this hook throws
 	 *

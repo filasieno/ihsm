@@ -2,7 +2,7 @@ import { TopState, EventHandlerError, PostedEvent, EventPayload, FatalErrorState
 
 import { DoneCallback, HsmWithTracing, Task, Transition } from './defs.private';
 import { lookupEventHandler } from './lookup';
-import { getInitialState, getTransitionKey, hasInitialState, asError, getStateName } from './utils';
+import { getInitialState, getTransitionKey, hasInitialState, asError, getStateName, adoptStateBeforeOnEntry } from './utils';
 
 class ProductionTransition<Context, Protocol extends {} | undefined> implements Transition<Context, Protocol> {
 	constructor(
@@ -27,6 +27,7 @@ class ProductionTransition<Context, Protocol extends {} | undefined> implements 
 		// Execute entry
 		for (const state of this.entryList) {
 			try {
+				adoptStateBeforeOnEntry(hsm, state);
 				const res = state.prototype.onEntry.call(hsm._instance);
 				if (res) {
 					await res;
@@ -158,6 +159,7 @@ async function executeInit<Context, Protocol extends {} | undefined>(hsm: HsmWit
 	let currState: StateClass<Context, Protocol> = hsm.topState;
 	try {
 		while (true) {
+			adoptStateBeforeOnEntry(hsm, currState);
 			const proto = currState.prototype;
 			if (proto.hasOwnProperty('onEntry')) {
 				proto.onEntry.call(hsm._instance);
@@ -166,7 +168,6 @@ async function executeInit<Context, Protocol extends {} | undefined>(hsm: HsmWit
 				currState = getInitialState(currState);
 			} else break;
 		}
-		hsm.currentState = currState;
 	} catch (cause) {
 		if (cause instanceof TransitionError) {
 			throw cause;

@@ -44,7 +44,9 @@ This is idiomatic, readable, and avoids promise chains outside the machine.
 
 ### 2. Parent-state shared behavior
 
-Shared teardown on a parent state class (e.g. `ServerTop.tearDownServer`) is required because ihsm runs `onEntry` before the leaf prototype swap. Documented in reference §5; works when authors know the rule.
+Parent `onEntry` / `onExit` hooks run with the parent state as the active prototype when that
+state is entered during init or a transition — use them for shared setup/teardown without
+`TargetState.prototype._checkInvariant.call(this)` workarounds.
 
 ### 3. Orthogonal regions without framework magic
 

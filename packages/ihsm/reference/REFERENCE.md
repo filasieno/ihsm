@@ -659,9 +659,10 @@ With `left to right direction`, compass keywords are interpreted **before** the 
 to place a target **below** the source, use `-left->`; **above**, use `-right->`.
 Do not use self-loop arrows for internal transitions — use in-state `State : event / action` text instead.
 
-**After `makeHsm(TopState, ctx)`** the runtime performs **initialization**: `onEntry`
-from the top state down through each composite’s initial child until the deepest
-initial leaf is active (same order as following `[ * ]` arrows inward).
+**After `makeHsm(TopState, ctx)`** the runtime performs **initialization**: before each
+`onEntry`, the prototype switches to that state class, then the hook runs from the top state
+down through each composite’s initial child until the deepest initial leaf is active (same order
+as following `[ * ]` arrows inward).
 
 **Active state** = `Object.getPrototypeOf(instance).constructor` — always one
 **leaf class** in normal operation, not “parent and child simultaneously”.
@@ -861,8 +862,11 @@ States are classes; inheritance is the hierarchy. To transition from `src` to
 3. **Exit** states from the current leaf up to (not including) the LCA — only
    classes that **define their own** `onExit` (debug/verbose trace lists).
 4. **Enter** states from the LCA down toward `dst`; if `dst` is composite,
-   follow each `@InitialState` until the deepest initial leaf.
-5. Set `currentState` to that final leaf class.
+   follow each `@InitialState` until the deepest initial leaf. **Before each
+   `onEntry`**, the runtime sets the instance prototype to that entering state
+   class so `this.currentState` and invariants match the hook being run.
+5. Ensure `currentState` is the final leaf (redundant when the entry path ran;
+   required when the transition is exit-only).
 
 Paths are **cached** per `FromState=>ToState` in `_transitionCache`.
 
