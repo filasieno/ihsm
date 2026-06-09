@@ -1,0 +1,11 @@
+{
+	"diff": true,
+	"extension": ["ts"],
+	"require": ["ts-node/register/transpile-only"],
+	"node-option": ["no-experimental-strip-types"],
+	"spec": ["src/spec/**/*.spec.ts"],
+	"package": "./package.json",
+	"reporter": "spec",
+	"timeout": 120000,
+	"ui": "bdd"
+}

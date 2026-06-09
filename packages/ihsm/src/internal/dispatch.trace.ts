@@ -1,6 +1,7 @@
 import { TopState, EventHandlerError, PostedEvent, EventPayload, FatalErrorState, InitializationError, FatalError, RuntimeError, StateClass, TransitionError, UnhandledEventError } from '../';
 
 import { DoneCallback, HsmWithTracing, Task, Transition } from './defs.private';
+import { createHsmTransitionTrace, executeTransitionRoutine, planTransitionClasses } from './transition-routines';
 import { asError, getInitialState, getTransitionKey, hasInitialState, quoteUnknown, getStateName } from './utils';
 
 function finishEventDispatch<Context, Protocol extends {} | undefined>(hsm: HsmWithTracing<Context, Protocol>): void {
@@ -16,99 +17,22 @@ async function completePendingTransitions<Context, Protocol extends {} | undefin
 
 /** @internal */
 class TraceTransition<Context, Protocol extends {} | undefined> implements Transition<Context, Protocol> {
-	constructor(
-		private exitList: Array<StateClass<Context, Protocol>>,
-		private entryList: Array<StateClass<Context, Protocol>>
-	) {}
+	constructor(private plan: ReturnType<typeof planTransitionClasses<Context, Protocol>>) {}
 
 	async execute(hsm: HsmWithTracing<Context, Protocol>, srcState: StateClass<Context, Protocol>, dstState: StateClass<Context, Protocol>): Promise<void> {
-		hsm._tracePush(`transition from ${getStateName(srcState)} to ${getStateName(dstState)}`, `started transition from ${getStateName(srcState)} to ${getStateName(dstState)} `);
-
-		for (const state of this.exitList) {
-			const statePrototype = state.prototype;
-			const stateName = getStateName(state);
-			if (Object.prototype.hasOwnProperty.call(statePrototype, 'onExit')) {
-				try {
-					const res = statePrototype.onExit.call(hsm._instance);
-					if (res) {
-						await res;
-					}
-					hsm._traceWrite(`${stateName}.onExit() done`);
-				} catch (cause) {
-					hsm._tracePopError(`${stateName}.onExit() has thrown ${quoteUnknown(cause)}`);
-					throw new TransitionError(hsm, asError(cause), stateName, 'onExit', getStateName(srcState), getStateName(dstState));
-				}
-			} else {
-				hsm._traceWrite(`${stateName}.onExit() skipped: default empty implementation`);
-			}
-		}
-
-		for (const state of this.entryList) {
-			const statePrototype = state.prototype;
-			const stateName = getStateName(state);
-			if (Object.prototype.hasOwnProperty.call(statePrototype, 'onEntry')) {
-				try {
-					const res = statePrototype.onEntry.call(hsm._instance);
-					if (res) {
-						await res;
-					}
-					hsm._traceWrite(`${stateName}.onEntry() done`);
-				} catch (cause) {
-					hsm._tracePopError(`${stateName}.onEntry() has thrown ${quoteUnknown(cause)}`);
-					throw new TransitionError(hsm, asError(cause), getStateName(state), 'onEntry', getStateName(srcState), getStateName(dstState));
-				}
-			} else {
-				hsm._traceWrite(`${stateName}.onEntry() skipped: default empty implementation`);
-			}
-		}
-		let newState;
-		if (this.entryList.length !== 0) {
-			newState = this.entryList[this.entryList.length - 1];
-		} else if (this.exitList.length !== 0) {
-			newState = Object.getPrototypeOf(this.exitList[this.exitList.length - 1]);
-		} else {
-			newState = hsm.currentState;
-		}
-		hsm._tracePopDone(`final state is ${getStateName(newState)}`);
-		hsm.currentState = newState;
+		await executeTransitionRoutine(hsm, hsm._instance, this.plan, srcState, dstState, {
+			style: 'verbose',
+			trace: createHsmTransitionTrace(hsm),
+			setCurrentState: state => {
+				hsm.currentState = state;
+			},
+		});
 	}
 }
 
 /** @internal */
 function createTransition<Context, Protocol extends {} | undefined>(srcState: StateClass<Context, Protocol>, destState: StateClass<Context, Protocol>): Transition<Context, Protocol> {
-	const src: StateClass<Context, Protocol> = srcState;
-	let dst: StateClass<Context, Protocol> = destState;
-	let srcPath: StateClass<Context, Protocol>[] = [];
-	const end: StateClass<Context, Protocol> = TopState;
-	const srcIndex: Map<StateClass<Context, Protocol>, number> = new Map();
-	const dstPath: StateClass<Context, Protocol>[] = [];
-	let cur: StateClass<Context, Protocol> = src;
-	let i = 0;
-
-	while (cur !== end) {
-		srcPath.push(cur);
-		srcIndex.set(cur, i);
-		cur = Object.getPrototypeOf(cur);
-		++i;
-	}
-	cur = dst;
-
-	while (cur !== end) {
-		const i = srcIndex.get(cur);
-		if (i !== undefined) {
-			srcPath = srcPath.slice(0, i);
-			break;
-		}
-		dstPath.unshift(cur);
-		cur = Object.getPrototypeOf(cur);
-	}
-
-	while (hasInitialState(dst)) {
-		dst = getInitialState(dst);
-		dstPath.push(dst);
-	}
-
-	return new TraceTransition<Context, Protocol>(srcPath, dstPath);
+	return new TraceTransition(planTransitionClasses(srcState, destState));
 }
 
 /** @internal */

@@ -91,6 +91,16 @@
 				"default": "./lib/cjs/testing.js"
 			}
 		},
+		"./transition-routines": {
+			"import": {
+				"types": "./lib/esm/transition-routines.d.ts",
+				"default": "./lib/esm/transition-routines.js"
+			},
+			"require": {
+				"types": "./lib/cjs/transition-routines.d.ts",
+				"default": "./lib/cjs/transition-routines.js"
+			}
+		},
 		"./package.json": "./package.json"
 	},
 	"name": "ihsm",

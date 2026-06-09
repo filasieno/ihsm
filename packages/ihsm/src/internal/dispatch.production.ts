@@ -2,92 +2,28 @@ import { TopState, EventHandlerError, PostedEvent, EventPayload, FatalErrorState
 
 import { DoneCallback, HsmWithTracing, Task, Transition } from './defs.private';
 import { lookupEventHandler } from './lookup';
+import { executeTransitionRoutine, planTransitionClasses } from './transition-routines';
 import { getInitialState, getTransitionKey, hasInitialState, asError, getStateName } from './utils';
 
 class ProductionTransition<Context, Protocol extends {} | undefined> implements Transition<Context, Protocol> {
 	constructor(
-		private exitList: Array<StateClass<Context, Protocol>>,
-		private entryList: Array<StateClass<Context, Protocol>>,
-		private finalState?: StateClass<Context, Protocol>
+		private plan: ReturnType<typeof planTransitionClasses<Context, Protocol>>,
+		private srcState: StateClass<Context, Protocol>,
+		private dstState: StateClass<Context, Protocol>,
 	) {}
 
 	async execute(hsm: HsmWithTracing<Context, Protocol>, srcState: StateClass<Context, Protocol>, dstState: StateClass<Context, Protocol>): Promise<void> {
-		// Execute exit
-		for (const state of this.exitList) {
-			try {
-				const res = state.prototype.onExit.call(hsm._instance);
-				if (res) {
-					await res;
-				}
-			} catch (cause) {
-				throw new TransitionError(hsm, asError(cause), getStateName(state), 'onExit', getStateName(srcState), getStateName(dstState));
-			}
-		}
-
-		// Execute entry
-		for (const state of this.entryList) {
-			try {
-				const res = state.prototype.onEntry.call(hsm._instance);
-				if (res) {
-					await res;
-				}
-			} catch (cause) {
-				throw new TransitionError(hsm, asError(cause), getStateName(state), 'onEntry', getStateName(srcState), getStateName(dstState));
-			}
-		}
-
-		if (this.finalState) {
-			hsm.currentState = this.finalState;
-		}
+		await executeTransitionRoutine(hsm, hsm._instance, this.plan, srcState, dstState, {
+			style: 'production',
+			setCurrentState: state => {
+				hsm.currentState = state;
+			},
+		});
 	}
 }
 
 function createTransition<Context, Protocol extends {} | undefined>(srcState: StateClass<Context, Protocol>, destState: StateClass<Context, Protocol>): Transition<Context, Protocol> {
-	const src: StateClass<Context, Protocol> = srcState;
-	let dst: StateClass<Context, Protocol> = destState;
-	let srcPath: StateClass<Context, Protocol>[] = [];
-	const end: StateClass<Context, Protocol> = TopState;
-	const srcIndex: Map<StateClass<Context, Protocol>, number> = new Map();
-	let dstPath: StateClass<Context, Protocol>[] = [];
-	let cur: StateClass<Context, Protocol> = src;
-	let i = 0;
-
-	while (cur !== end) {
-		srcPath.push(cur);
-		srcIndex.set(cur, i);
-		cur = Object.getPrototypeOf(cur);
-		++i;
-	}
-	cur = dst;
-
-	while (cur !== end) {
-		const i = srcIndex.get(cur);
-		if (i !== undefined) {
-			srcPath = srcPath.slice(0, i);
-			break;
-		}
-		dstPath.unshift(cur);
-		cur = Object.getPrototypeOf(cur);
-	}
-
-	while (hasInitialState(dst)) {
-		dst = getInitialState(dst);
-		dstPath.push(dst);
-	}
-
-	let finalState: StateClass<Context, Protocol> | undefined;
-	if (dstPath.length !== 0) {
-		finalState = dstPath[dstPath.length - 1];
-	} else if (srcPath.length !== 0) {
-		finalState = Object.getPrototypeOf(srcPath[srcPath.length - 1]);
-	} else {
-		finalState = undefined;
-	}
-
-	srcPath = srcPath.filter(value => !value.hasOwnProperty('onExit'));
-	dstPath = dstPath.filter(value => !value.hasOwnProperty('onEntry'));
-
-	return new ProductionTransition<Context, Protocol>(srcPath, dstPath, finalState);
+	return new ProductionTransition(planTransitionClasses(srcState, destState), srcState, destState);
 }
 
 async function doTransition<Context, Protocol extends {} | undefined>(hsm: HsmWithTracing<Context, Protocol>): Promise<void> {

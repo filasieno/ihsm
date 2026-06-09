@@ -1756,3 +1756,19 @@ export function makeActor<Context, Public extends undefined | {}, Internal exten
 	const hsm = instantiate(topState, ctx, initialize, traceLevel, traceWriter, dispatchErrorCallback, port as unknown as PortHandle<Context, Dispatch<Public, Internal>>);
 	return narrowToActor<Context, Public>(hsm as unknown as Hsm<Context, Dispatch<Public, Any>>);
 }
+
+export { getStateName } from './internal/utils';
+export {
+	createHsmTransitionTrace,
+	executeTransitionRoutine,
+	planTransitionClasses,
+	transitionTraceLines,
+} from './transition-routines';
+export type {
+	PlannedTransition,
+	TransitionRoutineExecuteOptions,
+	TransitionRoutinePlan,
+	TransitionRoutineStyle,
+	TransitionRoutineTrace,
+	TransitionTraceHost,
+} from './transition-routines';

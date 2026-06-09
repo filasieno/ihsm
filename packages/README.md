@@ -19,12 +19,13 @@ Develop and publish from **`packages/ihsm/`** (same commands as before, differen
 
 ## Phase 2 — in progress: `@ihsm/core`
 
-[`core/`](core/) is published as **`@ihsm/core`** — a thin re-export of `ihsm` and `ihsm/testing` (same semver, depends on `ihsm@<version>`). The unscoped **`ihsm`** package remains the implementation and primary install path.
+[`core/`](core/) is published as **`@ihsm/core`** — a thin re-export of `ihsm`, `ihsm/testing`, and `ihsm/transition-routines` (same semver, depends on `ihsm@<version>`). The unscoped **`ihsm`** package remains the implementation and primary install path.
 
 ```ts
 import { makeHsm } from 'ihsm';              // unchanged
 import { makeHsm } from '@ihsm/core';        // scoped alias
 import { TestPort } from '@ihsm/core/testing';
+import { executeTransitionRoutine } from 'ihsm/transition-routines';
 ```
 
 Release (`.github/workflows/release.yml`) publishes **`ihsm`** then **`@ihsm/core`** on every tag.
@@ -38,3 +39,17 @@ packages/
 ```
 
 Optional follow-ups: root npm workspace + single lockfile, Nix derivation for `@ihsm/core`.
+
+## Development tools (`packages/tools`)
+
+[`tools/`](tools/) is **`@ihsm/tools`** — private monorepo package, **not** published to npm. Use it while developing machines and future runtime optimizations.
+
+| Command | Purpose |
+| ------- | ------- |
+| `cd packages/tools && npm run build` | Compile library + `ihsm-tools` CLI |
+| `npm test` | Oracle specs: `@ihsm/core` vs generated routines (full cartesian, verbose traces) |
+| `npx ihsm-tools transitions -i ./machine.js -t DoorTop -o ./machine.transitions.ts` | Emit cartesian `State × State` transition table |
+
+**v1:** full cartesian product delegating to `ihsm/transition-routines` (`planTransitionClasses`, `executeTransitionRoutine`).
+
+**Next:** reachability analysis — only `from → to` pairs where `this.transition(Target)` appears in handler source.

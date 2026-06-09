@@ -1,12 +1,13 @@
 {
-	"name": "@ihsm/core",
+	"name": "@ihsm/tools",
 	"version": "0.0.22",
-	"description": "Scoped entry point for ihsm — production runtime and ihsm/testing subpath",
+	"description": "Development tools for ihsm — static transition table generation and introspection",
 	"license": "MIT",
+	"private": true,
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/filasieno/ihsm.git",
-		"directory": "packages/core"
+		"directory": "packages/tools"
 	},
 	"bugs": {
 		"url": "https://github.com/filasieno/ihsm/issues"
@@ -21,6 +22,17 @@
 	"sideEffects": false,
 	"dependencies": {
 		"ihsm": "0.0.22"
+	},
+	"devDependencies": {
+		"@ihsm/core": "file:../core",
+		"@types/chai": "^5.2.3",
+		"@types/mocha": "^10.0.10",
+		"@types/node": "^25.9.1",
+		"chai": "^6.2.2",
+		"ihsm": "file:../ihsm",
+		"mocha": "^11.7.6",
+		"ts-node": "^10.9.2",
+		"typescript": "^6.0.3"
 	},
 	"files": [
 		"lib"
@@ -39,35 +51,15 @@
 				"default": "./lib/cjs/index.js"
 			}
 		},
-		"./testing": {
-			"import": {
-				"types": "./lib/esm/testing.d.ts",
-				"default": "./lib/esm/testing.js"
-			},
-			"require": {
-				"types": "./lib/cjs/testing.d.ts",
-				"default": "./lib/cjs/testing.js"
-			}
-		},
-		"./transition-routines": {
-			"import": {
-				"types": "./lib/esm/transition-routines.d.ts",
-				"default": "./lib/esm/transition-routines.js"
-			},
-			"require": {
-				"types": "./lib/cjs/transition-routines.d.ts",
-				"default": "./lib/cjs/transition-routines.js"
-			}
-		},
 		"./package.json": "./package.json"
+	},
+	"bin": {
+		"ihsm-tools": "./lib/cjs/cli.js"
 	},
 	"scripts": {
 		"build": "tsc -b tsconfig.lib.json tsconfig.esm.json && node scripts/finalize-build.mjs",
-		"clean": "rm -rf ./lib ./.tsc",
-		"prepublishOnly": "npm run build"
-	},
-	"devDependencies": {
-		"ihsm": "file:../ihsm",
-		"typescript": "^6.0.3"
+		"clean": "rm -rf ./lib ./.tsc ./output",
+		"test": "TS_NODE_PROJECT=tsconfig.lib.json mocha",
+		"typecheck": "tsc -b"
 	}
 }
