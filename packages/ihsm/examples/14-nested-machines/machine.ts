@@ -5,7 +5,7 @@ import * as ihsm from '../../src';
 import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
-/** Payment region — own mailbox and transition cache. */
+/** Payment region — own run-to-completion dispatch and transition cache. */
 export interface PaymentCtx {
 	paid: boolean;
 }

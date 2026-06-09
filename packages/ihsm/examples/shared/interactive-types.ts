@@ -47,6 +47,17 @@ export interface TutorialExtraAction {
 	run: (runtime: InteractiveRuntime) => Promise<void>;
 }
 
+/**
+ * Optional live pointer surface. When present, the playground renders an interactive pad;
+ * each (throttled) pointer move calls `onMove` with pad-relative coordinates so the machine
+ * can react to a real input stream.
+ */
+export interface TutorialMousePad {
+	label: string;
+	hint?: string;
+	onMove: (runtime: InteractiveRuntime, x: number, y: number) => Promise<void> | void;
+}
+
 export interface TutorialInteractiveMeta {
 	title: string;
 	senders: TutorialSender[];
@@ -54,6 +65,7 @@ export interface TutorialInteractiveMeta {
 	createRuntime: () => InteractiveRuntime;
 	stateSummary: (runtime: InteractiveRuntime) => string;
 	extraActions?: TutorialExtraAction[];
+	mousePad?: TutorialMousePad;
 }
 
 export interface SingleSenderTutorialOptions<Context, Protocol extends {} | undefined> {

@@ -225,7 +225,7 @@ export interface Properties<Context, Protocol extends {} | undefined> {
 /**
  * Fire-and-forget event posting API available on both {@link Hsm} (clients) and {@link State} (handlers).
  *
- * Events enqueue on the machine mailbox and run **one at a time** — no re-entrancy while a
+ * Events enqueue on the actor and run **one at a time, to completion** — no re-entrancy while a
  * handler is active.
  *
  * @category State machine
@@ -234,7 +234,7 @@ export interface Base<Context, Protocol extends {} | undefined> extends Properti
 	/**
 	 * Enqueue a **normal-priority** event for later dispatch on the active state.
 	 *
-	 * Returns immediately; the handler runs asynchronously when the mailbox reaches this job.
+	 * Returns immediately; the handler runs asynchronously when the actor reaches this job.
 	 * Dispatch walks the **prototype chain** from the current leaf upward until a method named
 	 * `eventName` is found.
 	 *
@@ -272,35 +272,6 @@ export interface Base<Context, Protocol extends {} | undefined> extends Properti
 	 * ```
 	 */
 	post<EventName extends keyof Protocol>(eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void;
-
-	/**
-	 * Schedule a normal-priority {@link post} after a wall-clock delay.
-	 *
-	 * Uses `setTimeout` internally; when the timer fires, the event is enqueued like an ordinary
-	 * `post`. Timers are **not** cancelled if the machine transitions or the scheduling handler throws.
-	 *
-	 * @typeParam EventName - Literal key of `Protocol` being scheduled
-	 * @param millis - Delay in milliseconds before enqueueing (≥ 0). Subject to event-loop timer granularity
-	 * @param eventName - Event name (same constraints as {@link post})
-	 * @param eventPayload - Handler arguments tuple (same as {@link post})
-	 *
-	 * @remarks
-	 * Available on {@link State} and {@link Hsm}. Typical pattern: handler schedules reminder,
-	 * client waits with `await sleep(millis); await hsm.sync()`.
-	 *
-	 * Does **not** block the calling handler — returns as soon as the timer is registered.
-	 *
-	 * @example
-	 * ```ts
-	 * scheduleReminder(text: string): void {
-	 *   this.deferredPost(50, 'deliver', text);
-	 * }
-	 * deliver(text: string): void {
-	 *   this.ctx.message = text;
-	 * }
-	 * ```
-	 */
-	deferredPost<EventName extends keyof Protocol>(millis: number, eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void;
 }
 
 /**
@@ -378,9 +349,9 @@ export interface State<Context, Protocol extends {} | undefined> extends Base<Co
 	/**
 	 * Pause the **current handler** without blocking the JavaScript event loop.
 	 *
-	 * Returns a Promise resolved after `millis` milliseconds via `setTimeout`. The mailbox
-	 * remains **locked** to this handler until the Promise settles — other `post`/`call` jobs
-	 * queue but do not run.
+	 * Returns a Promise resolved after `millis` milliseconds via `setTimeout`. The actor
+	 * remains **locked** to this handler until the Promise settles (run-to-completion) — other
+	 * `post`/`call` jobs queue but do not run.
 	 *
 	 * @param millis - Sleep duration in milliseconds (≥ 0)
 	 * @returns Promise that resolves (never rejects) when the delay elapses
@@ -398,6 +369,36 @@ export interface State<Context, Protocol extends {} | undefined> extends Base<Co
 	 * ```
 	 */
 	sleep(millis: number): Promise<void>;
+
+	/**
+	 * Schedule a normal-priority {@link post} after a wall-clock delay. **Handler-only.**
+	 *
+	 * Backed by the machine's {@link Port} timer service: when no custom port is supplied the
+	 * runtime instantiates a {@link Port} whose `setTimeout`-based timer is used here. When
+	 * the timer fires, the event is enqueued like an ordinary `post`. This is intentionally **not**
+	 * on the external {@link Hsm} / {@link Actor} surface — clients schedule work via {@link post}.
+	 *
+	 * @typeParam EventName - Literal key of `Protocol` being scheduled
+	 * @param millis - Delay in milliseconds before enqueueing (≥ 0). Subject to timer granularity
+	 * @param eventName - Event name (same constraints as {@link post})
+	 * @param eventPayload - Handler arguments tuple (same as {@link post})
+	 *
+	 * @remarks
+	 * Does **not** block the calling handler — returns as soon as the timer is registered. Timers
+	 * are **not** cancelled if the machine transitions or the scheduling handler throws. (Richer
+	 * timer services — cancellation, virtual clocks — will arrive later through the port.)
+	 *
+	 * @example
+	 * ```ts
+	 * scheduleReminder(text: string): void {
+	 *   this.deferredPost(50, 'deliver', text);
+	 * }
+	 * deliver(text: string): void {
+	 *   this.ctx.message = text;
+	 * }
+	 * ```
+	 */
+	deferredPost<EventName extends keyof Protocol>(millis: number, eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void;
 
 	/**
 	 * Enqueue a **hi-priority** event processed before normal {@link post} jobs from the same turn.
@@ -443,7 +444,7 @@ export interface Hsm<Context = Any, Protocol extends {} | undefined = undefined>
 	readonly ctx: Context;
 
 	/**
-	 * Wait until all previously enqueued mailbox work completes through a **sync marker**.
+	 * Wait until all previously enqueued actor work completes through a **sync marker**.
 	 *
 	 * Returns a Promise resolved when the marker job reaches the front of the queue and runs —
 	 * meaning every job enqueued **before** this `sync()` call has finished (handlers, transitions,
@@ -472,7 +473,7 @@ export interface Hsm<Context = Any, Protocol extends {} | undefined = undefined>
 	 * Atomically replace the active leaf state and context **without** running `onExit` / `onEntry`.
 	 *
 	 * Used for persistence rehydration, snapshot restore, time-travel debugging, and test fixtures.
-	 * Does not enqueue mailbox jobs — the next `post`/`call` runs from the restored configuration.
+	 * Does not enqueue dispatch jobs — the next `post`/`call` runs from the restored configuration.
 	 *
 	 * @param state - Leaf or composite state **class** to activate (prototype switched immediately)
 	 * @param ctx - New context object (replaces {@link ctx} reference entirely)
@@ -491,7 +492,7 @@ export interface Hsm<Context = Any, Protocol extends {} | undefined = undefined>
 	restore(state: StateClass<Context, Protocol>, ctx: Context): void;
 
 	/**
-	 * Invoke a **service** handler and await its typed result over the mailbox.
+	 * Invoke a **service** handler and await its typed result over the actor's run-to-completion dispatch.
 	 *
 	 * Enqueues a dispatch job like {@link post}, but the runtime prepends `resolve` and `reject`
 	 * callbacks to the handler invocation. The returned Promise settles when the handler calls
@@ -507,7 +508,7 @@ export interface Hsm<Context = Any, Protocol extends {} | undefined = undefined>
 	 *   {@link UnhandledEventError} if dispatch fails before the service runs
 	 *
 	 * @remarks
-	 * - Same **serialized** mailbox as `post` — no concurrent handler re-entrancy
+	 * - Same **serialized**, run-to-completion dispatch as `post` — no concurrent handler re-entrancy
 	 * - Return type {@link ServiceResponse} is inferred from `Protocol[eventName]`
 	 * - Use {@link ResolveCallback} / {@link RejectCallback} in handler signatures for clarity
 	 * - `async` handlers should `await` work then call `resolve(result)`
@@ -530,10 +531,12 @@ export interface Hsm<Context = Any, Protocol extends {} | undefined = undefined>
  *
  * @remarks
  * Collisions with `keyof State` become `never`, preventing `post('transition', …)` at compile time.
+ * Service-shaped keys (see {@link IsServiceMethod}) also become `never` — they must be invoked with
+ * {@link Hsm.call}, so `post('getBalance', …)` is a compile error (proposal T2).
  *
  * @category Event handler
  */
-export type PostedEvent<Protocol extends {} | undefined, EventName extends keyof Protocol> = Protocol extends undefined ? string : EventName extends keyof State<any, any> ? never : EventName;
+export type PostedEvent<Protocol extends {} | undefined, EventName extends keyof Protocol> = Protocol extends undefined ? string : EventName extends keyof State<any, any> ? never : IsServiceMethod<Protocol[EventName]> extends true ? never : EventName;
 
 /**
  * Tuple of arguments for {@link Base.post} after the event name, inferred from the handler signature.
@@ -559,9 +562,452 @@ export type EventPayload<Protocol extends {} | undefined, EventName extends keyo
  * @typeParam Context - Domain context carried by the machine
  * @typeParam Protocol - Event/service vocabulary
  *
+ * @remarks
+ * The prototype constraint is the **port-less** handler contract ({@link State} &
+ * {@link StateEvents}) rather than {@link TopState} itself. This keeps the optional
+ * {@link TopState.port} member (which varies with the `Port` type parameter) out of
+ * transition / `restore` typing, so machines that declare a port remain assignable
+ * wherever a plain `StateClass` is expected.
+ *
  * @category State machine
  */
-export type StateClass<Context = Any, Protocol extends {} | undefined = undefined> = Function & { prototype: TopState<Context, Protocol> };
+export type StateClass<Context = Any, Protocol extends {} | undefined = undefined> = Function & { prototype: State<Context, Protocol> & StateEvents<Context, Protocol> };
+
+//
+// Ports, deterministic testing, and the public / internal protocol split
+//
+
+/**
+ * Resource teardown handle returned alongside subscription-style port results.
+ *
+ * `dispose()` must be **idempotent** — calling it more than once is a no-op. Ports hand
+ * one back via {@link ResultWithSubscription}; the state machine owns it and disposes it
+ * when the corresponding observation is no longer wanted.
+ *
+ * @category Port
+ */
+export interface Disposable {
+	/** Release the resource / detach listeners. Safe to call repeatedly. */
+	dispose(): void;
+}
+
+/**
+ * A port result paired with the {@link Disposable} that tears down its subscription.
+ *
+ * Returned by port methods that both produce a value (e.g. a process id) **and** wire
+ * ongoing observations. The machine stores `value` and is responsible for calling
+ * `subscription.dispose()` during teardown.
+ *
+ * @typeParam Result - The immediate value produced by the port call
+ *
+ * @example
+ * ```ts
+ * spawn(spec: SpawnSpec): ResultWithSubscription<number> {
+ *   const child = spawnProcess(spec);
+ *   const bag = wireListeners(child, this.hsm());
+ *   return { value: child.pid, subscription: bag };
+ * }
+ * ```
+ *
+ * @category Port
+ */
+export interface ResultWithSubscription<Result> {
+	/** Immediate result of the port call. */
+	readonly value: Result;
+	/** Teardown handle for the observations the call established. */
+	readonly subscription: Disposable;
+}
+
+/**
+ * A single recorded interaction: an event name plus its payload.
+ *
+ * Produced both by {@link testing!TestPort} (the messages a test double records) and by the
+ * {@link testing!TestActor} `subscribe` observer stream (every event posted through the machine).
+ *
+ * @category Testing
+ */
+export interface TracedMessage {
+	/** Event/service name, or a free-form label recorded by a {@link testing!TestPort}. */
+	readonly event: string;
+	/** Arguments captured with the event (a defensive copy). */
+	readonly payload: readonly unknown[];
+}
+
+/**
+ * Observer invoked for **every** event posted through a {@link testing!TestActor}.
+ *
+ * Registered via {@link testing!TestActor} `subscribe` — a capability unique to the test surface.
+ * Wire it to {@link testing!TestPort.record} to build a golden trace on the port under test.
+ *
+ * @category Testing
+ */
+export type EventObserver = (message: TracedMessage) => void;
+
+/**
+ * The effective protocol a machine **dispatches** over: the public {@link Protocol} merged
+ * with its `InternalProtocol`.
+ *
+ * Handlers (and the `Port` back-channel) see this union; external clients see only the
+ * public half. Legacy untyped machines (`Protocol extends undefined`) stay untyped.
+ *
+ * @typeParam Protocol - Public event/service vocabulary (client-callable)
+ * @typeParam InternalProtocol - Events only a port may post (e.g. `onSpawn`, `onExit`)
+ *
+ * @category State machine
+ */
+export type Dispatch<Protocol extends {} | undefined, InternalProtocol extends {}> = {} extends InternalProtocol ? Protocol : Protocol extends undefined ? undefined : Protocol & InternalProtocol;
+
+/**
+ * Compile-time guard asserting the public and internal protocols share **no** event names.
+ *
+ * Resolves to `true` when `keyof Public` and `keyof Internal` are disjoint; otherwise to a
+ * descriptive tuple that fails the `extends true` constraint on {@link makeActor} /
+ * {@link testing!makeTestActor}, surfacing the overlapping keys at the call site.
+ *
+ * @typeParam Public - Public protocol
+ * @typeParam Internal - Internal protocol
+ *
+ * @category State machine
+ */
+export type Disjoint<Public, Internal> = Extract<keyof Public, keyof Internal> extends never ? true : ['ihsm: public and internal protocols must not share keys', Extract<keyof Public, keyof Internal>];
+
+/**
+ * Phantom type carrier that lets a {@link TopState} subclass expose its four type parameters
+ * for extraction. It never exists at runtime — it is a `declare`d marker (see {@link TopState}).
+ *
+ * @typeParam Context - Domain context
+ * @typeParam Public - Public protocol
+ * @typeParam Internal - Internal (port-driven) protocol
+ * @typeParam Port - Port type
+ *
+ * @category State machine
+ */
+export interface MachineTypes<Context, Public, Internal, Port> {
+	readonly context: Context;
+	readonly public: Public;
+	readonly internal: Internal;
+	readonly port: Port;
+}
+
+/**
+ * Extracts the **context** type from a {@link TopState} subclass — making the `TopState` the
+ * single point where the four machine types are declared.
+ *
+ * @typeParam T - A {@link TopState} subclass (instance type, e.g. `ConnTop`)
+ *
+ * @category State machine
+ */
+export type MachineContext<T> = T extends { readonly __ihsm: MachineTypes<infer Context, any, any, any> } ? Context : never;
+
+/**
+ * Extracts the **public** protocol from a {@link TopState} subclass.
+ *
+ * @typeParam T - A {@link TopState} subclass (instance type)
+ *
+ * @category State machine
+ */
+export type MachinePublic<T> = T extends { readonly __ihsm: MachineTypes<any, infer Public, any, any> } ? Public : never;
+
+/**
+ * Extracts the **internal** protocol from a {@link TopState} subclass. The result is always
+ * within `{} | undefined`, so it can drive {@link PostedEvent} / {@link EventPayload} directly.
+ *
+ * @typeParam T - A {@link TopState} subclass (instance type)
+ *
+ * @category State machine
+ */
+export type MachineInternal<T> = T extends { readonly __ihsm: MachineTypes<any, any, infer Internal, any> } ? (Internal extends {} | undefined ? Internal : never) : never;
+
+/**
+ * Extracts the **port** type from a {@link TopState} subclass.
+ *
+ * @typeParam T - A {@link TopState} subclass (instance type)
+ *
+ * @category State machine
+ */
+export type MachinePort<T> = T extends { readonly __ihsm: MachineTypes<any, any, any, infer Port> } ? Port : never;
+
+/**
+ * Restricted handle a {@link Port} uses to post **internal** events back into its machine.
+ *
+ * It is the {@link Base} surface narrowed to the `InternalProtocol`, so a port can only
+ * `post` the events it is allowed to raise — never public commands.
+ *
+ * @typeParam Context - Domain context
+ * @typeParam InternalProtocol - Events the port may post
+ *
+ * @category Port
+ */
+export type InboundPoster<Context, InternalProtocol extends {} | undefined> = Base<Context, InternalProtocol>;
+
+/**
+ * Outbound boundary between a machine and the impure world (processes, sockets, timers).
+ *
+ * Passed as the `port` instance to {@link makeActor} / {@link testing!makeTestActor} (or defaulted to a
+ * {@link Port}), and surfaced to handlers as {@link TopState.port}. The factory binds the
+ * port's {@link PortHandle.actor | actor} lazily, so the port can post internal events back via
+ * {@link PortHandle.hsm}.
+ *
+ * @typeParam Context - Domain context
+ * @typeParam InternalProtocol - Events this port may post inward
+ *
+ * @category Port
+ */
+export interface PortHandle<Context = Any, InternalProtocol extends {} | undefined = undefined> {
+	/**
+	 * The machine handle this port posts internal events through. **Bound lazily** by the runtime
+	 * ({@link makeHsm} / {@link makeActor} / {@link testing!makeTestActor}) right after the actor is
+	 * constructed — so a port is created with no constructor arguments and wired up afterwards.
+	 * `undefined` before binding / after teardown.
+	 */
+	actor: InboundPoster<Context, InternalProtocol> | undefined;
+	/** The bound machine handle (same as {@link PortHandle.actor}); `undefined` before binding. */
+	hsm(): InboundPoster<Context, InternalProtocol> | undefined;
+}
+
+/** Opaque timer handle returned by {@link Port.setTimeout} / {@link Port.setInterval}. */
+export type TimerHandle = number;
+
+/**
+ * Standard JavaScript random-generation surface exposed by {@link Port} and mocked by
+ * {@link testing!TestPort}.
+ *
+ * Route every nondeterministic draw through the machine's port — never `Math.random()` or
+ * `crypto.*` directly in handlers — so tests can script values with
+ * {@link testing!TestPort.feedRandom | feedRandom} / {@link testing!TestPort.feedCryptoRandom | feedCryptoRandom} /
+ * {@link testing!TestPort.feedUUID | feedUUID} / {@link testing!TestPort.feedRandomBytes | feedRandomBytes}.
+ *
+ * @category Port
+ */
+export interface RandomService {
+	/** Uniform in `[0, 1)` — `Math.random()`. */
+	random(): number;
+	/** Uniform in `[0, 1)` — `crypto.random()` when available, otherwise `Math.random()`. */
+	cryptoRandom(): number;
+	/** RFC 4122 UUID — `crypto.randomUUID()`. */
+	randomUUID(): string;
+	/** In-place fill — `crypto.getRandomValues()`. */
+	getRandomValues<T extends ArrayBufferView>(array: T): T;
+}
+
+/**
+ * External, public-only view of a machine returned by {@link makeActor}.
+ *
+ * Identical to {@link Hsm} over the **public** protocol: clients can `post` / `call` only
+ * public events — internal (port-driven) events are not in the callable surface.
+ *
+ * @typeParam Context - Domain context
+ * @typeParam Protocol - Public protocol
+ *
+ * @category State machine
+ */
+export type Actor<Context = Any, Protocol extends {} | undefined = undefined> = Hsm<Context, Protocol>;
+
+/**
+ * Abstract base class for **any** port — production or test.
+ *
+ * It takes the machine's root {@link TopState} as its single type argument and derives the
+ * context and internal protocol from it (via {@link MachineContext} / {@link MachineInternal}),
+ * so the `TopState` is the one place those types are declared. Extend {@link Port} (not `BasePort`
+ * directly) for production ports so timer and random services are available.
+ *
+ * The {@link BasePort.actor | actor} link is **bound lazily** by the runtime: construct the port
+ * with no arguments and pass the instance to a factory, which wires the actor in afterwards.
+ *
+ * @typeParam T - The machine's root {@link TopState} subclass (e.g. `ConnTop`)
+ *
+ * @category Port
+ */
+export abstract class BasePort<T> implements PortHandle<MachineContext<T>, MachineInternal<T>> {
+	/**
+	 * Phantom carrier of the root {@link TopState} type, so {@link testing!makeTestPort} can recover `T`
+	 * (and therefore the port surface, via {@link MachinePort}) from a mock class. Type-only.
+	 */
+	declare readonly __topState: T;
+
+	/**
+	 * @inheritdoc PortHandle.actor
+	 *
+	 * Set once by the runtime right after the machine is built; `undefined` before binding.
+	 */
+	actor: InboundPoster<MachineContext<T>, MachineInternal<T>> | undefined;
+
+	/** @inheritdoc PortHandle.hsm */
+	hsm(): InboundPoster<MachineContext<T>, MachineInternal<T>> | undefined {
+		return this.actor;
+	}
+
+	/**
+	 * Post an internal event inward through the bound {@link BasePort.actor | actor}.
+	 *
+	 * This is the one channel a port (or a test driving the port) uses to feed the machine its
+	 * internal protocol. Because emission is explicit — never a side effect of the outbound call
+	 * the machine made — a single mock works across many tests: the test decides *when* (and
+	 * whether) to push each internal event.
+	 *
+	 * @param eventName - Internal event to post
+	 * @param payload - Arguments for the event
+	 * @throws If called before the actor has been bound by a factory
+	 */
+	send<EventName extends keyof MachineInternal<T>>(eventName: PostedEvent<MachineInternal<T>, EventName>, ...payload: EventPayload<MachineInternal<T>, EventName>): void {
+		if (this.actor === undefined) {
+			throw new Error('ihsm: port.send called before the actor was bound — pass the port to makeActor/makeHsm/makeTestActor first');
+		}
+		this.actor.post(eventName, ...payload);
+	}
+}
+
+/**
+ * Production port base with standard JavaScript timer and random services.
+ *
+ * Extend this class for domain ports in production code. It inherits the lazily-bound
+ * {@link BasePort.actor | actor}, {@link BasePort.hsm | hsm}, and {@link BasePort.send | send}
+ * from {@link BasePort}, and adds {@link Port.setTimeout | setTimeout} /
+ * {@link Port.setInterval | setInterval} / {@link Port.clearTimeout | clearTimeout} /
+ * {@link Port.clearInterval | clearInterval} plus the {@link RandomService} methods
+ * ({@link Port.random | random}, {@link Port.cryptoRandom | cryptoRandom},
+ * {@link Port.randomUUID | randomUUID}, {@link Port.getRandomValues | getRandomValues}).
+ *
+ * {@link State.deferredPost} delegates to {@link Port.setTimeout}. When no custom port is
+ * supplied the runtime instantiates a plain `Port` for that purpose.
+ *
+ * @typeParam T - The machine's root {@link TopState} subclass (e.g. `ConnTop`)
+ *
+ * @example A minimal domain port
+ * ```ts
+ * class ConnPortImpl extends ihsm.Port<ConnTop> implements ConnPort {
+ *   private nextId = 1;
+ *   connect(host: string): ihsm.ResultWithSubscription<number> {
+ *     const id = this.nextId++;
+ *     return { value: id, subscription: { dispose: () => {} } };
+ *   }
+ *   disconnect(id: number): void {}
+ * }
+ * const port = new ConnPortImpl();
+ * const conn = ihsm.makeActor(ConnTop, ctx, port);   // binds port.actor
+ * ```
+ *
+ * @category Port
+ */
+export class Port<T = Any> extends BasePort<T> implements RandomService {
+	private _timerSeq = 0;
+	private readonly _timeoutHandles = new Map<TimerHandle, ReturnType<typeof setTimeout>>();
+	private readonly _intervalHandles = new Map<TimerHandle, ReturnType<typeof setInterval>>();
+
+	/**
+	 * Schedule `callback` after `millis` milliseconds — same argument order as `globalThis.setTimeout`.
+	 *
+	 * @returns An opaque handle for {@link Port.clearTimeout}
+	 */
+	setTimeout(callback: () => void, millis?: number): TimerHandle {
+		const id = ++this._timerSeq;
+		const handle = globalThis.setTimeout(
+			() => {
+				this._timeoutHandles.delete(id);
+				callback();
+			},
+			Math.max(0, millis ?? 0)
+		);
+		this._timeoutHandles.set(id, handle);
+		return id;
+	}
+
+	/** Cancel a pending {@link Port.setTimeout} handle. No-op when `id` is `undefined` or unknown. */
+	clearTimeout(id: TimerHandle | undefined): void {
+		if (id === undefined) {
+			return;
+		}
+		const handle = this._timeoutHandles.get(id);
+		if (handle !== undefined) {
+			globalThis.clearTimeout(handle);
+			this._timeoutHandles.delete(id);
+		}
+	}
+
+	/**
+	 * Schedule `callback` every `millis` milliseconds — same argument order as `globalThis.setInterval`.
+	 *
+	 * @returns An opaque handle for {@link Port.clearInterval}
+	 */
+	setInterval(callback: () => void, millis?: number): TimerHandle {
+		const id = ++this._timerSeq;
+		const handle = globalThis.setInterval(callback, Math.max(0, millis ?? 0));
+		this._intervalHandles.set(id, handle);
+		return id;
+	}
+
+	/** Cancel a pending {@link Port.setInterval} handle. No-op when `id` is `undefined` or unknown. */
+	clearInterval(id: TimerHandle | undefined): void {
+		if (id === undefined) {
+			return;
+		}
+		const handle = this._intervalHandles.get(id);
+		if (handle !== undefined) {
+			globalThis.clearInterval(handle);
+			this._intervalHandles.delete(id);
+		}
+	}
+
+	/** @inheritdoc RandomService.random */
+	random(): number {
+		return Math.random();
+	}
+
+	/** @inheritdoc RandomService.cryptoRandom */
+	cryptoRandom(): number {
+		const crypto = globalThis.crypto as Crypto & { random?: () => number };
+		return crypto.random?.() ?? Math.random();
+	}
+
+	/** @inheritdoc RandomService.randomUUID */
+	randomUUID(): string {
+		return globalThis.crypto.randomUUID();
+	}
+
+	/** @inheritdoc RandomService.getRandomValues */
+	getRandomValues<T extends ArrayBufferView>(array: T): T {
+		// crypto.getRandomValues accepts a narrower union than ArrayBufferView; the runtime call is safe.
+		globalThis.crypto.getRandomValues(array as never);
+		return array;
+	}
+}
+
+/**
+ * `true` when handler `M` is **service-shaped** — its parameter list begins with a resolve callback
+ * and a reject callback (`(resolve, reject, ...payload) => void | Promise<void>`), matching
+ * {@link ResolveCallback} / {@link RejectCallback}; `false` for plain **event** handlers whose
+ * parameters are data.
+ *
+ * This is the single discriminator that routes a protocol key to {@link Hsm.call} (services) versus
+ * {@link Base.post} (events): {@link ServiceName} / {@link ServiceKeys} accept only keys where this
+ * is `true`, while {@link PostedEvent} / {@link EventKeys} reject them (proposal T2).
+ *
+ * @remarks
+ * The check is **structural and heuristic**: a handler counts as a service iff its first two
+ * parameters are callables. A plain event that genuinely takes two leading callbacks (rare) would
+ * be classified as a service — give such a handler `(): void` / data parameters, and reserve the
+ * leading `(resolve, reject)` shape for real services.
+ *
+ * @category Event handler
+ */
+export type IsServiceMethod<M> = M extends (...args: infer Args) => Promise<void> | void ? (Args extends [resolve: (result: any) => void, reject: (error: any) => void, ...payload: any[]] ? true : false) : false;
+
+/**
+ * Union of protocol keys whose handlers are **services** — invocable with {@link Hsm.call}. Reserved
+ * {@link State} method names are excluded; resolves to `string` for the untyped (`undefined`) protocol.
+ *
+ * @category Event handler
+ */
+export type ServiceKeys<Protocol extends {} | undefined> = Protocol extends undefined ? string : Exclude<{ [K in keyof Protocol]-?: IsServiceMethod<Protocol[K]> extends true ? K : never }[keyof Protocol], keyof State<any, any>>;
+
+/**
+ * Union of protocol keys whose handlers are **events** — postable with {@link Base.post}. Reserved
+ * {@link State} method names and service-shaped keys are excluded; resolves to `string` for the
+ * untyped (`undefined`) protocol.
+ *
+ * @category Event handler
+ */
+export type EventKeys<Protocol extends {} | undefined> = Protocol extends undefined ? string : Exclude<{ [K in keyof Protocol]-?: IsServiceMethod<Protocol[K]> extends true ? never : K }[keyof Protocol], keyof State<any, any>>;
 
 /**
  * Tuple of client-supplied arguments to {@link Hsm.call}, excluding injected resolve/reject.
@@ -591,14 +1037,15 @@ export type ServiceResponse<Protocol, EventName extends keyof Protocol> = Protoc
 
 /**
  * Valid first argument to {@link Hsm.call} — protocol keys whose handlers use the service signature
- * `(resolve, reject, ...payload)`.
+ * `(resolve, reject, ...payload)`. Reserved {@link State} names and **event-shaped** keys become
+ * `never`, so `call('open')` on a void event is a compile error (proposal T2).
  *
  * @typeParam Protocol - Machine vocabulary interface
- * @typeParam EventName - Candidate key (unused generic for symmetry with other aliases)
+ * @typeParam EventName - Candidate key being constrained
  *
  * @category Event handler
  */
-export type ServiceName<Protocol, EventName> = Protocol extends undefined ? string : EventName extends keyof State<any, any> ? never : EventName;
+export type ServiceName<Protocol, EventName> = Protocol extends undefined ? string : EventName extends keyof State<any, any> ? never : EventName extends keyof Protocol ? (IsServiceMethod<Protocol[EventName]> extends true ? EventName : never) : never;
 
 /**
  * Lifecycle hooks optionally overridden on state classes.
@@ -679,13 +1126,33 @@ export interface StateEvents<Context, Protocol extends {} | undefined> {
  *
  * @category State machine
  */
-export abstract class TopState<Context = Any, Protocol extends {} | undefined = undefined> implements State<Context, Protocol>, StateEvents<Context, Protocol> {
+export abstract class TopState<Context = Any, Protocol extends {} | undefined = undefined, InternalProtocol extends {} = {}, Port = undefined> implements State<Context, Dispatch<Protocol, InternalProtocol>>, StateEvents<Context, Dispatch<Protocol, InternalProtocol>> {
 	/** Domain context (injected by runtime — do not assign in constructors). */
 	readonly ctx!: Context;
 	/** Handler view of the machine (`this` inside methods delegates here for core operations). */
-	readonly hsm!: State<Context, Protocol>;
+	readonly hsm!: State<Context, Dispatch<Protocol, InternalProtocol>>;
+	/**
+	 * Phantom type carrier — **never exists at runtime** (`declare`d, never assigned). It makes a
+	 * `TopState` subclass the single configuration point for the four machine types, so helpers
+	 * like {@link MachineContext} / {@link MachineInternal} / {@link MachinePort} (and
+	 * {@link BasePort} / {@link testing!TestPort}) can derive everything from the root state alone.
+	 *
+	 * @internal
+	 */
+	declare readonly __ihsm: MachineTypes<Context, Protocol, InternalProtocol, Port>;
 	constructor() {
 		throw new Error('Fatal error: States cannot be instantiated');
+	}
+	/**
+	 * Outbound boundary — the `port` instance passed to {@link makeActor} / {@link testing!makeTestActor};
+	 * all impure I/O flows through here.
+	 *
+	 * Typed `undefined` for machines created without a port (the default), so existing
+	 * port-less machines are unaffected. At runtime a {@link Port} always backs such
+	 * machines — it is what {@link State.deferredPost} uses for its timer service.
+	 */
+	get port(): Port {
+		return (this.hsm as unknown as { port: Port }).port;
 	}
 	/** @inheritdoc Properties.eventName */
 	get eventName(): string {
@@ -700,7 +1167,7 @@ export abstract class TopState<Context = Any, Protocol extends {} | undefined = 
 		return this.hsm.traceHeader;
 	}
 	/** @inheritdoc Properties.topState */
-	get topState(): StateClass<Context, Protocol> {
+	get topState(): StateClass<Context, Dispatch<Protocol, InternalProtocol>> {
 		return this.hsm.topState;
 	}
 	/** @inheritdoc Properties.currentStateName */
@@ -708,7 +1175,7 @@ export abstract class TopState<Context = Any, Protocol extends {} | undefined = 
 		return this.hsm.currentStateName;
 	}
 	/** @inheritdoc Properties.currentState */
-	get currentState(): StateClass<Context, Protocol> {
+	get currentState(): StateClass<Context, Dispatch<Protocol, InternalProtocol>> {
 		return this.hsm.currentState;
 	}
 	/** @inheritdoc Properties.ctxTypeName */
@@ -745,7 +1212,7 @@ export abstract class TopState<Context = Any, Protocol extends {} | undefined = 
 		this.hsm.dispatchErrorCallback = value;
 	}
 	/** @inheritdoc State.transition */
-	transition(nextState: StateClass<Context, Protocol>): void {
+	transition(nextState: StateClass<Context, Dispatch<Protocol, InternalProtocol>>): void {
 		this.hsm.transition(nextState);
 	}
 	/** @inheritdoc State.unhandled */
@@ -757,15 +1224,15 @@ export abstract class TopState<Context = Any, Protocol extends {} | undefined = 
 		return this.hsm.sleep(millis);
 	}
 	/** @inheritdoc Base.post */
-	post<EventName extends keyof Protocol>(eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void {
+	post<EventName extends keyof Dispatch<Protocol, InternalProtocol>>(eventName: PostedEvent<Dispatch<Protocol, InternalProtocol>, EventName>, ...eventPayload: EventPayload<Dispatch<Protocol, InternalProtocol>, EventName>): void {
 		this.hsm.post(eventName, ...eventPayload);
 	}
-	/** @inheritdoc Base.deferredPost */
-	deferredPost<EventName extends keyof Protocol>(millis: number, eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void {
+	/** @inheritdoc State.deferredPost */
+	deferredPost<EventName extends keyof Dispatch<Protocol, InternalProtocol>>(millis: number, eventName: PostedEvent<Dispatch<Protocol, InternalProtocol>, EventName>, ...eventPayload: EventPayload<Dispatch<Protocol, InternalProtocol>, EventName>): void {
 		this.hsm.deferredPost(millis, eventName, ...eventPayload);
 	}
 	/** @inheritdoc State.postNow */
-	postNow<EventName extends keyof Protocol>(eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void {
+	postNow<EventName extends keyof Dispatch<Protocol, InternalProtocol>>(eventName: PostedEvent<Dispatch<Protocol, InternalProtocol>, EventName>, ...eventPayload: EventPayload<Dispatch<Protocol, InternalProtocol>, EventName>): void {
 		this.hsm.postNow(eventName, ...eventPayload);
 	}
 
@@ -776,12 +1243,12 @@ export abstract class TopState<Context = Any, Protocol extends {} | undefined = 
 	onEntry(): Promise<void> | void {}
 
 	/** @inheritdoc StateEvents.onError */
-	onError<EventName extends keyof Protocol>(error: RuntimeError<Context, Protocol, EventName>): Promise<void> | void {
+	onError<EventName extends keyof Dispatch<Protocol, InternalProtocol>>(error: RuntimeError<Context, Dispatch<Protocol, InternalProtocol>, EventName>): Promise<void> | void {
 		throw error;
 	}
 
 	/** @inheritdoc StateEvents.onUnhandled */
-	onUnhandled<EventName extends keyof Protocol>(error: UnhandledEventError<Context, Protocol, EventName>): Promise<void> | void {
+	onUnhandled<EventName extends keyof Dispatch<Protocol, InternalProtocol>>(error: UnhandledEventError<Context, Dispatch<Protocol, InternalProtocol>, EventName>): Promise<void> | void {
 		throw error;
 	}
 }
@@ -1077,16 +1544,19 @@ class ConsoleTraceWriter implements TraceWriter {
 	}
 }
 
-function defaultDispatchErrorCallback<Context, Protocol extends {} | undefined>(hsm: Base<Context, Protocol>, err: Error): void {
+/** @internal — shared by the core factories and (via re-export) the `ihsm/testing` factories. */
+export function defaultDispatchErrorCallback<Context, Protocol extends {} | undefined>(hsm: Base<Context, Protocol>, err: Error): void {
 	const writer = hsm.traceWriter;
 	writer.write(hsm, `An event dispatch has failed; error ${err.name}: ${err.message} has not been managed`);
 	writer.write(hsm, err);
 	throw err;
 }
 
-const defaultTraceWriter = new ConsoleTraceWriter();
+/** @internal */
+export const defaultTraceWriter: TraceWriter = new ConsoleTraceWriter();
 const defaultTraceLevel = TraceLevel.DEBUG;
-const defaultInitialize = true;
+/** @internal */
+export const defaultInitialize = true;
 
 /**
  * Creates and optionally initializes a hierarchical state machine **actor** bound to `ctx`.
@@ -1128,12 +1598,161 @@ const defaultInitialize = true;
  *
  * @category Factory
  */
-export function makeHsm<Context, Protocol extends undefined | {}>(topState: StateClass<Context, Protocol>, ctx: Context, initialize: boolean = defaultInitialize, traceLevel: TraceLevel = defaultTraceLevel, traceWriter: TraceWriter = defaultTraceWriter, dispatchErrorCallback: DispatchErrorCallback<Context, Protocol> = defaultDispatchErrorCallback): Hsm<Context, Protocol> {
+export function makeHsm<Context, Protocol extends undefined | {}>(topState: StateClass<Context, Protocol>, ctx: Context, initialize: boolean = defaultInitialize, traceLevel: TraceLevel = defaultTraceLevel, traceWriter: TraceWriter = defaultTraceWriter, dispatchErrorCallback: DispatchErrorCallback<Context, Protocol> = defaultDispatchErrorCallback, port?: PortHandle<Context, Protocol>): Hsm<Context, Protocol> {
+	return instantiate(topState, ctx, initialize, traceLevel, traceWriter, dispatchErrorCallback, port);
+}
+
+/** @internal — single construction path shared by {@link makeHsm}, {@link makeActor}, {@link testing!makeTestActor}. */
+function instantiate<Context, Protocol extends undefined | {}>(topState: StateClass<Context, Protocol>, ctx: Context, initialize: boolean, traceLevel: TraceLevel, traceWriter: TraceWriter, dispatchErrorCallback: DispatchErrorCallback<Context, Protocol>, port?: PortHandle<Context, Protocol>): HsmWithTracing<Context, Protocol> {
 	const instance: Instance<Context, Protocol> = {
 		hsm: undefined as unknown as HsmWithTracing<Context, Protocol>,
 		ctx: ctx,
 	};
 	Object.setPrototypeOf(instance, topState.prototype);
 	instance.hsm = new HsmObject(topState, instance, traceWriter, traceLevel, dispatchErrorCallback, initialize);
+	// A port is always present: the supplied instance, otherwise a Port that backs
+	// `deferredPost`'s timer service. Its `actor` is bound here, lazily — synchronously, before
+	// the queued initialization walk, so `this.port` is available inside the first `onEntry`.
+	const boundPort: PortHandle<Context, Protocol> = port ?? new Port();
+	boundPort.actor = instance.hsm;
+	instance.portRef = boundPort;
 	return instance.hsm;
+}
+
+/**
+ * The constrained root-state argument shared by {@link makeActor} / {@link testing!makeTestActor}.
+ *
+ * Its prototype carries the {@link MachineTypes} marker, so `Context`, `Public`, and `Internal` are
+ * **inferred from the `topState`** at the call site — you never pass those generics explicitly.
+ *
+ * @typeParam Context - Domain context type
+ * @typeParam Public - Public, client-callable protocol
+ * @typeParam Internal - Internal protocol — only postable by the port / handlers
+ *
+ * @category Factory
+ */
+export type TopStateArg<Context, Public extends undefined | {}, Internal extends {}> = StateClass<Context, Dispatch<Public, Internal>> & {
+	readonly prototype: { readonly __ihsm: MachineTypes<Context, Public, Internal, unknown> };
+};
+
+/**
+ * Optional tuning passed as the **last** argument to {@link makeActor} / {@link testing!makeTestActor},
+ * after the three mandatory positional arguments (`topState`, `ctx`, `port`). Every field has a
+ * sensible default; omit the whole object to take them all.
+ *
+ * @typeParam Context - Domain context type
+ * @typeParam Public - Public protocol
+ * @typeParam Internal - Internal protocol
+ *
+ * @category Factory
+ */
+export interface ActorOptions<Context, Public extends undefined | {}, Internal extends {} = {}> {
+	/** Run the initial `@InitialState` walk (default `true`). */
+	initialize?: boolean;
+	/** Initial {@link TraceLevel} (default {@link TraceLevel.DEBUG}). */
+	traceLevel?: TraceLevel;
+	/** {@link TraceWriter} implementation (default: prefixes with state name, logs to `console`). */
+	traceWriter?: TraceWriter;
+	/** Last-resort error hook (default: trace + rethrow). */
+	dispatchErrorCallback?: DispatchErrorCallback<Context, Dispatch<Public, Internal>>;
+}
+
+/**
+ * @internal
+ *
+ * Wrap a live machine in a **structural, public-only** {@link Actor} facade (proposal T5).
+ *
+ * Replaces the old `hsm as unknown as Actor<…>` double cast. The returned object is annotated
+ * `Actor<Context, Public>`, so the compiler verifies it implements **exactly** the public surface —
+ * a regression that leaked an internal member would fail to compile, and if {@link Hsm} gains a
+ * member this factory stops compiling until the facade forwards it. Each forwarded `post` / `call`
+ * is narrowed from the merged-protocol instance down to the public protocol with a single local
+ * cast; properties delegate through get/set accessors so reads and writes still hit the live machine.
+ */
+function narrowToActor<Context, Public extends {} | undefined>(hsm: Hsm<Context, Dispatch<Public, Any>>): Actor<Context, Public> {
+	const actor: Actor<Context, Public> = {
+		get ctx(): Context {
+			return hsm.ctx;
+		},
+		get currentState(): StateClass<Context, Public> {
+			return hsm.currentState as unknown as StateClass<Context, Public>;
+		},
+		get currentStateName(): string {
+			return hsm.currentStateName;
+		},
+		get topState(): StateClass<Context, Public> {
+			return hsm.topState as unknown as StateClass<Context, Public>;
+		},
+		get topStateName(): string {
+			return hsm.topStateName;
+		},
+		get ctxTypeName(): string {
+			return hsm.ctxTypeName;
+		},
+		get traceHeader(): string {
+			return hsm.traceHeader;
+		},
+		get eventName(): string {
+			return hsm.eventName;
+		},
+		get eventPayload(): any[] {
+			return hsm.eventPayload;
+		},
+		get traceLevel(): TraceLevel {
+			return hsm.traceLevel;
+		},
+		set traceLevel(level: TraceLevel) {
+			hsm.traceLevel = level;
+		},
+		get traceWriter(): TraceWriter {
+			return hsm.traceWriter;
+		},
+		set traceWriter(writer: TraceWriter) {
+			hsm.traceWriter = writer;
+		},
+		get dispatchErrorCallback(): DispatchErrorCallback<Context, Public> {
+			return hsm.dispatchErrorCallback as unknown as DispatchErrorCallback<Context, Public>;
+		},
+		set dispatchErrorCallback(cb: DispatchErrorCallback<Context, Public>) {
+			hsm.dispatchErrorCallback = cb as unknown as DispatchErrorCallback<Context, Dispatch<Public, Any>>;
+		},
+		post: hsm.post.bind(hsm) as Actor<Context, Public>['post'],
+		call: hsm.call.bind(hsm) as Actor<Context, Public>['call'],
+		sync: hsm.sync.bind(hsm),
+		restore: hsm.restore.bind(hsm) as Actor<Context, Public>['restore'],
+	};
+	return actor;
+}
+
+/**
+ * Creates an actor exposing only its **public** protocol, with an optional outbound {@link Port}.
+ *
+ * Like {@link makeHsm} but separates the public, client-callable protocol from an
+ * `InternalProtocol` that only the port may post inward. The returned {@link Actor} surfaces
+ * just the public events; handlers (and the port) may post the merged {@link Dispatch} protocol.
+ *
+ * The trailing `Disjoint` guard is a compile-time gate: if `Public` and `Internal` share an event
+ * name, the call fails to type-check, pointing at the overlapping keys.
+ *
+ * @typeParam Context - Domain context type
+ * @typeParam Public - Public, client-callable protocol
+ * @typeParam Internal - Internal protocol — only postable by the port / handlers
+ * @typeParam P - Concrete {@link Port} type assigned to `this.port`
+ * @param topState - Root state class; `Context` / `Public` / `Internal` are inferred from it (see {@link TopStateArg})
+ * @param ctx - Mutable domain object shared by all states
+ * @param port - Outbound port instance (its `actor` is bound by the factory; use {@link Port} if none)
+ * @param options - Optional tuning: `initialize` / `traceLevel` / `traceWriter` / … (see {@link ActorOptions})
+ * @returns A public-only {@link Actor} handle
+ *
+ * @example
+ * ```ts
+ * const conn = makeActor(ConnTop, new ConnCtx(), port, { traceLevel: TraceLevel.PRODUCTION });
+ * ```
+ *
+ * @category Factory
+ */
+export function makeActor<Context, Public extends undefined | {}, Internal extends {} = {}, P extends PortHandle<Context, Internal> = Port>(topState: TopStateArg<Context, Public, Internal>, ctx: Context, port: P, options: ActorOptions<Context, Public, Internal> = {}, ..._disjointGuard: Disjoint<Public, Internal> extends true ? [] : [error: Disjoint<Public, Internal>]): Actor<Context, Public> {
+	const { initialize = defaultInitialize, traceLevel = defaultTraceLevel, traceWriter = defaultTraceWriter, dispatchErrorCallback = defaultDispatchErrorCallback } = options;
+	const hsm = instantiate(topState, ctx, initialize, traceLevel, traceWriter, dispatchErrorCallback, port as unknown as PortHandle<Context, Dispatch<Public, Internal>>);
+	return narrowToActor<Context, Public>(hsm as unknown as Hsm<Context, Dispatch<Public, Any>>);
 }

@@ -1,0 +1,33 @@
+> **ResolveCallback**\<`Reply`\> = (`result`) => `void`
+
+Resolves an in-flight [Hsm.call](../interfaces/Hsm.mdx#call) service with a typed reply.
+
+The runtime injects this callback as the **first** parameter of service handlers.
+Call it exactly once with the successful result; the client's `Promise` settles with
+that value. The handler's own return value (including `Promise<void>` from `async`
+handlers) does **not** substitute for calling `resolve`.
+
+## Type Parameters
+
+### Reply
+
+`Reply`
+
+Success type inferred from the service method's `resolve` parameter
+
+## Parameters
+
+### result
+
+`Reply`
+
+Value delivered to the `call()` caller
+
+## Returns
+
+`void`
+
+## Remarks
+
+For `async` service handlers, perform awaits first, then call `resolve(result)` before
+returning. If you forget `resolve`, the client's `Promise` never settles.

@@ -1,0 +1,22 @@
+> **EventPayload**\<`Protocol`, `EventName`\> = `Protocol` *extends* `undefined` ? `any`[] : `Protocol`\[`EventName`\] *extends* (...`payload`) => `Promise`\<`void`\> \| `void` ? `Payload` *extends* `any`[] ? `Payload` : `never` : `never`
+
+Tuple of arguments for [Base.post](../interfaces/Base.mdx#post) after the event name, inferred from the handler signature.
+
+## Type Parameters
+
+### Protocol
+
+`Protocol` *extends* \{ \} \| `undefined`
+
+Machine vocabulary interface
+
+### EventName
+
+`EventName` *extends* keyof `Protocol`
+
+Event key whose parameter list is extracted
+
+## Remarks
+
+For `open(): void`, payload is `[]`. For `setTarget(celsius: number): void`, payload is `[number]`.
+Service-shaped methods (leading resolve/reject) are not valid events — payload becomes `never`.

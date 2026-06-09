@@ -16,9 +16,14 @@ import { interactive as t13 } from '../13-async-handlers/interactive';
 import { interactive as t14 } from '../14-nested-machines/interactive';
 import { interactive as t15 } from '../15-complex-workflow/interactive';
 import { interactive as t17 } from '../17-post-now/interactive';
+import { interactive as testing01 } from '../testing-01-deferred-timers/interactive';
+import { interactive as testing02 } from '../testing-02-network-fetch/interactive';
+import { interactive as testing03 } from '../testing-03-event-streaming/interactive';
+import { interactive as testing04 } from '../testing-04-fault-injection/interactive';
+import { interactive as testing05 } from '../testing-05-subscriptions-and-disposables/interactive';
 import { dispatchMessage, traceFromRuntime } from './interactive-helpers';
 
-const all = [t01, t02, t03, t04, t05, t07, t08, t09, t10, t11, t12, t13, t14, t15, t17];
+const all = [t01, t02, t03, t04, t05, t07, t08, t09, t10, t11, t12, t13, t14, t15, t17, testing01, testing02, testing03, testing04, testing05];
 
 describe('Interactive tutorial metadata', () => {
 	for (const [index, meta] of all.entries()) {

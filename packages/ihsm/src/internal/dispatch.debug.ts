@@ -1,6 +1,7 @@
 import { TopState, EventHandlerError, PostedEvent, EventPayload, FatalError, FatalErrorState, InitializationError, StateClass, TransitionError, UnhandledEventError } from '../';
 
 import { DoneCallback, HsmWithTracing, Task, Transition } from './defs.private';
+import { lookupEventHandler } from './lookup';
 import { asError, getInitialState, getTransitionKey, hasInitialState, quoteUnknown, getStateName } from './utils';
 
 function finishEventDispatch<Context, Protocol extends {} | undefined>(hsm: HsmWithTracing<Context, Protocol>): void {
@@ -242,7 +243,7 @@ async function dispatchEvent<Context, Protocol extends {} | undefined, EventName
 	hsm._currentEventName = eventLabel;
 	hsm._currentEventPayload = eventPayload;
 	try {
-		const eventHandler = hsm.currentState.prototype[eventName];
+		const eventHandler = lookupEventHandler(hsm, eventName);
 
 		if (!eventHandler) {
 			try {

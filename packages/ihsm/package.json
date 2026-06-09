@@ -7,7 +7,7 @@
 	"contributors": [
 		"Roberto Boati"
 	],
-	"description": "Class-based hierarchical state machines and actor mailboxes for TypeScript — typed post/call, zero dependencies",
+	"description": "Class-based hierarchical state machines and run-to-completion actors for TypeScript, designed for Deterministic Simulation Testing (DST) — typed post/call, zero dependencies",
 	"files": [
 		"lib"
 	],
@@ -40,7 +40,12 @@
 		"fsm",
 		"state machine",
 		"hierarchical state machine",
-		"statechart"
+		"statechart",
+		"deterministic simulation testing",
+		"dst",
+		"deterministic",
+		"testing",
+		"actor model"
 	],
 	"license": "MIT",
 	"maintainers": [
@@ -74,6 +79,16 @@
 			"require": {
 				"types": "./lib/cjs/index.d.ts",
 				"default": "./lib/cjs/index.js"
+			}
+		},
+		"./testing": {
+			"import": {
+				"types": "./lib/esm/testing.d.ts",
+				"default": "./lib/esm/testing.js"
+			},
+			"require": {
+				"types": "./lib/cjs/testing.d.ts",
+				"default": "./lib/cjs/testing.js"
 			}
 		},
 		"./package.json": "./package.json"
@@ -117,5 +132,5 @@
 		"pretypecheck": "npm run prepare:ide"
 	},
 	"types": "./lib/cjs/index.d.ts",
-	"version": "0.0.21"
+	"version": "0.0.22"
 }

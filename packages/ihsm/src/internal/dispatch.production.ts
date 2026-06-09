@@ -1,6 +1,7 @@
 import { TopState, EventHandlerError, PostedEvent, EventPayload, FatalErrorState, InitializationError, FatalError, StateClass, TransitionError, UnhandledEventError } from '../';
 
 import { DoneCallback, HsmWithTracing, Task, Transition } from './defs.private';
+import { lookupEventHandler } from './lookup';
 import { getInitialState, getTransitionKey, hasInitialState, asError, getStateName } from './utils';
 
 class ProductionTransition<Context, Protocol extends {} | undefined> implements Transition<Context, Protocol> {
@@ -184,7 +185,7 @@ async function dispatchEvent<Context, Protocol extends {} | undefined, EventName
 	hsm._currentEventName = String(eventName);
 	hsm._currentEventPayload = eventPayload;
 	try {
-		const eventHandler = hsm.currentState.prototype[eventName];
+		const eventHandler = lookupEventHandler(hsm, eventName);
 		if (!eventHandler) {
 			await doUnhandledEvent(hsm, new UnhandledEventError(hsm), () => finishEventDispatch(hsm));
 			return;

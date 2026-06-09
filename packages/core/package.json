@@ -1,0 +1,63 @@
+{
+	"name": "@ihsm/core",
+	"version": "0.0.22",
+	"description": "Scoped entry point for ihsm — production runtime and ihsm/testing subpath",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/filasieno/ihsm.git",
+		"directory": "packages/core"
+	},
+	"bugs": {
+		"url": "https://github.com/filasieno/ihsm/issues"
+	},
+	"homepage": "https://filasieno.github.io/ihsm/",
+	"maintainers": [
+		"Fabio Nicola Filasieno <fabio.filasieno@users.noreply.github.com>"
+	],
+	"engines": {
+		"node": ">=22"
+	},
+	"sideEffects": false,
+	"dependencies": {
+		"ihsm": "0.0.22"
+	},
+	"files": [
+		"lib"
+	],
+	"main": "./lib/cjs/index.js",
+	"module": "./lib/esm/index.js",
+	"types": "./lib/cjs/index.d.ts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./lib/esm/index.d.ts",
+				"default": "./lib/esm/index.js"
+			},
+			"require": {
+				"types": "./lib/cjs/index.d.ts",
+				"default": "./lib/cjs/index.js"
+			}
+		},
+		"./testing": {
+			"import": {
+				"types": "./lib/esm/testing.d.ts",
+				"default": "./lib/esm/testing.js"
+			},
+			"require": {
+				"types": "./lib/cjs/testing.d.ts",
+				"default": "./lib/cjs/testing.js"
+			}
+		},
+		"./package.json": "./package.json"
+	},
+	"scripts": {
+		"build": "tsc -b tsconfig.lib.json tsconfig.esm.json && node scripts/finalize-build.mjs",
+		"clean": "rm -rf ./lib ./.tsc",
+		"prepublishOnly": "npm run build"
+	},
+	"devDependencies": {
+		"ihsm": "file:../ihsm",
+		"typescript": "^6.0.3"
+	}
+}

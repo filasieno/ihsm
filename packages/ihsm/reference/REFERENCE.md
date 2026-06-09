@@ -2,7 +2,7 @@
 
 **ihsm** is a zero-dependency hierarchical state machine library for TypeScript
 and JavaScript. States are **classes**, events are **methods**, hierarchy is
-**inheritance**, and the runtime is an **actor** with a serialized mailbox.
+**inheritance**, and the runtime is an **actor** with serialized, run-to-completion dispatch.
 
 Lineage: Harel’s hierarchical statecharts, encoded the Samek/QP way (class
 hierarchy + explicit transitions), with **cached LCA transition paths** and a
@@ -51,7 +51,8 @@ parallel regions, or deep frontend/Stately integration. See
 11. [Zero dependencies](#_11-zero-dependencies)
 12. [Code coverage](#_12-code-coverage)
 13. [Comparison with XState](#_13-comparison-with-xstate)
-14. [API quick reference](#_14-api-quick-reference)
+14. [Deterministic testing](#_14-deterministic-testing)
+15. [API quick reference](#_15-api-quick-reference)
 
 ---
 
@@ -124,14 +125,14 @@ interface the way ihsm does. See
 [§3 Advanced: Protocol typing](#advanced-protocol-typing-and-compile-time-safety).
 
 **XState:** event types as discriminated unions; no first-class typed
-request/response on the same actor mailbox with inferred `Promise<T>` from a
+request/response on the same actor with inferred `Promise<T>` from a
 service method signature.
 
-### Actor mailbox
+### Actor run-to-completion dispatch
 
 Each `Hsm` instance has an internal **job queue**. `post` and `call` enqueue
-work; one job runs at a time. While a handler executes, new messages are
-**queued**, not re-entered.
+work; one job runs at a time, to completion. While a handler executes, new
+messages are **queued**, not re-entered.
 
 This gives you actor semantics without a separate framework: hold a reference,
 send messages, deterministic ordering.
@@ -169,8 +170,8 @@ await door.sync(); // wait for initialization
 | History | `ctx` + `restore()` | Implicit (data) |
 | Orthogonal regions | nest multiple `Hsm` instances | Composition |
 | `post` | fire-and-forget | Yes |
-| `deferredPost` | `setTimeout` + queue | Yes |
-| `call` | Promise + mailbox | Yes |
+| `deferredPost` | port timer service (`Port.setTimeout`) + queue | Yes |
+| `call` | Promise + run-to-completion dispatch | Yes |
 | `sync` | drain queue | Yes |
 | `restore` | set state + ctx | Yes |
 | `makeHsm` | create + optional init | Yes |
@@ -304,7 +305,7 @@ the **typing strategy ihsm adopted**, and **every TypeScript mechanism** used in
 
 #### What other libraries do not provide
 
-| Library / style | Event names | Payload types | `call()` return type | Same mailbox for events + services |
+| Library / style | Event names | Payload types | `call()` return type | Same run-to-completion dispatch for events + services |
 | --------------- | ----------- | ------------- | -------------------- | ---------------------------------- |
 | **ihsm** | `keyof Protocol` literals | inferred from method params | `Promise<T>` from `resolve` arg | Yes |
 | **XState v5** | string `type` on objects | `setup().types` maps | snapshot / spawned actors / `waitFor` | No unified typed `call` |
@@ -332,7 +333,7 @@ source of truth** for both state handler signatures and external
 
 #### Adopted typing strategy
 
-Five rules define how a `Protocol` interface maps to the runtime mailbox:
+Five rules define how a `Protocol` interface maps to the runtime dispatch:
 
 | Rule | Meaning |
 | ---- | ------- |
@@ -592,7 +593,7 @@ rectangle "makeHsm\n(TopState, ctx)" as F
 rectangle "Hsm instance" as H
 rectangle "post / deferredPost" as post
 rectangle "call" as call
-queue "Mailbox queue" as Q
+queue "Event queue" as Q
 rectangle "Dispatch to\nstate method" as D
 P --> S
 P --> F
@@ -627,7 +628,7 @@ Every messaging API has two sides:
 
 | Side | Where | Role |
 | ---- | ----- | ---- |
-| **Handler** | Method on the active state class | Runs when the mailbox dispatches the event or service |
+| **Handler** | Method on the active state class | Runs when the actor dispatches the event or service |
 | **Client** | Code holding `Hsm` | Calls `post`, `call`, or `sync` — never implements the handler inline |
 
 The **Protocol** interface types both: handler signatures on state classes, client call sites via `post('name', …)` / `call('name', …)`.
@@ -701,7 +702,7 @@ handler completes (and after any transition it requested).
 ### `call(service, ...payload)` — typed request/response
 
 **Unique to ihsm among common JS HSM libraries:** query the same actor through
-its mailbox and receive a **typed Promise**.
+its run-to-completion dispatch and receive a **typed Promise**.
 
 **Handler** — first two parameters are `resolve` / `reject` (injected by runtime; client never passes them):
 
@@ -741,8 +742,10 @@ use `waitFor` — no single typed `call` on the interpreter.
 
 ### `deferredPost(millis, event, ...payload)`
 
-Schedule an event after a delay via `setTimeout`, then enqueue normally.
-Available **inside handlers only** (`this.deferredPost`).
+Schedule an event after a delay via the machine's **port timer service**, then enqueue
+normally. A machine without a custom port is always backed by a `Port` whose
+`setTimeout`-based timer is used here. Available **inside handlers only**
+(`this.deferredPost`) — it is not exposed on the external actor surface.
 
 **Handler:**
 
@@ -1131,15 +1134,15 @@ class Idle extends FileTop {
 
 One event, one handler, one state during all awaits, one transition when done.
 
-### Mailbox during `await`
+### Dispatch during `await`
 
 ```typescript
 sm.post('transfer', '/inbox/a.dat', '/archive/a.dat');
 await sm.sync(); // through open, read, write, close + transition
 ```
 
-While `await`ing, the mailbox **still accepts** `post`/`call` — messages queue
-until the current handler finishes.
+While `await`ing, the actor **still accepts** `post`/`call` — messages queue
+until the current handler runs to completion.
 
 
 **XState:** often models async with `invoke` + `done` events — separate states
@@ -1262,7 +1265,43 @@ visual specs, parallel regions in one chart, or frontend ecosystem integration.
 
 ---
 
-## 14. API quick reference
+## 14. Deterministic testing
+
+Determinism is a first-class feature of ihsm, not an afterthought. It rests on three
+properties you can lean on in tests:
+
+1. **Serialized, run-to-completion dispatch.** Each handler runs to completion and never
+   interleaves; `await hsm.sync()` resolves only once every job enqueued before it has
+   finished. There are no races to flake on.
+2. **A `Port` boundary.** All impurity — sockets, child processes, clocks, the filesystem —
+   lives behind a single `port` object. Swap it for a mock and the machine is pure.
+3. **A public / internal protocol split.** Events the outside world raises (`open`) are
+   separated from events the *port* raises (`onConnected`, `onData`). Tests can drive either
+   side directly, with no real I/O and no waiting on wall-clock time.
+
+For the full treatment, the library ships a dedicated, hands-on **[Deterministic testing](/testing)**
+chapter that builds these ideas up from a pure machine to fault injection — each stage with a
+complete runnable example and a live playground:
+
+- **Deferred timers & simulated time** — never wait on the wall clock; advance a `TestPort`.
+- **Network fetch behind a port** — control *what* a response is and *when* it arrives.
+- **Event streaming behind a port** — gate a push source so it provably goes quiet on unsubscribe.
+- **Fault injection & seeded DST** — make failure reproducible with a seeded PRNG.
+- **Subscriptions & disposables** — own a `Disposable` and prove it is released exactly once; build the mock with `@mock` + `makeTestPort` and script `port.watch.default(...)`.
+
+Two rules carry across all of them: **never perform I/O outside a port**, and **never sleep on
+wall-clock time in a test** — advance the machine with `sync()` and feed internal events yourself.
+
+| Goal | Factory | Surface | Use when |
+| ---- | ------- | ------- | -------- |
+| Production wiring | `makeActor` | public only | shipping code; clients must not post internal events |
+| Black-box test | `makeActor` + mock port | public only | exercise the real public path; assert recorded port calls and disposals |
+| White-box test | `makeTestActor` | merged + `port` | pin a state, drive internal events directly, assert `port` interactions |
+| Legacy / single protocol | `makeHsm` | one protocol | machines with no port or no public/internal split (unchanged) |
+
+---
+
+## 15. API quick reference
 
 ### `makeHsm<Context, Protocol>`
 
@@ -1285,11 +1324,58 @@ makeHsm(
 | `traceWriter` | Custom trace sink |
 | `dispatchErrorCallback` | Hook when dispatch throws and is not recovered |
 
-### `TopState<Context, Protocol>`
+### `makeActor` / `makeTestActor` (ports & protocol split)
+
+Both take the three mandatory arguments — `topState`, `ctx`, `port` — **positionally**, then an
+optional [`ActorOptions`](/api/index/interfaces/ActorOptions) bag (set only what you need). `Context` / `Public` / `Internal` are
+**inferred from `topState`** — no explicit generics needed. `makeActor` ships in `ihsm`;
+`makeTestActor` (and the rest of the test surface) lives in the **`ihsm/testing`** entry point so it
+is never bundled into production code.
+
+```typescript
+import { makeActor } from 'ihsm';
+import { makeTestActor } from 'ihsm/testing';
+
+makeActor(
+  topState, ctx, port,         // mandatory positionals (port backs deferredPost; use `new Port()` if none)
+  {                            // ActorOptions — all optional
+    initialize?,               // default true
+    traceLevel?,               // default TraceLevel.DEBUG
+    traceWriter?,              // default console logger
+    dispatchErrorCallback?,    // default: log and rethrow
+  },
+): Actor<Context, Public>      // clients see public events only
+
+makeTestActor(
+  topState, ctx, port,         // same mandatory positionals
+  { /* same optional ActorOptions */ }, // traceLevel defaults to VERBOSE_DEBUG here (not DEBUG)
+): TestActor<Context, Public, Internal, Port> // merged protocol + typed `port`
+```
+
+> `makeTestActor` defaults `traceLevel` to `VERBOSE_DEBUG` so a failing test is fully readable; never
+> configure a production trace level in tests — opt down explicitly only when you need a quiet run.
+
+| Type | Role |
+| ---- | ---- |
+| `PortHandle<Context, Internal>` | Runtime binding surface (`actor`, `hsm`); domain port interfaces extend this |
+| `RandomService` | `random` (`Math.random`), `cryptoRandom` (`crypto.random`), `randomUUID`, `getRandomValues` — on `Port`, mocked on `TestPort` |
+| `Port<TopState>` | Production port base: timers + {@link RandomService}; extend for domain ports |
+| `BasePort<TopState>` | Minimal binding (`actor`, `hsm`, `send`); do not extend directly in production |
+| `TestPort<TopState>` | Test port: virtual clock (`advance`), mocked random, `record` / `send` / `messages`; subclass with `@mock` for domain doubles |
+| `@mock` + `makeTestPort(MockClass)` | Build a mock from an **abstract** `TestPort` subclass (port methods declared `abstract`, signatures matching the port); each method is a typed `Stubbed` scripted via `port.method.default(impl)` (persistent) / `port.method.once(impl)` (one-shot, FIFO), with `port.method.calls` (typed args) and `port.method.reset()`; auto-recorded, throws `PreloadError` if unscripted |
+| `ResultWithSubscription<T>` | `{ value: T; subscription: Disposable }` returned by observing port methods |
+| `Actor<Context, Public>` | Public-only client handle (from `makeActor`) |
+| `TestActor<…>` | Full handle for tests: merged protocol + `port` + `subscribe` (from `makeTestActor`) |
+
+`Public` and `Internal` must be **disjoint**; overlaps fail to compile. See
+[§14 Deterministic testing](#_14-deterministic-testing).
+
+### `TopState<Context, Protocol, Internal?, Port?>`
 
 | Method / property | Description |
 | ----------------- | ----------- |
 | `ctx` | Domain context |
+| `port` | Outbound boundary, when a `port` instance is supplied (else `undefined`) |
 | `transition(next)` | Schedule state change |
 | `post(event, ...args)` | Enqueue event |
 | `deferredPost(ms, event, ...args)` | Timed enqueue |
@@ -1303,7 +1389,7 @@ makeHsm(
 
 | Method | Description |
 | ------ | ----------- |
-| `sync()` | Drain mailbox |
+| `sync()` | Drain pending events |
 | `restore(state, ctx)` | Rehydrate |
 
 ### Errors

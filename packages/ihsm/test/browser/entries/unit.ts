@@ -22,5 +22,6 @@ import '../../../src/spec/process.spec.ts';
 import '../../../src/spec/quote.spec.ts';
 import '../../../src/spec/restore.spec.ts';
 import '../../../src/spec/state-names.spec.ts';
+import '../../../src/spec/testing.spec.ts';
 import '../../../src/spec/tracelevel.spec.ts';
 import '../../../src/spec/transition.spec.ts';

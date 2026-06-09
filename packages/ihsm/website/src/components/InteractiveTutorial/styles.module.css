@@ -102,6 +102,37 @@ html[data-theme='light'] .fieldGroup input {
 	color: var(--ifm-color-danger);
 }
 
+.mousePad {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 0.35rem;
+	height: 9rem;
+	margin-bottom: 0.9rem;
+	border: 1px dashed var(--ifm-color-emphasis-400);
+	border-radius: 0.5rem;
+	background: repeating-linear-gradient(45deg, rgba(99, 102, 241, 0.06), rgba(99, 102, 241, 0.06) 10px, transparent 10px, transparent 20px);
+	cursor: crosshair;
+	text-align: center;
+	user-select: none;
+}
+
+.mousePad:hover {
+	border-color: var(--ifm-color-primary);
+}
+
+.mousePadLabel {
+	font-weight: 600;
+}
+
+.mousePadHint {
+	font-size: 0.8rem;
+	color: var(--ifm-font-color-secondary);
+	max-width: 32rem;
+	padding: 0 1rem;
+}
+
 .traceLabel {
 	display: block;
 	font-weight: 600;

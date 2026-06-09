@@ -20,3 +20,8 @@ import '../../../examples/14-nested-machines/tutorial.spec.ts';
 import '../../../examples/15-complex-workflow/tutorial.spec.ts';
 import '../../../examples/17-post-now/tutorial.spec.ts';
 import '../../../examples/shared/interactive.spec.ts';
+import '../../../examples/testing-01-deferred-timers/tutorial.spec.ts';
+import '../../../examples/testing-02-network-fetch/tutorial.spec.ts';
+import '../../../examples/testing-03-event-streaming/tutorial.spec.ts';
+import '../../../examples/testing-04-fault-injection/tutorial.spec.ts';
+import '../../../examples/testing-05-subscriptions-and-disposables/tutorial.spec.ts';

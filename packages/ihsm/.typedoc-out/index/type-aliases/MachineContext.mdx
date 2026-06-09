@@ -1,0 +1,12 @@
+> **MachineContext**\<`T`\> = `T` *extends* `object` ? `Context` : `never`
+
+Extracts the **context** type from a [TopState](../classes/TopState.mdx) subclass — making the `TopState` the
+single point where the four machine types are declared.
+
+## Type Parameters
+
+### T
+
+`T`
+
+A [TopState](../classes/TopState.mdx) subclass (instance type, e.g. `ConnTop`)

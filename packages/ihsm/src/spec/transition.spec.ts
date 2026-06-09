@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, makeHsm, InitialState, StateClass, TopState, TraceLevel } from '../';
-import { TRACE_LEVELS, clearLastError, registerSpecStateNames } from './spec.utils';
+import { InitialState, StateClass, TopState, TraceLevel } from '../';
+import { TestPort, TestActor, makeTestActor } from '../testing';
+import { TRACE_LEVELS, clearLastError, registerSpecStateNames, traceActorOnPort } from './spec.utils';
 
 type Cons = StateClass<TransitionTrace, Protocol>;
 
@@ -194,17 +195,27 @@ registerSpecStateNames({
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Transition (traceLevel = ${traceLevel})`, function () {
 		let ctx: TransitionTrace;
-		let sm: Hsm<TransitionTrace, Protocol>;
+		let sm: TestActor<TransitionTrace, Protocol, {}, TestPort>;
+		let port: TestPort;
 		beforeEach(async () => {
 			clearLastError();
 			ctx = new TransitionTrace();
-			sm = makeHsm(HsmTop, ctx, true, traceLevel);
+			port = new TestPort();
+			sm = makeTestActor(HsmTop, ctx, port, { traceLevel });
+			traceActorOnPort(sm, port);
 			await sm.sync();
 		});
 
 		it(`using sets the initial currentState following the @initialState annotation directives (traceLevel = ${traceLevel as TraceLevel})`, async (): Promise<void> => {
 			expect(sm.currentState).eq(C1111);
 			expect(ctx.entryList).to.eql([HsmTop, C, C1, C11, C111, C1111]);
+		});
+
+		it(`records every posted event on the attached TestPort (traceLevel = ${traceLevel as TraceLevel})`, async () => {
+			sm.post('transitionTo', A111);
+			sm.post('clear');
+			await sm.sync();
+			expect(port.events).to.eql(['transitionTo', 'clear']);
 		});
 
 		it(`checks nextState to another branch with common ancestor (traceLevel = ${traceLevel as TraceLevel})`, async () => {

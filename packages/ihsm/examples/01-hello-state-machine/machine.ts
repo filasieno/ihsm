@@ -20,7 +20,7 @@ export interface DoorProtocol {
 	close(): void;
 }
 
-/** Root state: inherits mailbox, transition(), and tracing from TopState. */
+/** Root state: inherits run-to-completion dispatch, transition(), and tracing from TopState. */
 export class DoorTop extends PlaygroundTopState<DoorCtx, DoorProtocol> {}
 
 /** Initial leaf after makeHsm + sync — door starts closed. */

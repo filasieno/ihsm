@@ -1,0 +1,36 @@
+> **TopStateArg**\<`Context`, `Public`, `Internal`\> = [`StateClass`](StateClass.mdx)\<`Context`, [`Dispatch`](Dispatch.mdx)\<`Public`, `Internal`\>\> & `object`
+
+The constrained root-state argument shared by [makeActor](../functions/makeActor.mdx) / [testing!makeTestActor](../../testing/functions/makeTestActor.mdx).
+
+Its prototype carries the [MachineTypes](../interfaces/MachineTypes.mdx) marker, so `Context`, `Public`, and `Internal` are
+**inferred from the `topState`** at the call site — you never pass those generics explicitly.
+
+## Type Declaration
+
+### prototype
+
+> `readonly` **prototype**: `object`
+
+#### prototype.\_\_ihsm
+
+> `readonly` **\_\_ihsm**: [`MachineTypes`](../interfaces/MachineTypes.mdx)\<`Context`, `Public`, `Internal`, `unknown`\>
+
+## Type Parameters
+
+### Context
+
+`Context`
+
+Domain context type
+
+### Public
+
+`Public` *extends* `undefined` \| \{ \}
+
+Public, client-callable protocol
+
+### Internal
+
+`Internal` *extends* `object`
+
+Internal protocol — only postable by the port / handlers

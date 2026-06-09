@@ -1,0 +1,19 @@
+> **Mock**\<`P`, `T`\> = `P` & `{ [K in keyof MachinePort<T>]: MachinePort<T>[K] extends (args: infer A) => infer R ? Stubbed<A, R> : MachinePort<T>[K] }`
+
+The fully-wired mock type returned by [makeTestPort](../functions/makeTestPort.mdx): the mock class `P` itself, with each
+**port method** (inferred from the machine's [TopState](../../index/classes/TopState.mdx) via [MachinePort](../../index/type-aliases/MachinePort.mdx)) upgraded to
+a scriptable, introspectable [Stubbed](../interfaces/Stubbed.mdx) method.
+
+## Type Parameters
+
+### P
+
+`P`
+
+The mock port class instance type
+
+### T
+
+`T`
+
+The machine's root [TopState](../../index/classes/TopState.mdx) subclass

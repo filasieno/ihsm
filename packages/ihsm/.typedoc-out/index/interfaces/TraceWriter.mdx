@@ -1,0 +1,52 @@
+Sink for structured or human-readable trace output from the runtime and handlers.
+
+Inject a custom implementation via [makeHsm](../functions/makeHsm.mdx) to collect traces in tests,
+forward to OpenTelemetry, or suppress console noise in CI.
+
+## Methods
+
+### write()
+
+> **write**\<`Context`, `Protocol`\>(`hsm`, `msg`): `void`
+
+Record one trace line for a machine instance.
+
+#### Type Parameters
+
+##### Context
+
+`Context`
+
+Domain context type of the machine being traced
+
+##### Protocol
+
+`Protocol` *extends* \{ \} \| `undefined`
+
+Event/service vocabulary of the machine being traced
+
+#### Parameters
+
+##### hsm
+
+[`Properties`](Properties.mdx)\<`Context`, `Protocol`\>
+
+Read-only machine properties ([Properties.currentStateName](Properties.mdx#currentstatename),
+  [Properties.traceHeader](Properties.mdx#traceheader), etc.) at the time of the write
+
+##### msg
+
+`any`
+
+Payload to record. **Strings** are formatted as
+  `` `${traceHeader}${currentStateName}: ${msg}` `` by the default console writer;
+  non-strings are passed through unchanged (e.g. `Error` objects on failure paths)
+
+#### Returns
+
+`void`
+
+#### Remarks
+
+Handlers may call `this.traceWriter.write(this.hsm, 'my message')` for ad-hoc
+logging that respects the same header and state prefix as runtime traces.

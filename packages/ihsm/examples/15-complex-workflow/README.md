@@ -101,7 +101,7 @@ Typed status query:
 const phase = await order.call('getStatus'); // Promise<OrderPhase>
 ```
 
-For extended transitions that must run internal events before other mailbox work, see [postNow()](../17-post-now/README.md).
+For extended transitions that must run internal events before other queued work, see [postNow()](../17-post-now/README.md).
 
 ## Reading the trace
 

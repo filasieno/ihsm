@@ -1,0 +1,138 @@
+Lifecycle hooks optionally overridden on state classes.
+
+Default implementations on [TopState](../classes/TopState.mdx) are empty for entry/exit and rethrow for errors.
+Only states that **define their own** `onEntry`/`onExit` participate in verbose trace exit lists.
+
+## Type Parameters
+
+### Context
+
+`Context`
+
+### Protocol
+
+`Protocol` *extends* \{ \} \| `undefined`
+
+## Methods
+
+### onExit()
+
+> **onExit**(): `void` \| `Promise`\<`void`\>
+
+Invoked when **leaving** this state during an external transition.
+
+Runs during the exit phase **after** the triggering handler completes and before the
+prototype switches away. Async `onExit` is awaited before continuing up the LCA path.
+
+#### Returns
+
+`void` \| `Promise`\<`void`\>
+
+#### Throws
+
+[TransitionError](../classes/TransitionError.mdx) when this hook throws — may route to [FatalErrorState](../classes/FatalErrorState.mdx)
+
+#### Remarks
+
+Not called for internal transitions (handler returns without [State.transition](State.mdx#transition)).
+Not called on [Hsm.restore](Hsm.mdx#restore). Self-transitions may skip exit when optimized.
+
+***
+
+### onEntry()
+
+> **onEntry**(): `void` \| `Promise`\<`void`\>
+
+Invoked when **entering** this state during initialization or an external transition.
+
+Runs during the entry phase after the prototype points at this state. Async `onEntry` is
+awaited before entering nested initial substates or running deeper `onEntry` hooks.
+
+#### Returns
+
+`void` \| `Promise`\<`void`\>
+
+#### Throws
+
+[TransitionError](../classes/TransitionError.mdx) or [InitializationError](../classes/InitializationError.mdx) when this hook throws
+
+#### Remarks
+
+During `makeHsm(..., initialize: true)`, `onEntry` runs from root down through each
+`@InitialState` chain to the initial leaf. Schedule follow-up transitions via [Base.post](Base.mdx#post),
+not [State.transition](State.mdx#transition), from within `onEntry`.
+
+***
+
+### onError()
+
+> **onError**\<`EventName`\>(`error`): `void` \| `Promise`\<`void`\>
+
+Recovery hook when an event handler throws [EventHandlerError](../classes/EventHandlerError.mdx).
+
+#### Type Parameters
+
+##### EventName
+
+`EventName` *extends* `string` \| `number` \| `symbol`
+
+Correlated event key from `Protocol`
+
+#### Parameters
+
+##### error
+
+[`RuntimeError`](../classes/RuntimeError.mdx)\<`Context`, `Protocol`, `EventName`\>
+
+Typed runtime error with [RuntimeError.eventName](../classes/RuntimeError.mdx#eventname-1),
+  [RuntimeError.eventPayload](../classes/RuntimeError.mdx#eventpayload), [HsmError.context](../classes/HsmError.mdx#context-1), and [HsmError.cause](../classes/HsmError.mdx#cause)
+
+#### Returns
+
+`void` \| `Promise`\<`void`\>
+
+#### Throws
+
+Rethrow to propagate; throwing here becomes [FatalError](../classes/FatalError.mdx)
+
+#### Remarks
+
+Default [TopState](../classes/TopState.mdx) implementation rethrows. Override to log, transition to a safe
+state, or swallow. Uncaught errors invoke [Properties.dispatchErrorCallback](Properties.mdx#dispatcherrorcallback).
+
+***
+
+### onUnhandled()
+
+> **onUnhandled**\<`EventName`\>(`error`): `void` \| `Promise`\<`void`\>
+
+Recovery hook when dispatch would raise [UnhandledEventError](../classes/UnhandledEventError.mdx).
+
+#### Type Parameters
+
+##### EventName
+
+`EventName` *extends* `string` \| `number` \| `symbol`
+
+Correlated event key from `Protocol`
+
+#### Parameters
+
+##### error
+
+[`UnhandledEventError`](../classes/UnhandledEventError.mdx)\<`Context`, `Protocol`, `EventName`\>
+
+Describes the unmatched event and active state
+
+#### Returns
+
+`void` \| `Promise`\<`void`\>
+
+#### Throws
+
+Default [TopState](../classes/TopState.mdx) implementation rethrows → may enter `onError`
+
+#### Remarks
+
+Override to implement catch-all handlers, auditing, or transition to an error state
+without defining every event on every leaf.

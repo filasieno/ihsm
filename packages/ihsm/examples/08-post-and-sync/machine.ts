@@ -8,7 +8,7 @@ import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
 export interface QueueCtx {
-	/** Append-only log of handler names — order proves mailbox serialization. */
+	/** Append-only log of handler names — order proves run-to-completion serialization. */
 	events: string[];
 }
 

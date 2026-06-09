@@ -120,7 +120,7 @@
             preBuild = npmPreBuild;
           }
           // npmBuildEnv
-          // (builtins.removeAttrs args [ "pkgs" ])
+          // (removeAttrs args [ "pkgs" ])
         );
 
     in
@@ -287,6 +287,7 @@
 
             shellHook = ''
               export HUSKY=0
+              export IHSM_REQUIRE_PLANTUML=1
               export SOURCE_DATE_EPOCH="${toString self.lastModified}"
               export TZ=UTC
               export LC_ALL=C.UTF-8
@@ -339,10 +340,7 @@
       );
 
       checks = forEachSystem (
-        {
-          pkgs,
-          system,
-        }:
+        { system, ... }:
         let
           packages = self.packages.${system};
         in

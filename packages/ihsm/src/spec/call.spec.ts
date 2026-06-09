@@ -1,7 +1,9 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { Hsm, Any, makeHsm, InitialState, RejectCallback, ResolveCallback, TopState, TraceLevel } from '../';
+import { Any, InitialState, RejectCallback, ResolveCallback, TopState } from '../';
+import { TestPort, TestActor, makeTestActor } from '../testing';
+import { traceActorOnPort } from './spec.utils';
 
 interface Protocol {
 	getResult(resolve: (result: string) => void, reject: (error: Error) => void, value: string): void;
@@ -21,10 +23,13 @@ class HsmTop extends TopState<Any, Protocol> implements Protocol {
 class A extends HsmTop {}
 
 describe(`call`, function (): void {
-	let sm: Hsm<Any, Protocol>;
+	let sm: TestActor<Any, Protocol, {}, TestPort>;
+	let port: TestPort;
 
 	beforeEach(async () => {
-		sm = makeHsm(HsmTop, {}, true, TraceLevel.VERBOSE_DEBUG);
+		port = new TestPort();
+		sm = makeTestActor(HsmTop, {}, port);
+		traceActorOnPort(sm, port);
 		await sm.sync();
 		expect(sm.currentState).equals(A);
 	});
@@ -33,6 +38,8 @@ describe(`call`, function (): void {
 		const value = 'ok: hello';
 		const result = await sm.call('getResult', value);
 		expect(result).equals(value);
+		// The TestPort observes service calls just like plain events.
+		expect(port.trace).eqls([`getResult:${value}`]);
 	});
 
 	it(`call fails`, async () => {
@@ -42,5 +49,6 @@ describe(`call`, function (): void {
 		} catch (error) {
 			expect((error as Error).message).equals(value);
 		}
+		expect(port.events).eqls(['getResult']);
 	});
 });

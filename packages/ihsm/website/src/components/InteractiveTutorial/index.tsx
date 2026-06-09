@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { InteractiveRuntime, TutorialInteractiveMeta, TutorialMessage } from '@examples/shared/interactive-types';
 import { dispatchMessage, resetRuntime, traceFromRuntime } from '@examples/shared/interactive-helpers';
 import styles from './styles.module.css';
@@ -28,6 +28,15 @@ export default function InteractiveTutorial({ meta }: InteractiveTutorialProps):
 
 	const traceText = useMemo(() => traceFromRuntime(runtime), [runtime]);
 	const stateText = useMemo(() => meta.stateSummary(runtime), [meta, runtime]);
+	const traceRef = useRef<HTMLTextAreaElement>(null);
+
+	useLayoutEffect(() => {
+		const trace = traceRef.current;
+		if (!trace) {
+			return;
+		}
+		trace.scrollTop = trace.scrollHeight;
+	}, [traceText]);
 
 	const onSenderChange = useCallback(
 		(nextSenderId: string) => {
@@ -99,6 +108,31 @@ export default function InteractiveTutorial({ meta }: InteractiveTutorialProps):
 		[meta.extraActions, runtime]
 	);
 
+	const lastMoveAt = React.useRef(0);
+	const onPadMove = useCallback(
+		(event: React.MouseEvent<HTMLDivElement>) => {
+			const pad = meta.mousePad;
+			if (!pad || busy) {
+				return;
+			}
+			const now = Date.now();
+			if (now - lastMoveAt.current < 60) {
+				return; // throttle the stream so the actor/log stay readable
+			}
+			lastMoveAt.current = now;
+			const rect = event.currentTarget.getBoundingClientRect();
+			const x = event.clientX - rect.left;
+			const y = event.clientY - rect.top;
+			void Promise.resolve(pad.onMove(runtime, x, y))
+				.then(() => setRuntime({ ...runtime }))
+				.catch(err => {
+					setError(err instanceof Error ? err.message : String(err));
+					setRuntime({ ...runtime });
+				});
+		},
+		[busy, meta.mousePad, runtime]
+	);
+
 	return (
 		<section className={styles.panel} aria-label={`Tutorial playground: ${meta.title}`}>
 			<div className={styles.toolbar}>
@@ -161,10 +195,17 @@ export default function InteractiveTutorial({ meta }: InteractiveTutorialProps):
 				)}
 			</div>
 
+			{meta.mousePad && (
+				<div className={styles.mousePad} onMouseMove={onPadMove} role="application" aria-label={meta.mousePad.label}>
+					<span className={styles.mousePadLabel}>{meta.mousePad.label}</span>
+					{meta.mousePad.hint && <span className={styles.mousePadHint}>{meta.mousePad.hint}</span>}
+				</div>
+			)}
+
 			<label className={styles.traceLabel} htmlFor={`${meta.title}-trace`}>
 				Trace
 			</label>
-			<textarea id={`${meta.title}-trace`} className={styles.trace} readOnly value={traceText} rows={16} spellCheck={false} />
+			<textarea ref={traceRef} id={`${meta.title}-trace`} className={styles.trace} readOnly value={traceText} rows={16} spellCheck={false} />
 		</section>
 	);
 }

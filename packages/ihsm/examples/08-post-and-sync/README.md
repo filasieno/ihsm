@@ -6,7 +6,7 @@ If handlers could be re-entered mid-flight, invariants break. You need determini
 
 ## Solution
 
-ihsm serializes dispatch in a **mailbox**.
+ihsm serializes dispatch with **run-to-completion semantics**.
 
 | Side | Where | Role |
 | ---- | ----- | ---- |
@@ -165,7 +165,7 @@ Each line is **`domain|…|StateName: message`**. Domains nest as the runtime de
 
 On the [documentation page](https://filasieno.github.io/ihsm/reference), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:examples` headlessly.
 
-**What to notice:** `#start` finishes before `#tick` / `#done` dispatches appear — FIFO mailbox, not re-entrant `post` from inside the handler.
+**What to notice:** `#start` finishes before `#tick` / `#done` dispatches appear — FIFO, run-to-completion dispatch, not re-entrant `post` from inside the handler.
 
 ## Verify
 

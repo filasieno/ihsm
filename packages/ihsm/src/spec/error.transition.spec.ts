@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, Any, makeHsm, FatalErrorState, InitialState, StateClass, TopState, TraceLevel } from '../';
-import { clearLastError, createTestDispatchErrorCallback, TRACE_LEVELS } from './spec.utils';
+import { Any, FatalErrorState, InitialState, StateClass, TopState, TraceLevel } from '../';
+import { TestPort, TestActor, makeTestActor } from '../testing';
+import { clearLastError, createTestDispatchErrorCallback, TRACE_LEVELS, traceActorOnPort } from './spec.utils';
 
 type Cons = StateClass<Any, Protocol>;
 
@@ -32,11 +33,14 @@ class C extends HsmTop {
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`A transition that throws an error (traceLevel = ${traceLevel})`, function (): void {
-		let sm: Hsm<Any, Protocol>;
+		let sm: TestActor<Any, Protocol, {}, TestPort>;
+		let port: TestPort;
 
 		beforeEach(async () => {
 			clearLastError();
-			sm = makeHsm(HsmTop, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
+			port = new TestPort();
+			sm = makeTestActor(HsmTop, {}, port, { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+			traceActorOnPort(sm, port);
 			await sm.sync();
 		});
 
@@ -47,6 +51,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			await sm.sync();
 
 			expect(sm.currentState).equals(C);
+			expect(port.events).to.include('transitionTo');
 			sm.post('transitionTo', B);
 			await sm.sync();
 

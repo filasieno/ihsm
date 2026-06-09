@@ -1,8 +1,9 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { Hsm, State, makeHsm, InitialState, TopState } from '../';
-import { TRACE_LEVELS } from './spec.utils';
+import { State, InitialState, TopState } from '../';
+import { TestPort, TestActor, makeTestActor } from '../testing';
+import { TRACE_LEVELS, traceActorOnPort } from './spec.utils';
 
 interface Ctx {
 	order: string[];
@@ -36,10 +37,13 @@ class HsmTop extends TopState<Ctx, Protocol> implements Protocol {
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`postNow (traceLevel = ${traceLevel})`, () => {
-		let sm: Hsm<Ctx, Protocol>;
+		let sm: TestActor<Ctx, Protocol, {}, TestPort>;
+		let port: TestPort;
 
 		beforeEach(async () => {
-			sm = makeHsm(HsmTop, { order: [] }, true, traceLevel);
+			port = new TestPort();
+			sm = makeTestActor(HsmTop, { order: [] }, port, { traceLevel });
+			traceActorOnPort(sm, port);
 			await sm.sync();
 		});
 
@@ -48,6 +52,8 @@ for (const traceLevel of TRACE_LEVELS) {
 			await sm.sync();
 			await sm.sync();
 			expect(sm.ctx.order).eqls(['enqueue-start', 'enqueue-end', 'hi', 'lo']);
+			// post/postNow both notify observers in invocation order (the handler posts lo then hi).
+			expect(port.events).eqls(['enqueueBoth', 'lo', 'hi']);
 		});
 
 		it('dispatches hi-priority events before already-queued normal posts from the same handler', async () => {

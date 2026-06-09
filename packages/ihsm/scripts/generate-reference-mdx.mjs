@@ -8,13 +8,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { plantumlAssetDir, plantumlUrlPrefix, renderPlantumlInMarkdown } from './render-plantuml.mjs';
 import { expandExampleMarkers } from './expand-reference-examples.mjs';
-import { referenceExamples } from './reference-examples.mjs';
+import { referenceExamples, testingExamples } from './reference-examples.mjs';
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const referencePath = path.join(repoRoot, 'reference/REFERENCE.md');
-const docsOut = process.env.IHSM_DOCS_DIR
-	? path.resolve(process.env.IHSM_DOCS_DIR)
-	: path.join(repoRoot, 'website/docs');
+const testingPath = path.join(repoRoot, 'reference/TESTING.md');
+const docsOut = process.env.IHSM_DOCS_DIR ? path.resolve(process.env.IHSM_DOCS_DIR) : path.join(repoRoot, 'website/docs');
 const sidebarsPath = path.join(repoRoot, 'website/sidebars.ts');
 
 function slugifySection(title) {
@@ -23,6 +22,28 @@ function slugifySection(title) {
 		.replace(/`/g, '')
 		.replace(/[^a-z0-9]+/g, '-')
 		.replace(/^-|-$/g, '');
+}
+
+/** Turn TSDoc `{@link …}` into MDX-safe markdown (bare `{@link …}` breaks acorn). */
+function convertTypedocLinks(text) {
+	const apiPaths = {
+		ActorOptions: '/api/index/interfaces/ActorOptions',
+		Port: '/api/index/classes/Port',
+		PortHandle: '/api/index/interfaces/PortHandle',
+		BasePort: '/api/index/classes/BasePort',
+		makeActor: '/api/index/functions/makeActor',
+		makeTestActor: '/api/testing/functions/makeTestActor',
+		TestPort: '/api/testing/classes/TestPort',
+		Actor: '/api/index/type-aliases/Actor',
+		makeHsm: '/api/index/functions/makeHsm',
+	};
+
+	return text.replace(/\{@link\s+([^}]+)\}/g, (_m, raw) => {
+		const target = raw.trim();
+		const short = target.replace(/^ihsm(?:\/testing)?[.!]/, '').split('.').pop();
+		const href = apiPaths[short];
+		return href ? `[\`${short}\`](${href})` : `\`${short}\``;
+	});
 }
 
 function transformSiteLinks(text) {
@@ -65,35 +86,17 @@ function transformSiteLinks(text) {
 	out = out.replace(/\]\(\/tutorials(\/[^)]*)\)/g, '](/reference$1)');
 	out = out.replace(/\]\(https:\/\/filasieno\.github\.io\/ihsm\/tutorials([^)]*)\)/g, '](/reference$1)');
 
-	out = out.replace(
-		/Hands-on topics: \[guide\]\([^)]+\) · \[source index\]\([^)]+\)\n?/,
-		'Documentation: [Reference](/reference) · [API](/api)\n\n'
-	);
+	out = out.replace(/Hands-on topics: \[guide\]\([^)]+\) · \[source index\]\([^)]+\)\n?/, 'Documentation: [Reference](/reference) · [API](/api)\n\n');
 
 	out = out.replace(/^Tutorial: \[.*\]\([^)]+\)\n?/gm, '');
 	out = out.replace(/^Tutorial: \[.*\]\([^)]+\) \([^)]+\)\n?/gm, '');
 
-	out = out.replace(
-		/\(see \[tutorial \d+\]\([^)]+\)\)/g,
-		'(see the interactive example below)'
-	);
-	out = out.replace(
-		/\[tutorial \d+\]\(\.\.\/tutorials\/[^)]+\)/g,
-		'[hierarchy example](#_5-transitions)'
-	);
-	out = out.replace(
-		/\[tutorial \d+\]\(\.\.\/examples\/[^)]+\)/g,
-		'[hierarchy example](#_5-transitions)'
-	);
+	out = out.replace(/\(see \[tutorial \d+\]\([^)]+\)\)/g, '(see the interactive example below)');
+	out = out.replace(/\[tutorial \d+\]\(\.\.\/tutorials\/[^)]+\)/g, '[hierarchy example](#_5-transitions)');
+	out = out.replace(/\[tutorial \d+\]\(\.\.\/examples\/[^)]+\)/g, '[hierarchy example](#_5-transitions)');
 
-	out = out.replace(
-		/\[§14 Comparison with XState\]\(#_13-comparison-with-xstate\)/g,
-		'[Comparison with XState](#_13-comparison-with-xstate)'
-	);
-	out = out.replace(
-		/\[§3 Advanced: Protocol typing\]\(#advanced-protocol-typing-and-compile-time-safety\)/g,
-		'[Protocol typing](#advanced-protocol-typing-and-compile-time-safety)'
-	);
+	out = out.replace(/\[§14 Comparison with XState\]\(#_13-comparison-with-xstate\)/g, '[Comparison with XState](#_13-comparison-with-xstate)');
+	out = out.replace(/\[§3 Advanced: Protocol typing\]\(#advanced-protocol-typing-and-compile-time-safety\)/g, '[Protocol typing](#advanced-protocol-typing-and-compile-time-safety)');
 	out = out.replace(/\[§4 `sync\(\)`\]\(#sync\)/g, '[`sync()`](#sync)');
 
 	out = out.replace(/tutorials\/shared\//g, 'examples/shared/');
@@ -115,6 +118,7 @@ function applySectionAnchors(text) {
 
 function buildReferenceMdx() {
 	let body = fs.readFileSync(referencePath, 'utf8');
+	body = convertTypedocLinks(body);
 	body = transformSiteLinks(body);
 	body = applySectionAnchors(body);
 	const { body: withPlaygrounds, imports } = expandExampleMarkers(body, referenceExamples, repoRoot);
@@ -124,10 +128,7 @@ function buildReferenceMdx() {
 		fileBase: 'reference',
 	});
 
-	const importBlock =
-		imports.length > 0
-			? `import InteractiveTutorial from '@site/src/components/InteractiveTutorial';\n${imports.join('\n')}\n\n`
-			: '';
+	const importBlock = imports.length > 0 ? `import InteractiveTutorial from '@site/src/components/InteractiveTutorial';\n${imports.join('\n')}\n\n` : '';
 
 	return `---
 title: Reference
@@ -142,6 +143,33 @@ ${body.trimEnd()}
 `;
 }
 
+function buildTestingMdx() {
+	let body = fs.readFileSync(testingPath, 'utf8');
+	body = convertTypedocLinks(body);
+	body = transformSiteLinks(body);
+	body = applySectionAnchors(body);
+	const { body: withPlaygrounds, imports } = expandExampleMarkers(body, testingExamples, repoRoot);
+	body = renderPlantumlInMarkdown(withPlaygrounds, {
+		assetDir: plantumlAssetDir(repoRoot),
+		urlPrefix: plantumlUrlPrefix,
+		fileBase: 'testing',
+	});
+
+	const importBlock = imports.length > 0 ? `import InteractiveTutorial from '@site/src/components/InteractiveTutorial';\n${imports.join('\n')}\n\n` : '';
+
+	return `---
+title: Deterministic Testing
+slug: /testing
+id: testing
+sidebar_position: 3
+---
+
+${importBlock}# Deterministic testing
+
+${body.trimEnd()}
+`;
+}
+
 function writeSidebars() {
 	const content = `import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
 
@@ -150,6 +178,7 @@ const sidebars: SidebarsConfig = {
 \tdocs: [
 \t\t'intro',
 \t\t'reference',
+\t\t'testing',
 \t\t{
 \t\t\ttype: 'category',
 \t\t\tlabel: 'API Reference',
@@ -170,4 +199,7 @@ fs.mkdirSync(docsOut, { recursive: true });
 const mdx = buildReferenceMdx();
 fs.writeFileSync(path.join(docsOut, 'reference.mdx'), mdx);
 console.log(`wrote ${path.relative(repoRoot, path.join(docsOut, 'reference.mdx'))}`);
+const testingMdx = buildTestingMdx();
+fs.writeFileSync(path.join(docsOut, 'testing.mdx'), testingMdx);
+console.log(`wrote ${path.relative(repoRoot, path.join(docsOut, 'testing.mdx'))}`);
 writeSidebars();

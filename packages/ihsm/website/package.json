@@ -1,7 +1,7 @@
 {
 	"name": "ihsm-site",
 	"private": true,
-	"version": "0.0.21",
+	"version": "0.0.22",
 	"scripts": {
 		"prebuild": "node ../scripts/ensure-website-docs.mjs",
 		"prestart": "node ../scripts/ensure-website-docs.mjs",

@@ -1,8 +1,9 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { State, TopState, TransitionError, UnhandledEventError, makeHsm, FatalErrorState, InitialState } from '../';
-import { clearLastError, createTestDispatchErrorCallback, getLastError, TRACE_LEVELS, registerSpecStateNames } from './spec.utils';
+import { State, TopState, TransitionError, UnhandledEventError, FatalErrorState, InitialState } from '../';
+import { TestPort, makeTestActor } from '../testing';
+import { clearLastError, createTestDispatchErrorCallback, getLastError, TRACE_LEVELS, registerSpecStateNames, traceActorOnPort } from './spec.utils';
 
 interface Protocol {
 	trigger(): void;
@@ -21,15 +22,20 @@ class Top extends TopState<Record<string, never>, Protocol> implements Protocol 
 
 describe('hi-priority queue when idle', () => {
 	it('runs an unshifted task without a preceding main-queue job', async () => {
-		const sm = makeHsm(Top, {}, false);
-		let ran = false;
+		const sm = makeTestActor(Top, {}, new TestPort(), { initialize: false });
+		let ran = 0;
 		const internal = sm as unknown as { unshiftHiPriorityTask: (task: (done: () => void) => void) => void };
 		internal.unshiftHiPriorityTask(done => {
-			ran = true;
+			ran += 1;
+			done();
+		});
+		// A second unshift while the queue is already draining hits the early-return guard.
+		internal.unshiftHiPriorityTask(done => {
+			ran += 1;
 			done();
 		});
 		await sm.sync();
-		expect(ran).equals(true);
+		expect(ran).equals(2);
 	});
 });
 
@@ -44,11 +50,14 @@ for (const traceLevel of TRACE_LEVELS) {
 		beforeEach(() => clearLastError());
 
 		it('surfaces the transition error through dispatch', async () => {
-			const sm = makeHsm(HandlerThrowsTransition, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
+			const port = new TestPort();
+			const sm = makeTestActor(HandlerThrowsTransition, {}, port, { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+			traceActorOnPort(sm, port);
 			await sm.sync();
 			sm.post('trigger');
 			await sm.sync();
 			expect(getLastError()).instanceOf(TransitionError);
+			expect(port.events).eqls(['trigger']);
 		});
 	});
 }
@@ -68,7 +77,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		beforeEach(() => clearLastError());
 
 		it('does not recover', async () => {
-			const sm = makeHsm(OnErrorRethrowsTransition, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
+			const sm = makeTestActor(OnErrorRethrowsTransition, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			await sm.sync();
 			sm.post('trigger');
 			await sm.sync();
@@ -92,7 +101,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		beforeEach(() => clearLastError());
 
 		it('moves to fatal state', async () => {
-			const sm = makeHsm(OnUnhandledRethrowsTransition, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
+			const sm = makeTestActor(OnUnhandledRethrowsTransition, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			await sm.sync();
 			sm.post('trigger');
 			await sm.sync();
@@ -117,7 +126,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		beforeEach(() => clearLastError());
 
 		it('rethrows the transition error', async () => {
-			makeHsm(InitTransitionTop, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
+			makeTestActor(InitTransitionTop, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			await new Promise(resolve => setTimeout(resolve, 50));
 			expect(getLastError()).instanceOf(TransitionError);
 		});
@@ -137,7 +146,7 @@ class AsyncOnErrorRecovery extends Top {
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`async onError recovery (traceLevel = ${traceLevel})`, () => {
 		it('awaits the onError promise', async () => {
-			const sm = makeHsm(AsyncOnErrorRecovery, {}, true, traceLevel);
+			const sm = makeTestActor(AsyncOnErrorRecovery, {}, new TestPort(), { traceLevel });
 			await sm.sync();
 			sm.post('trigger');
 			await sm.sync();
@@ -159,7 +168,7 @@ class AsyncOnUnhandledRecovery extends Top {
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`async onUnhandled recovery (traceLevel = ${traceLevel})`, () => {
 		it('awaits the onUnhandled promise', async () => {
-			const sm = makeHsm(AsyncOnUnhandledRecovery, {}, true, traceLevel);
+			const sm = makeTestActor(AsyncOnUnhandledRecovery, {}, new TestPort(), { traceLevel });
 			await sm.sync();
 			sm.post('trigger');
 			await sm.sync();
@@ -179,7 +188,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		beforeEach(() => clearLastError());
 
 		it('reports dispatch failure', async () => {
-			const sm = makeHsm(MissingHandlerTop, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
+			const sm = makeTestActor(MissingHandlerTop, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			await sm.sync();
 			sm.post('unknownEvent' as 'trigger');
 			await sm.sync();
@@ -216,7 +225,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		beforeEach(() => clearLastError());
 
 		it('reports nested dispatch failure', async () => {
-			const sm = makeHsm(BoomUnhandled, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
+			const sm = makeTestActor(BoomUnhandled, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			await sm.sync();
 			sm.post('boom');
 			await sm.sync();

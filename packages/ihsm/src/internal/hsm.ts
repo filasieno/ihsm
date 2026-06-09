@@ -1,4 +1,4 @@
-import { DispatchErrorCallback, PostedEvent, EventPayload, ServiceResponse, ServiceName, ServiceRequest, StateClass, TraceLevel, TraceWriter, UnhandledEventError } from '../';
+import { Disposable, DispatchErrorCallback, EventObserver, PostedEvent, EventPayload, ServiceResponse, ServiceName, ServiceRequest, StateClass, TraceLevel, TraceWriter, UnhandledEventError } from '../';
 import { HsmWithTracing, Instance, Task, Transition } from './defs.private';
 import { createEventDispatchTask as createEventDispatchVerboseDebug, createInitTask as createInitVerboseDebug } from './dispatch.trace';
 import { createEventDispatchTask as createEventDispatchDebug, createInitTask as createInitTaskDebug } from './dispatch.debug';
@@ -45,6 +45,7 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 
 	public _currentEventName?: string;
 	public _currentEventPayload?: any[];
+	private _observers?: Set<EventObserver>;
 	public dispatchErrorCallback: DispatchErrorCallback<Context, Protocol>;
 	private _traceLevel: TraceLevel;
 	private _traceDomainStack: string[];
@@ -92,6 +93,11 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 	set ctx(ctx: Context){
 		this._instance.ctx = ctx;
 	}
+
+	/** Outbound boundary supplied to (or defaulted by) the factory (see {@link makeHsm}); never `undefined` at runtime. */
+	get port(): unknown {
+		return this._instance.portRef;
+	}
 	 
 	get eventName(): string { return this._currentEventName!; }
 	 
@@ -99,12 +105,35 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 	get currentStateName(): string { return getStateName(Object.getPrototypeOf(this._instance).constructor); }
 	get currentState(): StateClass<Context, Protocol> { return Object.getPrototypeOf(this._instance).constructor; }
 	set currentState(newState: StateClass<Context, Protocol>) { Object.setPrototypeOf(this._instance, newState.prototype); }
-	post<EventName extends keyof Protocol>(eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void { this.pushTask(this._createEventDispatchTask(this, eventName, ...eventPayload)); }
-	postNow<EventName extends keyof Protocol>(eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void { this.pushHiPriorityTask(this._createEventDispatchTask(this, eventName, ...eventPayload)); }
+	post<EventName extends keyof Protocol>(eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void { this._notifyObservers(eventName as any, eventPayload); this.pushTask(this._createEventDispatchTask(this, eventName, ...eventPayload)); }
+	postNow<EventName extends keyof Protocol>(eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void { this._notifyObservers(eventName as any, eventPayload); this.pushHiPriorityTask(this._createEventDispatchTask(this, eventName, ...eventPayload)); }
+
+	/** Register a test-only observer; returns a Disposable that removes it. See {@link TestActor.subscribe}. */
+	subscribe(observer: EventObserver): Disposable {
+		if (this._observers === undefined) this._observers = new Set();
+		this._observers.add(observer);
+		return {
+			dispose: (): void => {
+				this._observers?.delete(observer);
+			},
+		};
+	}
+
+	private _notifyObservers(eventName: string | number | symbol, eventPayload: any[]): void {
+		if (this._observers === undefined || this._observers.size === 0) return;
+		const message = { event: String(eventName), payload: [...eventPayload] };
+		for (const observer of this._observers) observer(message);
+	}
 	deferredPost<EventName extends keyof Protocol>(millis: number, eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void {
-		setTimeout(
-			() => this.pushTask(this._createEventDispatchTask(this, eventName, ...eventPayload)),
-			millis);
+		const enqueue = (): void => { this.pushTask(this._createEventDispatchTask(this, eventName, ...eventPayload)); };
+		// Use the port's timer service when available (Port / TestPort always provide setTimeout);
+		// fall back to global setTimeout for bare BasePort subclasses that omit it.
+		const port = this._instance.portRef as { setTimeout?: (callback: () => void, millis?: number) => unknown } | undefined;
+		if (port !== undefined && typeof port.setTimeout === 'function') {
+			port.setTimeout(enqueue, millis);
+		} else {
+			setTimeout(enqueue, Math.max(0, millis));
+		}
 	}
 	transition(nextState: StateClass<Context, Protocol>): void { this._transitionState = nextState; }
 	unhandled(): never { throw new UnhandledEventError(this); }
@@ -209,6 +238,7 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 	}
 
 	call<EventName extends keyof Protocol>(eventName: ServiceName<Protocol, EventName>, ...eventPayload: ServiceRequest<Protocol, EventName>): Promise<ServiceResponse<Protocol, EventName>> {
+		this._notifyObservers(eventName as any, eventPayload as any[]);
 		return new Promise<ServiceResponse<Protocol, EventName>>((resolve: (result: ServiceResponse<Protocol, EventName>) => void, reject: (error: Error) => void) => {
 			const taskFactory: (hsm: any, name: ServiceName<Protocol, EventName>, ...payload: any[]) => Task = this._createEventDispatchTask as any;
 			this.pushTask(taskFactory(this, eventName, ...[resolve, reject, ...eventPayload]));

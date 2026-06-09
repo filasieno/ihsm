@@ -1,0 +1,21 @@
+> **Disjoint**\<`Public`, `Internal`\> = `Extract`\<keyof `Public`, keyof `Internal`\> *extends* `never` ? `true` : \[`"ihsm: public and internal protocols must not share keys"`, `Extract`\<keyof `Public`, keyof `Internal`\>\]
+
+Compile-time guard asserting the public and internal protocols share **no** event names.
+
+Resolves to `true` when `keyof Public` and `keyof Internal` are disjoint; otherwise to a
+descriptive tuple that fails the `extends true` constraint on [makeActor](../functions/makeActor.mdx) /
+[testing!makeTestActor](../../testing/functions/makeTestActor.mdx), surfacing the overlapping keys at the call site.
+
+## Type Parameters
+
+### Public
+
+`Public`
+
+Public protocol
+
+### Internal
+
+`Internal`
+
+Internal protocol

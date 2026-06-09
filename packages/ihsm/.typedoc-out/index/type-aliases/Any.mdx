@@ -1,0 +1,6 @@
+> **Any** = `Record`\<`string`, `any`\>
+
+Default context type when a machine is created without an explicit `Context` generic.
+
+Equivalent to `Record<string, any>` — use a dedicated interface in production code so
+`ctx` fields are checked at compile time.

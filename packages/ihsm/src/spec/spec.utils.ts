@@ -1,4 +1,4 @@
-import { Base, TraceLevel } from '../';
+import { Base, Disposable, EventObserver, TraceLevel, TracedMessage } from '../';
 import { registerStateNamesFromExports } from '../../examples/shared/state-names';
 
 export const TRACE_LEVELS: TraceLevel[] = [TraceLevel.VERBOSE_DEBUG, TraceLevel.DEBUG, TraceLevel.PRODUCTION];
@@ -38,4 +38,9 @@ export function getLastError(): Error | undefined {
 
 export function clearLastError(): void {
 	lastError = undefined;
+}
+
+/** Subscribe to a test actor and forward every event into a {@link TestPort} message log. */
+export function traceActorOnPort(actor: { subscribe(observer: EventObserver): Disposable }, port: { record(event: string, ...payload: unknown[]): void }): Disposable {
+	return actor.subscribe(message => port.record(message.event, ...message.payload));
 }

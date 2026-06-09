@@ -13,7 +13,7 @@ Use this pattern when behaviour depends on **mode** (open vs closed, idle vs bus
 
 **Why classes instead of flags:** a single class with \`isOpen\` / \`isClosed\` booleans forces every method to re-check flags; two states can both be true in memory. One **leaf state class** is always active; events are methods on that class.
 
-**When to reach for \`makeHsm\`:** you need actor semantics (serialized mailbox), typed \`post('event')\`, and optional tracing — not a one-off callback. For a single open/close loop, this is the smallest correct shape: \`DoorCtx\`, \`DoorProtocol\`, \`@InitialState\`, and \`transition()\` between siblings under one root.
+**When to reach for \`makeHsm\`:** you need actor semantics (serialized, run-to-completion dispatch), typed \`post('event')\`, and optional tracing — not a one-off callback. For a single open/close loop, this is the smallest correct shape: \`DoorCtx\`, \`DoorProtocol\`, \`@InitialState\`, and \`transition()\` between siblings under one root.
 `,
 	},
 	{
@@ -104,7 +104,7 @@ Use \`post\` + \`sync()\` when the **client** must wait for asynchronous side ef
 		whenAndWhy: `
 Use \`deferredPost\` when a handler must **schedule a follow-up event after a delay** without blocking the current handler — reminders, retries, or UI debouncing.
 
-**Why not \`setTimeout\` + manual \`post\` in app code:** \`deferredPost\` still goes through the actor mailbox (serialized with other events) and respects the same state instance. The delay is implemented inside the runtime; you stay in the protocol vocabulary.
+**Why not \`setTimeout\` + manual \`post\` in app code:** \`deferredPost\` still goes through the actor's run-to-completion dispatch (serialized with other events) and respects the same state instance. The delay is implemented by the machine's **port timer service** — a \`Port\` the runtime always instantiates when you don't supply one — so you stay in the protocol vocabulary. It is handler-only and never reaches the external actor surface.
 
 **When to prefer explicit timers outside:** cross-process scheduling or when the machine may be destroyed before the delay fires — persist a job id in \`ctx\` instead.
 `,
@@ -115,7 +115,7 @@ Use \`deferredPost\` when a handler must **schedule a follow-up event after a de
 		title: 'call services',
 		grepLabel: 'Tutorial 10',
 		whenAndWhy: `
-Use \`call\` when the client needs a **typed Promise result** from the same actor — balance lookup, validation, or any query — while keeping mailbox serialization (no re-entrancy).
+Use \`call\` when the client needs a **typed Promise result** from the same actor — balance lookup, validation, or any query — while keeping run-to-completion serialization (no re-entrancy).
 
 **Why services use \`resolve\`/\`reject\` in the protocol:** the runtime injects callbacks; the client never passes them. Sync services call \`resolve\` before return; async services \`await\` then resolve.
 
@@ -171,7 +171,7 @@ Use **multiple \`Hsm\` instances** when two concerns evolve independently — pa
 
 **Why not one giant hierarchy:** coupling unrelated lifecycles into one tree forces artificial LCA transitions. Two machines stay simple; \`OrderCoordinator\` posts to each and \`sync()\`s.
 
-**When to merge into one machine:** true shared parent state and a single mailbox ordering requirement across both concerns.
+**When to merge into one machine:** true shared parent state and a single run-to-completion ordering requirement across both concerns.
 `,
 	},
 	{
@@ -198,6 +198,86 @@ Use \`postNow\` for **extended transitions**: several internal steps (lock inven
 **Why handler-only:** external clients use ordinary \`post\`; priority is a runtime scheduling rule inside one dispatch generation.
 
 **When hi-priority is overkill:** a single handler body with straight-line code and no competing \`post\` from the same turn.
+`,
+	},
+];
+
+/**
+ * Interactive examples for the dedicated **Deterministic testing** chapter
+ * (reference/TESTING.md → website/docs/testing.mdx). Same shape as {@link referenceExamples};
+ * markers in TESTING.md: <!-- @example:<id> -->
+ */
+export const testingExamples = [
+	{
+		id: 'testing-01-deferred-timers',
+		importName: 'testing01Playground',
+		title: 'Deferred timers & simulated time',
+		grepLabel: 'Testing 01',
+		sourceFiles: ['machine.ts', 'tutorial.spec.ts'],
+		whenAndWhy: `
+Start every testable machine here: never wait on the wall clock. A \`Heartbeat\` machine ticks **every hour** via \`deferredPost\`, which is backed by the machine's **standard port timer service**. In a test you substitute a controllable clock and simulate 48 hours in microseconds — zero flakiness.
+
+**Test actor vs. test port:** \`makeTestActor\` returns the test surface — the **merged** protocol (post the internal \`onTick\` directly), typed access to \`port\`, and a \`subscribe()\` channel that observes every event. A production \`Actor\` from \`makeActor\` exposes only the public protocol. A **test port** (\`TestPort\`) *records* what flows through it and supplies a virtual clock you \`advance()\` by hand to fire due \`deferredPost\` timers deterministically. Wire \`TestActor.subscribe\` to \`port.record\` to trace every posted event.
+
+**Positional arguments, no wrappers:** the factories take the three mandatory arguments — \`topState\`, \`ctx\`, \`port\` — positionally, then an optional options bag. Set only what you need, never wrap \`makeActor\` in a helper, never pass \`undefined\` placeholders. Import the test surface from \`ihsm/testing\`.
+`,
+	},
+	{
+		id: 'testing-02-network-fetch',
+		importName: 'testing02Playground',
+		title: 'Network fetch behind a port',
+		grepLabel: 'Testing 02',
+		sourceFiles: ['machine.ts', 'tutorial.spec.ts'],
+		whenAndWhy: `
+Network calls are the classic flaky dependency. Put \`fetch()\` (against, say, \`https://google.com\`) behind a port and a test decides **what** the response is and **when** it arrives — no sockets, no DNS, no latency.
+
+**Why stub + send:** \`request\` is an abstract \`@mock\` method scripted with \`port.request.default(...)\` to return an id and an abort \`Disposable\` — but it delivers **no response** from the synchronous call. The test settles the request *when it wants* by pushing \`onResponse\` / \`onFailure\` inward with \`port.send(...)\`. That separation makes the in-flight \`Fetching\` state reachable and the whole flow timer-free; \`cancel()\` disposes the request so a late response is provably dropped.
+
+**How to test it:** one abstract \`@mock\` serves every scenario — drive it through the public path (\`fetch\` → assert \`Fetching\` → \`send('onResponse', …)\` → assert \`Done\`/\`Failed\`), or pin \`Fetching\` directly with \`initialize: false\` and post the settled event.
+`,
+	},
+	{
+		id: 'testing-03-event-streaming',
+		importName: 'testing03Playground',
+		title: 'Event streaming behind a port',
+		grepLabel: 'Testing 03',
+		sourceFiles: ['machine.ts', 'tutorial.spec.ts'],
+		whenAndWhy: `
+Use a port whenever the machine depends on a push source whose timing you do not control — OS input, a file watcher, a network socket, a WebSocket/SSE feed. The port is the single seam where impurity lives; everything above it is pure and deterministically testable.
+
+**Why a public/internal protocol split:** clients post \`listen\` / \`stopListening\`; the *source* pushes \`onMouseMove\`. Keeping them separate means a client can never forge a stream event, and a test can drive either side. \`stopListening\` \`dispose()\`s the subscription, so the source provably goes quiet.
+
+**Device state lives in the mock, not the actor:** the OS owns the cursor and keeps moving it whether or not you are subscribed, so the abstract \`@mock\` holds the pointer position in **public** fields (\`cursor\`, \`live\`) and exposes drive commands (\`moveTo\` / \`moveBy\` / \`path\`) the tester calls; the machine stores only the moves it *observed while listening*. The two legitimately diverge — model the simulated world inside the test double, and let the machine own only what it perceived.
+
+**How to test it:** script \`subscribe\` with \`port.subscribe.default(...)\` so it only delivers while live, then drive the mock and post internal events directly with \`makeTestActor\`. Either way there are no timers and no races — advance with \`sync()\`. Press **listen** below, then move the pointer over the pad (or **run simulated session**) and watch the trace.
+`,
+	},
+	{
+		id: 'testing-04-fault-injection',
+		importName: 'testing04Playground',
+		title: 'Fault injection & seeded DST',
+		grepLabel: 'Testing 04',
+		sourceFiles: ['machine.ts', 'tutorial.spec.ts'],
+		whenAndWhy: `
+Deterministic Simulation Testing (DST) makes *failure* reproducible. A worker retries a flaky operation; whether each attempt fails is decided by a **seeded** PRNG — never \`Math.random()\` or the clock. Same seed ⇒ same fault sequence ⇒ a red run you can replay byte-for-byte.
+
+**One \`@mock\`, scripted per scenario:** \`attempt\` is an abstract \`@mock\` method whose calls are auto-recorded (\`port.trace\` is the golden list of attempts that ran). The test scripts it with \`port.attempt.default(...)\` — either \`port.feedRandom(...)\` plus \`port.random()\` for a seeded fault injector that pushes \`onResult\` inward, or a no-op so the test drives \`onResult\` by hand. Retries are ordinary run-to-completion events, so there is nothing to race.
+
+**How to test it:** seeded (run twice with one seed; assert \`port.trace\`, \`ctx.log\`, and outcome are identical; pin \`failRate\` to 0/1 for guaranteed terminals), or hand-injected (a no-op \`attempt.default\`; post \`onResult(false)\`/\`onResult(true)\` to walk the retry budget, asserting \`port.attempt.calls\`).
+`,
+	},
+	{
+		id: 'testing-05-subscriptions-and-disposables',
+		importName: 'testing05Playground',
+		title: 'Subscriptions & disposables',
+		grepLabel: 'Testing 05',
+		sourceFiles: ['machine.ts', 'tutorial.spec.ts'],
+		whenAndWhy: `
+A subscription outlives the call that created it, so every one needs a teardown handle — a \`Disposable\` — and somebody must own it. ihsm models exactly the VS Code pattern: a port method returns \`ResultWithSubscription\` (a value **plus** a \`Disposable\`), the machine stores the handle in its context (its own \`context.subscriptions\`), and disposes it on \`stop\` or a source-initiated \`onClosed\`. \`dispose()\` is **idempotent**, so overlapping teardown is always safe.
+
+**Authoring the mock — \`@mock\` + \`makeTestPort\`:** declare each port method \`abstract\` with the **exact port signature** and decorate the class with \`@mock\` — no bodies, the port surface is inferred from the machine's \`TopState\`. Build the mock with \`makeTestPort(WatcherMock)\`, then **script** each call with \`port.watch.default(impl)\` (persistent) or \`port.watch.once(impl)\` (one-shot, FIFO) — including the \`Disposable\` it returns, so the test controls teardown; inspect \`port.watch.calls\` (typed args) and \`port.watch.reset()\` to reuse the mock. Two separate channels: \`default\`/\`once\` script what an **outbound** method returns; \`port.send('onChange', v)\` pushes **inbound** internal events. An unscripted method throws \`PreloadError\` naming the method — never a silent \`undefined\`.
+
+**DST is the payoff:** subscribe, push changes, stop, and *prove* the handle was disposed **exactly once** with no leak; a late change after teardown is dropped; the **golden trace** (\`['watch:/etc/hosts', 'dispose watch /etc/hosts']\`) is byte-identical across runs. No \`setTimeout\`, no real filesystem, no \`Math.random()\` — advance with \`sync()\` and decide every event yourself.
 `,
 	},
 ];

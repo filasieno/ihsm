@@ -4,6 +4,16 @@ import { PostedEvent, EventPayload, Hsm, StateClass, State } from '../';
 export interface Instance<Context, Protocol extends {} | undefined> {
 	ctx: Context;
 	hsm: HsmWithTracing<Context, Protocol>;
+	/**
+	 * Outbound boundary surfaced as `this.port`. Always set by `instantiate`: the supplied port
+	 * instance (whose `actor` is bound lazily by the runtime), or a `Port` (which also
+	 * provides the timer service used by `deferredPost`) when none is supplied.
+	 *
+	 * Stored under `portRef` (not `port`) because the instance's prototype is a `TopState`
+	 * subclass whose `port` accessor would otherwise shadow this slot. Optional on the type only
+	 * because it is assigned just after the instance literal is created.
+	 */
+	portRef?: unknown;
 }
 
 /** @internal */

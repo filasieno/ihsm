@@ -88,7 +88,7 @@ export class Idle extends FileTop {
 While `transfer` is in flight:
 
 - **Active state** remains `Idle` (not `Opening` / `Reading` / …).
-- The mailbox **still accepts** `post` / `call` — messages **queue** until this handler finishes (same actor serialization as always).
+- The actor **still accepts** `post` / `call` — messages **queue** until this handler runs to completion (same actor serialization as always).
 - **`transition(Done)`** runs only after the handler’s Promise settles successfully.
 
 ```typescript

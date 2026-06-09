@@ -21,7 +21,7 @@ export const topics = [
 		reference: [
 			{
 				section: '1',
-				subsections: ['State as class', 'Protocol', 'Actor mailbox', 'makeHsm'],
+				subsections: ['State as class', 'Protocol', 'Actor run-to-completion dispatch', 'makeHsm'],
 			},
 		],
 		tutorial: '01-hello-state-machine',

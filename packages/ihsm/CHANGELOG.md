@@ -5,6 +5,40 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.22] - 2026-06-09
+
+### Added
+
+- **`@ihsm/core`** — scoped npm package (`packages/core`) that re-exports `ihsm` and `ihsm/testing`; published alongside `ihsm` on each release.
+- **`RandomService`** — `random`, `cryptoRandom`, `randomUUID`, `getRandomValues` (standard JS random surface).
+- **`Port<TopState>`** — production port base with JS-like timer services (`setTimeout`, `setInterval`, `clearTimeout`, `clearInterval`) and `RandomService`.
+- **`TestPort`** — virtual clock (`advance`, `now`, `pending`), mocked random (`feedRandom`, `feedCryptoRandom`, `feedUUID`, `feedRandomBytes`, `resetRandom`), and built-in timer/random APIs matching `Port` without calling globals.
+- **`PortHandle<Context, Internal>`** — renamed runtime binding interface (was `Port`).
+- Expanded **Deterministic Simulation Testing** intro in `reference/TESTING.md` (checklist A–I).
+
+### Changed
+
+- **`deferredPost`** delegates to `port.setTimeout(callback, millis)` instead of `port.schedule(millis, callback)`.
+- Domain port interfaces extend **`PortHandle`**, not `Port`; production implementations extend **`Port<TopState>`**.
+- **`TestPort`** is now a concrete class (instantiate directly for timer-only tests); `@mock` subclasses remain abstract.
+- Documentation, examples, and reference playgrounds updated for the new port model.
+
+### Removed
+
+- **`DefaultPort`**, **`ManualClockPort`**, **`DefaultTestPort`**, and **`TimerService`** / `schedule()` — superseded by `Port` and `TestPort`. Trace events with `test.subscribe(m => port.record(...))`.
+
+### Migration
+
+| Before | After |
+| ------ | ----- |
+| `new DefaultPort()` | `new Port()` |
+| `new ManualClockPort<T>()` | `new TestPort<T>()` |
+| `extends BasePort<T>` (production) | `extends Port<T>` |
+| `interface X extends Port<Ctx, Internal>` | `interface X extends PortHandle<Ctx, Internal>` |
+| `port.schedule(ms, fn)` | `port.setTimeout(fn, ms)` |
+| `handle.dispose()` (timer) | `port.clearTimeout(handle)` |
+| `new DefaultTestPort(actor)` | `actor.subscribe(m => port.record(m.event, ...m.payload))` |
+
 ## [0.0.21] - 2026-06-01
 
 ### Added

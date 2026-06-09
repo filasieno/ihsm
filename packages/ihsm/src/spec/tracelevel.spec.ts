@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import 'mocha';
-import { makeHsm, Hsm, InitialState, TopState, TraceLevel, Any, TraceWriter } from '../';
+import { InitialState, TopState, TraceLevel, Any, TraceWriter } from '../';
+import { TestPort, TestActor, makeTestActor } from '../testing';
+import { traceActorOnPort } from './spec.utils';
 import * as ihsm from '../index';
 
 interface Protocol {
@@ -44,10 +46,13 @@ class E extends D {}
 class F extends E {}
 
 describe(`Switch TraceLevel`, function (): void {
-	let sm: Hsm<Any, Protocol>;
+	let sm: TestActor<Any, Protocol, {}, TestPort>;
+	let port: TestPort;
 
 	beforeEach(async () => {
-		sm = makeHsm(HsmTop, {}, true, TraceLevel.VERBOSE_DEBUG);
+		port = new TestPort();
+		sm = makeTestActor(HsmTop, {}, port);
+		traceActorOnPort(sm, port);
 		await sm.sync();
 	});
 
@@ -77,6 +82,9 @@ describe(`Switch TraceLevel`, function (): void {
 		sm.post('hello');
 		await sm.sync();
 		console.log('<<<');
+
+		// The TestPort observed each level switch and hello, in order.
+		expect(port.events).eqls(['switchTraceLevel', 'hello', 'switchTraceLevel', 'hello', 'switchTraceLevel', 'hello']);
 	});
 
 	it('changes trace writer at runtime', async () => {

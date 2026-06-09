@@ -1,0 +1,14 @@
+{
+	"extends": "./tsconfig.base.json",
+	"compilerOptions": {
+		"composite": true,
+		"declaration": true,
+		"outDir": "./lib/cjs",
+		"rootDir": "./src",
+		"tsBuildInfoFile": "./.tsc/cjs.tsbuildinfo",
+		"module": "node16",
+		"moduleResolution": "node16",
+		"lib": ["ES2022"]
+	},
+	"include": ["src/**/*"]
+}

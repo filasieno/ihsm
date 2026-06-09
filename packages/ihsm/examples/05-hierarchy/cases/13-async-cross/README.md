@@ -37,7 +37,7 @@ See the **Trace** panel on the [interactive docs site](https://filasieno.github.
 | Step | Action |
 | ---- | ------ |
 | 1 | Handler starts — `handler:goAsyncCrossEast:start` |
-| 2 | `await sleep(10)` — state stays **`LeafWestA`**; mailbox still queues other posts |
+| 2 | `await sleep(10)` — state stays **`LeafWestA`**; the actor still queues other posts |
 | 3 | After await — `handler:goAsyncCrossEast:after-await` |
 | 4 | `transition(LeafEastA)` — LCA = **`DeepTop`**, same exit/entry as case 07 but target is **`LeafEastA`** |
 | 5 | `await sm.sync()` waits for **handler + transition** |

@@ -6,13 +6,15 @@
 
 # ihsm
 
-**Class-based hierarchical state machines and actor mailboxes for TypeScript** — typed `post`/`call`, **zero** production dependencies, **~4.6 KB gzip** in the browser. → [Documentation](https://filasieno.github.io/ihsm/)
+**Class-based hierarchical state machines and run-to-completion actors for TypeScript, explicitly designed for [Deterministic Simulation Testing](https://filasieno.github.io/ihsm/testing) (DST)** — typed `post`/`call`, **zero** production dependencies, **~4.6 KB gzip** in the browser. → [Documentation](https://filasieno.github.io/ihsm/)
 
-ihsm is state management and orchestration for backends, session actors, protocol handlers, and embedded tooling: states are **classes**, events are **methods**, hierarchy is **inheritance**, and each machine is an **actor** with a serialized mailbox and run-to-completion dispatch.
+ihsm is state management and orchestration for backends, session actors, protocol handlers, and embedded tooling: states are **classes**, events are **methods**, hierarchy is **inheritance**, and each machine is an **actor** with serialized, run-to-completion dispatch.
+
+> **Built for Deterministic Simulation Testing.** Determinism is not an add-on here — it is the design center. Every source of nondeterminism is pushed behind one seam: **serialized run-to-completion dispatch** (each handler runs to completion and never interleaves; `await sync()` drains to a barrier), a single **`Port`** boundary for *all* I/O (sockets, clocks, the filesystem), and a compiler-enforced **public/internal protocol split**. Swap the port for a mock, replace the clock with one you advance by hand, and the same inputs always produce the same outputs — so a failure **replays exactly**. The dedicated [`ihsm/testing`](#entry-points) entry point ships `makeTestActor`, `@mock`/`makeTestPort`, and a `TestPort` virtual clock for this, and never bloats your production bundle. See the [Deterministic Testing chapter](https://filasieno.github.io/ihsm/testing).
 
 Requires **Node.js 22+** (or a modern browser). Class names in traces and errors come from `Class.name` — no extra registration step in a typical npm/Node project.
 
-It uses event-driven programming, class-based hierarchical statecharts, and the actor model to handle complex logic in predictable, robust ways. States are **classes**, events are **methods**, hierarchy is **inheritance**, and each machine is an **actor** with a serialized mailbox with RTC guarantees.
+It uses event-driven programming, class-based hierarchical statecharts, and the actor model to handle complex logic in predictable, robust ways. States are **classes**, events are **methods**, hierarchy is **inheritance**, and each machine is an **actor** with serialized, run-to-completion (RTC) dispatch.
 
 ---
 
@@ -21,6 +23,8 @@ It uses event-driven programming, class-based hierarchical statecharts, and the 
 📑 [API reference](https://filasieno.github.io/ihsm/api)
 
 📖 [Reference](https://filasieno.github.io/ihsm/reference)
+
+🧪 [Deterministic Testing chapter](https://filasieno.github.io/ihsm/testing)
 
 💬 [Open an issue](https://github.com/filasieno/ihsm/issues)
 
@@ -45,6 +49,7 @@ From the **repo root**, `nix develop` / direnv auto-`cd` here; `nix flake check`
 
 ```bash
 npm install ihsm
+# scoped alias (same runtime, published in lockstep): npm install @ihsm/core
 ```
 
 ```ts
@@ -153,7 +158,9 @@ try {
 const left = await wallet.call('getBalance'); // 150
 ```
 
-**Events** (`void` handlers) → `post('deposit', 50)`. **Services** (`resolve` / `reject` handlers) → `await call('getBalance')`. Same mailbox, same serialization guarantees, full TypeScript inference on names, payloads, and return types.
+**Events** (`void` handlers) → `post('deposit', 50)`. **Services** (`resolve` / `reject` handlers) → `await call('getBalance')`. Same run-to-completion dispatch, same serialization guarantees, full TypeScript inference on names, payloads, and return types.
+
+The split is enforced **at compile time**: the protocol is partitioned into event keys and service keys, so `post('getBalance')` (a service) and `call('deposit', 50)` (an event) are both type errors — you can only `post` events and `call` services.
 
 See [Call services](https://filasieno.github.io/ihsm/reference#_4-messaging-post-call-sync) in the reference.
 
@@ -222,7 +229,7 @@ See [Hierarchy & transitions](https://filasieno.github.io/ihsm/reference#_5-tran
 
 ## Messaging: `post`, `sync`, and `call`
 
-Every machine is an actor with a **single-threaded mailbox**. While a handler runs, new messages queue — no re-entrancy.
+Every machine is an actor with **single-threaded, run-to-completion dispatch**. While a handler runs to completion, new messages queue — no re-entrancy.
 
 | API | Role | Returns |
 | --- | ---- | ------- |
@@ -264,6 +271,115 @@ See [Async handlers](https://filasieno.github.io/ihsm/reference#_9-async-handler
 
 ---
 
+## Deterministic Simulation Testing (DST)
+
+Production code imports `ihsm`; tests import `ihsm/testing`. Every source of nondeterminism lives behind a **`Port`** — sockets, clocks, randomness, the filesystem. Tests swap in a **`TestPort`** (virtual clock, scripted random, recorded message log) or an **`@mock`** port stub, then drive the machine with **`makeTestActor`** (merged public + internal protocol, `subscribe()` for golden traces).
+
+Two rules: **never perform I/O outside a port**, and **never `sleep()` on wall-clock time in a test** — advance virtual time and `await sync()` instead.
+
+### Virtual clock — simulate days of timers in microseconds
+
+`deferredPost` arms timers through the port. Replace the real clock with `TestPort` and call `advance(ms)` by hand:
+
+```ts
+import { InitialState, TopState } from 'ihsm';
+import { makeTestActor, TestPort } from 'ihsm/testing';
+
+const HOUR_MS = 60 * 60 * 1000;
+
+class HeartbeatCtx {
+  ticks = 0;
+}
+
+interface HeartbeatPublic {
+  start(): void;
+}
+
+interface HeartbeatInternal {
+  onTick(): void;
+}
+
+class HeartbeatTop extends TopState<HeartbeatCtx, HeartbeatPublic, HeartbeatInternal> {}
+
+@InitialState
+class Running extends HeartbeatTop {
+  start(): void {
+    this.deferredPost(HOUR_MS, 'onTick');
+  }
+  onTick(): void {
+    this.ctx.ticks += 1;
+    this.deferredPost(HOUR_MS, 'onTick');
+  }
+}
+
+const clock = new TestPort<HeartbeatTop>();
+const test = makeTestActor(HeartbeatTop, new HeartbeatCtx(), clock);
+await test.sync();
+
+test.post('start');
+await test.sync();
+
+for (let hour = 0; hour < 48; hour++) {
+  clock.advance(HOUR_MS); // fire the due tick — no real waiting
+  await test.sync();
+}
+
+// test.ctx.ticks === 48
+```
+
+Or post the internal `onTick` directly — `makeTestActor` exposes the merged protocol, so no timer is required when you only care about handler logic.
+
+### Mock port — control *what* the network returns and *when*
+
+Put `fetch()` behind a port. The mock records outbound calls but does **not** auto-deliver responses; the test settles them with `port.send(...)` when ready:
+
+```ts
+import { mock, makeTestActor, makeTestPort, TestPort } from 'ihsm/testing';
+
+@mock
+abstract class MockFetchPort extends TestPort<FetchTop> {
+  abstract request(url: string): { value: number; subscription: { dispose(): void } };
+}
+
+const port = makeTestPort(MockFetchPort);
+port.request.default(() => ({
+  value: 1,
+  subscription: { dispose: () => port.record('abort', 1) },
+}));
+
+const fetcher = makeTestActor(FetchTop, freshCtx(), port);
+await fetcher.sync();
+
+fetcher.post('fetch', 'https://example.com');
+await fetcher.sync();
+// fetcher.currentState === Fetching — in-flight, still timer-free
+
+port.send('onResponse', 200, 'ok'); // you decide when the "network" replies
+await fetcher.sync();
+// fetcher.currentState === Done
+// port.trace === ['request:https://example.com', 'onResponse:200,ok']
+```
+
+### Golden trace — record every posted event
+
+Wire `subscribe` to the port message log for a byte-identical transcript across runs:
+
+```ts
+const port = new TestPort<HeartbeatTop>();
+const test = makeTestActor(HeartbeatTop, new HeartbeatCtx(), port);
+const sub = test.subscribe(m => port.record(m.event, ...m.payload));
+
+test.post('start');
+await test.sync();
+// port.events === ['start']
+
+sub.dispose();
+```
+
+Runnable walkthroughs (timers, fetch, streaming, fault injection, disposables) live under [`examples/testing-*`](./examples/) and on the [Deterministic Testing chapter](https://filasieno.github.io/ihsm/testing). Headless: `npm run test:examples -- --grep 'Testing 0'`.
+
+---
+
 ## Install
 
 Requires [Node.js](https://nodejs.org/) **22+**.
@@ -271,6 +387,26 @@ Requires [Node.js](https://nodejs.org/) **22+**.
 ```bash
 npm install ihsm
 ```
+
+### Entry points
+
+ihsm is a **single package** with two entry points, so there is no second dependency to install or
+version:
+
+| Import | Contents | Ships in production? |
+| ------ | -------- | -------------------- |
+| `ihsm` | The runtime: `makeHsm` / `makeActor`, `TopState`, ports, tracing | **yes** |
+| `ihsm/testing` or `@ihsm/core/testing` | Deterministic-testing utilities: `makeTestActor`, `@mock` / `makeTestPort`, `TestPort` (re-exports the core API too) | **no** — test-only |
+
+```ts
+import { makeHsm, TopState } from 'ihsm';                 // production code
+import { makeTestActor, mock, TestPort } from 'ihsm/testing'; // tests only
+```
+
+Keeping the test machinery on a separate subpath (with `"sideEffects": false`) means a production
+bundle that only imports `ihsm` never pulls in the mock/clock code. This mirrors how libraries such
+as `rxjs/testing` (its `TestScheduler` virtual clock) and `@apollo/client/testing` ship test helpers
+as a subpath rather than a second package — one install, one version, no dual-package hazard.
 
 ### Runtime support
 
@@ -285,7 +421,7 @@ ihsm ships modern **ES2022** ESM and CommonJS. Supported runtimes:
 
 ### Size and dependencies
 
-Measured with `esbuild` bundling `lib/esm/index.js` for the browser (full runtime — mailbox, transitions, tracing, typed `call`):
+Measured with `esbuild` bundling `lib/esm/index.js` for the browser (full runtime — run-to-completion dispatch, transitions, tracing, typed `call`):
 
 | | |
 | --- | --- |
@@ -303,7 +439,7 @@ No React, no RxJS, no interpreter plugins — just the runtime you import.
 
 ## Why?
 
-Hierarchical statecharts are a formalism for modeling stateful, reactive systems. ihsm encodes them the **Samek/QP way**: class hierarchy, explicit transitions, cached LCA paths, and actor mailboxes — with compile-time safety from a single `Protocol` interface.
+Hierarchical statecharts are a formalism for modeling stateful, reactive systems. ihsm encodes them the **Samek/QP way**: class hierarchy, explicit transitions, cached LCA paths, and run-to-completion actors — with compile-time safety from a single `Protocol` interface.
 
 Good fit when you want:
 
@@ -323,8 +459,10 @@ Inspired by Harel statecharts and the SCXML family of notations.
 | Resource | Link |
 | -------- | ---- |
 | **Documentation site** | [filasieno.github.io/ihsm](https://filasieno.github.io/ihsm/) |
+| Deterministic Simulation Testing | [/testing](https://filasieno.github.io/ihsm/testing) |
 | Reference (concepts + interactive examples) | [/reference](https://filasieno.github.io/ihsm/reference) |
 | API reference (TSDoc) | [/api](https://filasieno.github.io/ihsm/api) |
+| Source: DST chapter | [reference/TESTING.md](./reference/TESTING.md) |
 | Source: reference | [reference/REFERENCE.md](./reference/REFERENCE.md) |
 | Source: example machines | [examples/](./examples/) |
 

@@ -1,8 +1,9 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, Any, EventHandlerError, makeHsm, FatalErrorState, InitialState, StateClass, TopState } from '../';
+import { Any, EventHandlerError, FatalErrorState, InitialState, StateClass, TopState } from '../';
+import { TestPort, TestActor, makeTestActor } from '../testing';
 
-import { clearLastError, createTestDispatchErrorCallback, TRACE_LEVELS } from './spec.utils';
+import { clearLastError, createTestDispatchErrorCallback, TRACE_LEVELS, traceActorOnPort } from './spec.utils';
 
 interface Protocol {
 	executeWithError01(): void;
@@ -78,11 +79,14 @@ class D extends Recovery {
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Error event (traceLevel = ${traceLevel})`, function (): void {
-		let sm: Hsm;
+		let sm: TestActor<Any, Protocol, {}, TestPort>;
+		let port: TestPort;
 
 		beforeEach(async () => {
 			clearLastError();
-			sm = makeHsm(HsmTop, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
+			port = new TestPort();
+			sm = makeTestActor(HsmTop, {}, port, { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+			traceActorOnPort(sm, port);
 			await sm.sync();
 		});
 
@@ -91,6 +95,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			sm.post('executeWithError01');
 			await sm.sync();
 			expect(sm.currentState).equals(Recovery);
+			expect(port.events).to.include('executeWithError01');
 
 			await sm.post('executeWithError02');
 			await sm.sync();

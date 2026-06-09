@@ -247,7 +247,14 @@ async function doUnhandledEvent<Context, Protocol extends {} | undefined, EventN
 	}
 }
 
-/** @internal */
+/**
+ * @internal
+ *
+ * Verbose-mode event-handler lookup. This narrates, step by step, the **same** canonical algorithm
+ * implemented (without tracing) by `lookupEventHandler` in `./lookup` and shared by the production /
+ * debug dispatchers (proposal T6): walk the constructor chain from `currentState` up to and
+ * including {@link TopState}, returning the first state that owns `eventName`. Keep the two in sync.
+ */
 function lookupEventHandler<Context, Protocol extends {} | undefined, EventName extends keyof Protocol>(hsm: HsmWithTracing<Context, Protocol>, eventName: PostedEvent<Protocol, EventName>): ((...args: EventPayload<Protocol, EventName>) => Promise<void> | void) | undefined {
 	const eventLabel = String(eventName);
 	let state = hsm.currentState;

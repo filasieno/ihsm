@@ -74,14 +74,9 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false
 
-      - name: Publish to npm via Trusted Publishing
+      - name: Prepare npm publish (OIDC, no tokens)
         run: |
           set -euo pipefail
-          VERSION="$(jq -r .version packages/ihsm/package.json)"
-          if npm view "ihsm@${VERSION}" version >/dev/null 2>&1; then
-            echo "ihsm@${VERSION} is already published — skipping npm publish."
-            exit 0
-          fi
           node <<'NODE'
           const { execSync } = require('node:child_process');
           const [a, b, c] = execSync('npm -v', { encoding: 'utf8' }).trim().split(/[.-]/).map(Number);
@@ -90,15 +85,44 @@ jobs:
             process.exit(1);
           }
           NODE
-          # Strip any token setup-node or a leftover GitHub secret may have written.
           npm config delete //registry.npmjs.org/:_authToken --location=user 2>/dev/null || true
           npm config delete //registry.npmjs.org/:_authToken --location=project 2>/dev/null || true
           unset NODE_AUTH_TOKEN NPM_TOKEN
-          cd packages/ihsm
-          if grep -q '_authToken' .npmrc 2>/dev/null; then
-            echo "Refusing to publish: packages/ihsm/.npmrc still contains _authToken" >&2
-            exit 1
+
+      - name: Publish ihsm to npm
+        run: |
+          set -euo pipefail
+          VERSION="$(jq -r .version packages/ihsm/package.json)"
+          if npm view "ihsm@${VERSION}" version >/dev/null 2>&1; then
+            echo "ihsm@${VERSION} is already published — skipping."
+          else
+            cd packages/ihsm
+            if grep -q '_authToken' .npmrc 2>/dev/null; then
+              echo "Refusing to publish: packages/ihsm/.npmrc still contains _authToken" >&2
+              exit 1
+            fi
+            npm publish --access public --ignore-scripts
           fi
+
+      - name: Build @ihsm/core
+        run: |
+          set -euo pipefail
+          VERSION="$(jq -r .version packages/ihsm/package.json)"
+          jq --arg v "$VERSION" '.dependencies.ihsm = $v' packages/core/package.json > packages/core/package.json.tmp
+          mv packages/core/package.json.tmp packages/core/package.json
+          cd packages/core
+          npm install --no-save --ignore-scripts "file:../ihsm"
+          npm run build
+
+      - name: Publish @ihsm/core to npm
+        run: |
+          set -euo pipefail
+          VERSION="$(jq -r .version packages/ihsm/package.json)"
+          if npm view "@ihsm/core@${VERSION}" version >/dev/null 2>&1; then
+            echo "@ihsm/core@${VERSION} is already published — skipping."
+            exit 0
+          fi
+          cd packages/core
           npm publish --access public --ignore-scripts
 
       - name: Create GitHub release

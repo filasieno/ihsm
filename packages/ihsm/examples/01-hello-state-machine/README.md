@@ -35,7 +35,7 @@ export interface DoorProtocol {
 }
 ```
 
-The **root state** inherits mailbox machinery from `TopState`. It anchors the hierarchy; behavior lives in substates.
+The **root state** inherits run-to-completion dispatch machinery from `TopState`. It anchors the hierarchy; behavior lives in substates.
 
 ```typescript
 export class DoorTop extends TopState<DoorCtx, DoorProtocol> {}

@@ -1,0 +1,306 @@
+Production port base with standard JavaScript timer and random services.
+
+Extend this class for domain ports in production code. It inherits the lazily-bound
+[actor](BasePort.mdx#actor), [hsm](BasePort.mdx#hsm), and [send](BasePort.mdx#send)
+from [BasePort](BasePort.mdx), and adds [setTimeout](#settimeout) /
+[setInterval](#setinterval) / [clearTimeout](#cleartimeout) /
+[clearInterval](#clearinterval) plus the [RandomService](../interfaces/RandomService.mdx) methods
+([random](#random), [cryptoRandom](#cryptorandom),
+[randomUUID](#randomuuid), [getRandomValues](#getrandomvalues)).
+
+[State.deferredPost](../interfaces/State.mdx#deferredpost) delegates to [Port.setTimeout](#settimeout). When no custom port is
+supplied the runtime instantiates a plain `Port` for that purpose.
+
+## Example
+
+```ts
+class ConnPortImpl extends ihsm.Port<ConnTop> implements ConnPort {
+  private nextId = 1;
+  connect(host: string): ihsm.ResultWithSubscription<number> {
+    const id = this.nextId++;
+    return { value: id, subscription: { dispose: () => {} } };
+  }
+  disconnect(id: number): void {}
+}
+const port = new ConnPortImpl();
+const conn = ihsm.makeActor(ConnTop, ctx, port);   // binds port.actor
+```
+
+## Extends
+
+- [`BasePort`](BasePort.mdx)\<`T`\>
+
+## Type Parameters
+
+### T
+
+`T` = [`Any`](../type-aliases/Any.mdx)
+
+The machine's root [TopState](TopState.mdx) subclass (e.g. `ConnTop`)
+
+## Implements
+
+- [`RandomService`](../interfaces/RandomService.mdx)
+
+## Constructors
+
+### Constructor
+
+> **new Port**\<`T`\>(): `Port`\<`T`\>
+
+#### Returns
+
+`Port`\<`T`\>
+
+#### Inherited from
+
+[`BasePort`](BasePort.mdx).[`constructor`](BasePort.mdx#constructor)
+
+## Properties
+
+### \_\_topState
+
+> `readonly` **\_\_topState**: `T`
+
+Phantom carrier of the root [TopState](TopState.mdx) type, so [testing!makeTestPort](../../testing/functions/makeTestPort.mdx) can recover `T`
+(and therefore the port surface, via [MachinePort](../type-aliases/MachinePort.mdx)) from a mock class. Type-only.
+
+#### Inherited from
+
+[`BasePort`](BasePort.mdx).[`__topState`](BasePort.mdx#__topstate)
+
+***
+
+### actor
+
+> **actor**: [`InboundPoster`](../type-aliases/InboundPoster.mdx)\<[`MachineContext`](../type-aliases/MachineContext.mdx)\<`T`\>, [`MachineInternal`](../type-aliases/MachineInternal.mdx)\<`T`\>\> \| `undefined`
+
+The machine handle this port posts internal events through. **Bound lazily** by the runtime
+([makeHsm](../functions/makeHsm.mdx) / [makeActor](../functions/makeActor.mdx) / [testing!makeTestActor](../../testing/functions/makeTestActor.mdx)) right after the actor is
+constructed — so a port is created with no constructor arguments and wired up afterwards.
+`undefined` before binding / after teardown.
+
+#### Inherited from
+
+[`BasePort`](BasePort.mdx).[`actor`](BasePort.mdx#actor)
+
+## Methods
+
+### hsm()
+
+> **hsm**(): [`InboundPoster`](../type-aliases/InboundPoster.mdx)\<[`MachineContext`](../type-aliases/MachineContext.mdx)\<`T`\>, [`MachineInternal`](../type-aliases/MachineInternal.mdx)\<`T`\>\> \| `undefined`
+
+The bound machine handle (same as [PortHandle.actor](../interfaces/PortHandle.mdx#actor)); `undefined` before binding.
+
+#### Returns
+
+[`InboundPoster`](../type-aliases/InboundPoster.mdx)\<[`MachineContext`](../type-aliases/MachineContext.mdx)\<`T`\>, [`MachineInternal`](../type-aliases/MachineInternal.mdx)\<`T`\>\> \| `undefined`
+
+#### Inherited from
+
+[`BasePort`](BasePort.mdx).[`hsm`](BasePort.mdx#hsm)
+
+***
+
+### send()
+
+> **send**\<`EventName`\>(`eventName`, ...`payload`): `void`
+
+Post an internal event inward through the bound [actor](BasePort.mdx#actor).
+
+This is the one channel a port (or a test driving the port) uses to feed the machine its
+internal protocol. Because emission is explicit — never a side effect of the outbound call
+the machine made — a single mock works across many tests: the test decides *when* (and
+whether) to push each internal event.
+
+#### Type Parameters
+
+##### EventName
+
+`EventName` *extends* `string` \| `number` \| `symbol`
+
+#### Parameters
+
+##### eventName
+
+[`PostedEvent`](../type-aliases/PostedEvent.mdx)\<[`MachineInternal`](../type-aliases/MachineInternal.mdx)\<`T`\>, `EventName`\>
+
+Internal event to post
+
+##### payload
+
+...[`EventPayload`](../type-aliases/EventPayload.mdx)\<[`MachineInternal`](../type-aliases/MachineInternal.mdx)\<`T`\>, `EventName`\>
+
+Arguments for the event
+
+#### Returns
+
+`void`
+
+#### Throws
+
+If called before the actor has been bound by a factory
+
+#### Inherited from
+
+[`BasePort`](BasePort.mdx).[`send`](BasePort.mdx#send)
+
+***
+
+### setTimeout()
+
+> **setTimeout**(`callback`, `millis?`): `number`
+
+Schedule `callback` after `millis` milliseconds — same argument order as `globalThis.setTimeout`.
+
+#### Parameters
+
+##### callback
+
+() => `void`
+
+##### millis?
+
+`number`
+
+#### Returns
+
+`number`
+
+An opaque handle for [Port.clearTimeout](#cleartimeout)
+
+***
+
+### clearTimeout()
+
+> **clearTimeout**(`id`): `void`
+
+Cancel a pending [Port.setTimeout](#settimeout) handle. No-op when `id` is `undefined` or unknown.
+
+#### Parameters
+
+##### id
+
+`number` \| `undefined`
+
+#### Returns
+
+`void`
+
+***
+
+### setInterval()
+
+> **setInterval**(`callback`, `millis?`): `number`
+
+Schedule `callback` every `millis` milliseconds — same argument order as `globalThis.setInterval`.
+
+#### Parameters
+
+##### callback
+
+() => `void`
+
+##### millis?
+
+`number`
+
+#### Returns
+
+`number`
+
+An opaque handle for [Port.clearInterval](#clearinterval)
+
+***
+
+### clearInterval()
+
+> **clearInterval**(`id`): `void`
+
+Cancel a pending [Port.setInterval](#setinterval) handle. No-op when `id` is `undefined` or unknown.
+
+#### Parameters
+
+##### id
+
+`number` \| `undefined`
+
+#### Returns
+
+`void`
+
+***
+
+### random()
+
+> **random**(): `number`
+
+Uniform in `[0, 1)` — `Math.random()`.
+
+#### Returns
+
+`number`
+
+#### Implementation of
+
+[`RandomService`](../interfaces/RandomService.mdx).[`random`](../interfaces/RandomService.mdx#random)
+
+***
+
+### cryptoRandom()
+
+> **cryptoRandom**(): `number`
+
+Uniform in `[0, 1)` — `crypto.random()` when available, otherwise `Math.random()`.
+
+#### Returns
+
+`number`
+
+#### Implementation of
+
+[`RandomService`](../interfaces/RandomService.mdx).[`cryptoRandom`](../interfaces/RandomService.mdx#cryptorandom)
+
+***
+
+### randomUUID()
+
+> **randomUUID**(): `string`
+
+RFC 4122 UUID — `crypto.randomUUID()`.
+
+#### Returns
+
+`string`
+
+#### Implementation of
+
+[`RandomService`](../interfaces/RandomService.mdx).[`randomUUID`](../interfaces/RandomService.mdx#randomuuid)
+
+***
+
+### getRandomValues()
+
+> **getRandomValues**\<`T`\>(`array`): `T`
+
+In-place fill — `crypto.getRandomValues()`.
+
+#### Type Parameters
+
+##### T
+
+`T` *extends* `ArrayBufferView`\<`ArrayBufferLike`\>
+
+#### Parameters
+
+##### array
+
+`T`
+
+#### Returns
+
+`T`
+
+#### Implementation of
+
+[`RandomService`](../interfaces/RandomService.mdx).[`getRandomValues`](../interfaces/RandomService.mdx#getrandomvalues)

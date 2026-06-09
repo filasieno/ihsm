@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, Any, makeHsm, FatalErrorState, InitialState, RuntimeError, StateClass, TopState, UnhandledEventError } from '../';
-import { clearLastError, createTestDispatchErrorCallback, getLastError, TRACE_LEVELS } from './spec.utils';
+import { Any, FatalErrorState, InitialState, RuntimeError, StateClass, TopState, UnhandledEventError } from '../';
+import { TestPort, TestActor, makeTestActor } from '../testing';
+import { clearLastError, createTestDispatchErrorCallback, getLastError, TRACE_LEVELS, traceActorOnPort } from './spec.utils';
 
 interface Protocol {
 	hello(): void;
@@ -89,11 +90,14 @@ class EmptyTopState extends TopState<Any, Protocol> {
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`An unhandled event (traceLevel = ${traceLevel})`, function (): void {
-		let sm: Hsm<Any, Protocol>;
+		let sm: TestActor<Any, Protocol, {}, TestPort>;
+		let port: TestPort;
 
 		beforeEach(async () => {
 			clearLastError();
-			sm = makeHsm(HsmTop, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
+			port = new TestPort();
+			sm = makeTestActor(HsmTop, {}, port, { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+			traceActorOnPort(sm, port);
 			await sm.sync();
 		});
 
@@ -101,6 +105,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			sm.post('hello');
 			await sm.sync();
 			expect(sm.currentState).equals(A);
+			expect(port.events).eqls(['hello']);
 		});
 
 		it(`calls onUnhandledEvent, when an event handler calls unhandled()`, async () => {
@@ -143,7 +148,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		});
 
 		it(`the standard onUnhandled throws`, async () => {
-			const sm = makeHsm(EmptyTopState, {}, true, traceLevel, undefined, createTestDispatchErrorCallback(true));
+			const sm = makeTestActor(EmptyTopState, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			sm.post('hello');
 			await sm.sync();
 			expect(sm.currentState).equals(FatalErrorState);

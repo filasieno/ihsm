@@ -1,0 +1,10 @@
+> **ServiceKeys**\<`Protocol`\> = `Protocol` *extends* `undefined` ? `string` : `Exclude`\<`{ [K in keyof Protocol]-?: IsServiceMethod<Protocol[K]> extends true ? K : never }`\[keyof `Protocol`\], keyof [`State`](../interfaces/State.mdx)\<`any`, `any`\>\>
+
+Union of protocol keys whose handlers are **services** — invocable with [Hsm.call](../interfaces/Hsm.mdx#call). Reserved
+[State](../interfaces/State.mdx) method names are excluded; resolves to `string` for the untyped (`undefined`) protocol.
+
+## Type Parameters
+
+### Protocol
+
+`Protocol` *extends* \{ \} \| `undefined`

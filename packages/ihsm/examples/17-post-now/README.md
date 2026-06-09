@@ -2,11 +2,11 @@
 
 ## Problem
 
-During a handler you sometimes need **internal** follow-up events (inventory lock, payment capture, cleanup) to run **before** other work — including normal `post` calls from the same handler or the next mailbox job. That pattern models **extended transitions**: several steps that belong to one logical turn.
+During a handler you sometimes need **internal** follow-up events (inventory lock, payment capture, cleanup) to run **before** other work — including normal `post` calls from the same handler or the next dispatched job. That pattern models **extended transitions**: several steps that belong to one logical turn.
 
 ## Solution
 
-**`postNow(event, …args)`** enqueues on the **hi-priority** mailbox. After the current handler and its transitions finish, the runtime drains all hi-priority jobs before normal posts from that handler or the next external `post`.
+**`postNow(event, …args)`** enqueues on the **hi-priority** queue. After the current handler and its transitions finish, the runtime drains all hi-priority jobs before normal posts from that handler or the next external `post`.
 
 Only available **inside** handlers (`this.postNow`). The client uses ordinary `post`.
 

@@ -1,0 +1,104 @@
+Base class for all ihsm runtime errors carrying machine context.
+
+## Extends
+
+- `Error`
+
+## Extended by
+
+- [`RuntimeError`](RuntimeError.mdx)
+- [`InitializationError`](InitializationError.mdx)
+
+## Type Parameters
+
+### Context
+
+`Context`
+
+Domain context at failure time
+
+### Protocol
+
+`Protocol` *extends* \{ \} \| `undefined`
+
+Vocabulary type (for typed subclasses)
+
+## Constructors
+
+### Constructor
+
+> `protected` **new HsmError**\<`Context`, `Protocol`\>(`name`, `hsm`, `message`, `cause?`): `HsmError`\<`Context`, `Protocol`\>
+
+#### Parameters
+
+##### name
+
+`string`
+
+##### hsm
+
+[`State`](../interfaces/State.mdx)\<`Context`, `Protocol`\>
+
+##### message
+
+`string`
+
+##### cause?
+
+`Error`
+
+#### Returns
+
+`HsmError`\<`Context`, `Protocol`\>
+
+#### Overrides
+
+`Error.constructor`
+
+## Properties
+
+### name
+
+> **name**: `string`
+
+Discriminator matching the class name (`EventHandlerError`, etc.).
+
+#### Overrides
+
+`Error.name`
+
+***
+
+### topStateName
+
+> **topStateName**: `string`
+
+[Properties.topStateName](../interfaces/Properties.mdx#topstatename) when the error was constructed.
+
+***
+
+### stateName
+
+> **stateName**: `string`
+
+[Properties.currentStateName](../interfaces/Properties.mdx#currentstatename) when the error was constructed.
+
+***
+
+### context
+
+> **context**: `Context`
+
+Snapshot of [State.ctx](../interfaces/State.mdx#ctx) when the error was constructed.
+
+***
+
+### cause?
+
+> `optional` **cause?**: `Error`
+
+Original thrown value when this error wraps a handler or lifecycle failure.
+
+#### Overrides
+
+`Error.cause`

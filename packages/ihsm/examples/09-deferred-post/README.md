@@ -6,7 +6,9 @@ You need to fire an event after a delay without blocking the handler or inventin
 
 ## Solution
 
-`deferredPost(millis, event, ...args)` uses `setTimeout`, then enqueues the event like any `post`. ## UML statechart
+`deferredPost(millis, event, ...args)` schedules through the machine's **port timer service** — for a port-less machine that is the `Port` (a `setTimeout`-backed timer the runtime always instantiates) — then enqueues the event like any `post`. It is **handler-only**: it is not on the external actor surface.
+
+## UML statechart
 
 ```plantuml
 @startuml
@@ -51,11 +53,11 @@ export class ReminderTop extends TopState<ReminderCtx, ReminderProtocol> {
 export class Waiting extends ReminderTop {}
 ```
 
-Inside a handler you can also chain: `this.deferredPost(ms, 'event', …)` — same mailbox rules as `this.post`.
+Inside a handler you can also chain: `this.deferredPost(ms, 'event', …)` — same run-to-completion rules as `this.post`.
 
 ### Client (caller)
 
-Wait for **real time** (timer must fire) **and** mailbox drain:
+Wait for **real time** (timer must fire) **and** event drain:
 
 ```typescript
 const sm = createReminder();
@@ -73,7 +75,7 @@ expect(sm.ctx.message).equals('hello later');
 | 1 | Client | `post('scheduleReminder', …)` enqueues handler |
 | 2 | Handler | `deferredPost(50, 'deliver', …)` — returns; timer armed |
 | 3 | Client | `await sync()` — `scheduleReminder` done |
-| 4 | Timer | After 50ms, `deliver` enters mailbox |
+| 4 | Timer | After 50ms, `deliver` is enqueued for dispatch |
 | 5 | Client | `await sync()` — `deliver` handler runs |
 
 `deferredPost` is only available **inside** handlers (`this.deferredPost`). The client uses ordinary `post` to trigger the scheduling handler.

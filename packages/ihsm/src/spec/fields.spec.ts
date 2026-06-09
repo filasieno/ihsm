@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, makeHsm, InitialState, StateClass, TopState, TraceLevel, TraceWriter } from '../';
-import { clearLastError, TRACE_LEVELS, registerSpecStateNames } from './spec.utils';
+import { InitialState, StateClass, TopState, TraceLevel, TraceWriter } from '../';
+import { TestPort, TestActor, makeTestActor } from '../testing';
+import { clearLastError, TRACE_LEVELS, registerSpecStateNames, traceActorOnPort } from './spec.utils';
 
 type State = StateClass<Report>;
 
@@ -44,16 +45,19 @@ registerSpecStateNames({ HsmTop, A, B });
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Fields (traceLevel = ${traceLevel})`, () => {
-		let sm: Hsm;
+		let sm: TestActor<Report, undefined, {}, TestPort>;
 		beforeEach(async () => {
 			clearLastError();
 		});
 
 		it(`are available`, async () => {
 			const ctx = new Report();
-			sm = makeHsm(HsmTop, ctx, true, traceLevel);
+			const port = new TestPort();
+			sm = makeTestActor(HsmTop, ctx, port, { traceLevel });
+			traceActorOnPort(sm, port);
 			sm.post('report', 'hello world');
 			await sm.sync();
+			expect(port.trace).eqls(['report:hello world']);
 			expect(sm.currentStateName).eq('B');
 			expect(ctx.eventName).eq('report');
 			expect(ctx.eventPayload).eqls(['hello world']);

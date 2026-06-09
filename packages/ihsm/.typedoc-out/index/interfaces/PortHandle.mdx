@@ -1,0 +1,43 @@
+Outbound boundary between a machine and the impure world (processes, sockets, timers).
+
+Passed as the `port` instance to [makeActor](../functions/makeActor.mdx) / [testing!makeTestActor](../../testing/functions/makeTestActor.mdx) (or defaulted to a
+[Port](../classes/Port.mdx)), and surfaced to handlers as [TopState.port](../classes/TopState.mdx#port-1). The factory binds the
+port's [actor](#actor) lazily, so the port can post internal events back via
+[PortHandle.hsm](#hsm).
+
+## Type Parameters
+
+### Context
+
+`Context` = [`Any`](../type-aliases/Any.mdx)
+
+Domain context
+
+### InternalProtocol
+
+`InternalProtocol` *extends* \{ \} \| `undefined` = `undefined`
+
+Events this port may post inward
+
+## Properties
+
+### actor
+
+> **actor**: [`InboundPoster`](../type-aliases/InboundPoster.mdx)\<`Context`, `InternalProtocol`\> \| `undefined`
+
+The machine handle this port posts internal events through. **Bound lazily** by the runtime
+([makeHsm](../functions/makeHsm.mdx) / [makeActor](../functions/makeActor.mdx) / [testing!makeTestActor](../../testing/functions/makeTestActor.mdx)) right after the actor is
+constructed — so a port is created with no constructor arguments and wired up afterwards.
+`undefined` before binding / after teardown.
+
+## Methods
+
+### hsm()
+
+> **hsm**(): [`InboundPoster`](../type-aliases/InboundPoster.mdx)\<`Context`, `InternalProtocol`\> \| `undefined`
+
+The bound machine handle (same as [PortHandle.actor](#actor)); `undefined` before binding.
+
+#### Returns
+
+[`InboundPoster`](../type-aliases/InboundPoster.mdx)\<`Context`, `InternalProtocol`\> \| `undefined`

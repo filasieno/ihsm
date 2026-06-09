@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 import 'mocha';
-import { Hsm, makeHsm, InitialState, TopState } from '../';
-import { TRACE_LEVELS } from './spec.utils';
+import { InitialState, TopState } from '../';
+import { TestPort, TestActor, makeTestActor } from '../testing';
+import { TRACE_LEVELS, traceActorOnPort } from './spec.utils';
 
 class Report {
 	stateTrace: string[] = [];
@@ -35,16 +36,19 @@ class B extends HsmTop {
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Transition cache (traceLevel = ${traceLevel})`, () => {
-		let sm: Hsm;
+		let sm: TestActor<Report, Protocol, {}, TestPort<HsmTop>>;
 		it(`run a process`, async () => {
 			const ctx = new Report();
-			sm = makeHsm(HsmTop, ctx, true, traceLevel);
+			const port = new TestPort<HsmTop>();
+			sm = makeTestActor(HsmTop, ctx, port, { traceLevel });
+			traceActorOnPort(sm, port);
 			await sm.sync();
 			sm.post('task');
 			sm.post('task');
 			sm.post('task');
 			await sm.sync();
 			expect(ctx.stateTrace).eqls(['A', 'B', 'A', 'B']);
+			expect(port.events).eqls(['task', 'task', 'task']);
 		});
 	});
 }

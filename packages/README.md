@@ -17,24 +17,24 @@ The **git repo root** only keeps shared infra:
 
 Develop and publish from **`packages/ihsm/`** (same commands as before, different cwd).
 
-## Phase 2 — next: multipackage workspace
+## Phase 2 — in progress: `@ihsm/core`
 
-Add siblings without moving `ihsm` again:
+[`core/`](core/) is published as **`@ihsm/core`** — a thin re-export of `ihsm` and `ihsm/testing` (same semver, depends on `ihsm@<version>`). The unscoped **`ihsm`** package remains the implementation and primary install path.
+
+```ts
+import { makeHsm } from 'ihsm';              // unchanged
+import { makeHsm } from '@ihsm/core';        // scoped alias
+import { TestPort } from '@ihsm/core/testing';
+```
+
+Release (`.github/workflows/release.yml`) publishes **`ihsm`** then **`@ihsm/core`** on every tag.
+
+### Phase 2 — later
 
 ```
 packages/
-  ihsm/          # npm "ihsm" — runtime (unchanged location)
-  core/          # npm "@ihsm/core" — thin re-export of ihsm
   react/         # npm "@ihsm/react" — React bindings (peer: ihsm, react)
   …
 ```
 
-Planned mechanics:
-
-1. Root `package.json` — private workspace, `"workspaces": ["packages/*"]`
-2. Root `package-lock.json` — single lockfile for all packages
-3. `ihsm` stays the implementation; `@ihsm/*` packages depend on it via `workspace:*` / peers
-4. Release: version `ihsm` and `@ihsm/core` together; add `@ihsm/react` when it exists
-5. Nix: extend or wrap flake once more than one package needs CI (optional per-package derivations later)
-
-No second bulk move — only new folders under `packages/`.
+Optional follow-ups: root npm workspace + single lockfile, Nix derivation for `@ihsm/core`.

@@ -1,6 +1,6 @@
 {
 	"extends": "./tsconfig.lib.json",
-	"include": ["src/index.ts"],
+	"include": ["src/index.ts", "src/testing.ts"],
 	"compilerOptions": {
 		"composite": false,
 		"incremental": false

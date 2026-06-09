@@ -1,0 +1,20 @@
+> **Actor**\<`Context`, `Protocol`\> = [`Hsm`](../interfaces/Hsm.mdx)\<`Context`, `Protocol`\>
+
+External, public-only view of a machine returned by [makeActor](../functions/makeActor.mdx).
+
+Identical to [Hsm](../interfaces/Hsm.mdx) over the **public** protocol: clients can `post` / `call` only
+public events — internal (port-driven) events are not in the callable surface.
+
+## Type Parameters
+
+### Context
+
+`Context` = [`Any`](Any.mdx)
+
+Domain context
+
+### Protocol
+
+`Protocol` *extends* \{ \} \| `undefined` = `undefined`
+
+Public protocol

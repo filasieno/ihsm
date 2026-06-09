@@ -26,7 +26,7 @@ function run(script) {
 }
 
 function assertPrepared() {
-	for (const rel of ['api/index.mdx', 'reference.mdx', 'intro.mdx']) {
+	for (const rel of ['api/index.mdx', 'reference.mdx', 'testing.mdx', 'intro.mdx']) {
 		const p = path.join(staging, rel);
 		if (!fs.existsSync(p)) {
 			console.error(`prepare incomplete: missing ${rel}`);
