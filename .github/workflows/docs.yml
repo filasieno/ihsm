@@ -26,8 +26,6 @@ jobs:
 
       - name: Build site
         uses: ./.github/actions/build-docs
-        with:
-          attic-token: ${{ secrets.ATTIC_TOKEN }}
 
       - name: Verify site output
         run: bash packages/ihsm/scripts/verify-docs-site.sh packages/ihsm/docs-build

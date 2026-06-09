@@ -40,8 +40,6 @@ jobs:
 
       - name: Setup Nix
         uses: ./.github/actions/nix
-        with:
-          attic-token: ${{ secrets.ATTIC_TOKEN }}
 
       - name: Verify version matches tag
         run: |
