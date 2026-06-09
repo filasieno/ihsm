@@ -4,7 +4,10 @@
 	"eslint.workingDirectories": [{ "directory": "packages/ihsm", "changeProcessCWD": true }],
 	"eslint.useFlatConfig": true,
 	"files.watcherExclude": {
+		"packages/core/lib/**": true,
+		"packages/core/.tsc/**": true,
 		"packages/ihsm/.tsc/**": true,
+		"packages/ihsm/.typedoc-out/**": true,
 		"packages/ihsm/lib/**": true,
 		"packages/ihsm/coverage/**": true,
 		"packages/ihsm/docs-build/**": true,
@@ -13,7 +16,10 @@
 		"packages/ihsm/website/static/img/plantuml/**": true
 	},
 	"search.exclude": {
+		"packages/core/lib": true,
+		"packages/core/.tsc": true,
 		"packages/ihsm/.tsc": true,
+		"packages/ihsm/.typedoc-out": true,
 		"packages/ihsm/lib": true,
 		"packages/ihsm/coverage": true,
 		"packages/ihsm/docs-build": true,
@@ -23,7 +29,10 @@
 	"typescript.tsserver.watchOptions": {
 		"excludeDirectories": [
 			"**/node_modules",
+			"packages/core/.tsc",
+			"packages/core/lib",
 			"packages/ihsm/.tsc",
+			"packages/ihsm/.typedoc-out",
 			"packages/ihsm/lib",
 			"packages/ihsm/coverage",
 			"packages/ihsm/docs-build",

@@ -31,8 +31,13 @@ jspm_packages/
 # TypeScript — compiled library + project-reference cache (never commit)
 /packages/ihsm/lib/
 /packages/ihsm/.tsc/
+/packages/core/lib/
+/packages/core/.tsc/
 *.tsbuildinfo
 .t
+
+# Typedoc intermediate (sync:docs → website/docs/api/)
+/packages/ihsm/.typedoc-out/
 
 # Caches
 .npm
@@ -61,8 +66,8 @@ jspm_packages/
 # declarations belong in lib/ and the tutorial build cache in .tsc/)
 /packages/ihsm/src/**/*.js
 /packages/ihsm/src/**/*.d.ts
-/tutorials/**/*.js
-/tutorials/**/*.d.ts
+/packages/ihsm/examples/**/*.js
+/packages/ihsm/examples/**/*.d.ts
 **.map
 
 # Nix build symlinks (nix build -o result, result-2, …)
@@ -79,6 +84,9 @@ result*/
 /packages/ihsm/website/sidebars.ts
 /packages/ihsm/website/static/img/plantuml/
 
+# Pre-move orphan — docs live under packages/ihsm/website/
+/website/
+
 # IDE — .vscode/ is committed; ignore other local editor files
 .idea/
 *.code-workspace
@@ -87,7 +95,10 @@ result*/
 *.tmp.txt
 .npmtoken
 .test-browser/
-/test/browser/entries/*.ts
+
+# Generated browser test bundles (scripts/generate-browser-test-entries.mjs)
+/packages/ihsm/test/browser/entries/*.ts
+!packages/ihsm/test/browser/entries/.gitkeep
 
 # Local review notes (not for commit)
 .TODO

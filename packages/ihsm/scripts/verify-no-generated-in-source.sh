@@ -13,11 +13,14 @@ forbidden() {
 }
 
 forbidden docs-build
+forbidden .typedoc-out
 forbidden website/docs
 forbidden website/sidebars.ts
 forbidden website/.docusaurus
 forbidden website/.docs-staging
 forbidden website/static/img/plantuml
+forbidden test/browser/entries/unit.ts
+forbidden test/browser/entries/examples.ts
 forbidden _config.yml
 
 # Generated TypeScript output must never live in the source tree (it belongs in
