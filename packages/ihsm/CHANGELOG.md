@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.23] - 2026-06-09
+
+### Fixed
+
+- **`onEntry` prototype timing** — the runtime now adopts the entering state class before each
+  `onEntry` during initialization and transitions, so `this.currentState` and lifecycle
+  invariants reflect the hook being run (`adoptStateBeforeOnEntry`, regression spec
+  `on-entry-prototype.spec.ts`).
+- **CI composite action** — bump `@actions/core` in `attic-store-paths-guard` to clear Dependabot
+  `undici` advisories (dev-only dependency tree).
+
+### Changed
+
+- Reference and testing docs updated for lifecycle invariant checks in `onEntry`.
+
 ## [0.0.22] - 2026-06-09
 
 ### Added
