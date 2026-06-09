@@ -1,0 +1,10 @@
+name: Attic store-paths guard
+description: >-
+  Ensure ${RUNNER_TEMP}/attic-action-store-paths exists for ryanccn/attic-action
+  post-push. Runs after Attic configure and again in post (before attic-action
+  post) so a missing snapshot does not ENOENT the push step.
+
+runs:
+  using: node20
+  main: index.js
+  post: index.js

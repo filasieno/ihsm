@@ -29,9 +29,17 @@ runs:
     # Pull from (and, when a token is present, push every built path to) the
     # self-hosted cache. skip-push keeps fork PRs from failing on a 401.
     - name: Configure nix.1tdb.io binary cache (Attic)
-      uses: ryanccn/attic-action@v0
+      uses: ryanccn/attic-action@v0.5.0
       with:
         endpoint: https://nix.1tdb.io
         cache: ihsm
         token: ${{ inputs.attic-token }}
         skip-push: ${{ inputs.attic-token == '' }}
+
+    # attic-action post reads attic-action-store-paths before recreating it; if
+    # configure did not write the file, push logs ENOENT. This guard's post runs
+    # immediately before attic-action post (reverse step order) and recreates the
+    # snapshot when missing.
+    - name: Guard Attic store-paths snapshot
+      if: inputs.attic-token != ''
+      uses: ./.github/actions/attic-store-paths-guard
