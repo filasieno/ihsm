@@ -1033,7 +1033,7 @@ export type ServiceRequest<Protocol, EventName extends keyof Protocol> = Protoco
  *
  * @category Event handler
  */
-export type ServiceResponse<Protocol, EventName extends keyof Protocol> = Protocol extends undefined ? any : Protocol[EventName] extends (resolve: infer Reply, reject: infer Error, ...payload: infer Payload) => Promise<void> | void ? Reply : never;
+export type ServiceResponse<Protocol, EventName extends keyof Protocol> = Protocol extends undefined ? any : Protocol[EventName] extends (resolve: (result: infer Reply) => void, reject: (error: infer _Error) => void, ...payload: infer _Payload) => Promise<void> | void ? Reply : never;
 
 /**
  * Valid first argument to {@link Hsm.call} — protocol keys whose handlers use the service signature

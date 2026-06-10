@@ -119,7 +119,8 @@ describe('ihsm/testing', () => {
 			port.send('onOpened', 42); // the device "replies" now
 			await sm.sync();
 			expect(sm.currentState).equals(Open);
-			expect(await sm.call('lastHandle')).equals(42);
+			const inferredHandle: number = await sm.call('lastHandle');
+			expect(inferredHandle).equals(42);
 		});
 
 		it('records messages and exposes last/count/clear', async () => {
@@ -458,7 +459,8 @@ describe('ihsm/testing', () => {
 			actor.post('open', 'usb1');
 			await actor.sync();
 			expect(actor.ctx.target).equals('usb1');
-			expect(await actor.call('lastHandle')).equals(9);
+			const inferredHandle: number = await actor.call('lastHandle');
+			expect(inferredHandle).equals(9);
 		});
 
 		it('applies option defaults when options are omitted, and honours all provided options', async () => {

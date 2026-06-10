@@ -37,6 +37,8 @@ describe(`call`, function (): void {
 	it(`call runs ok`, async () => {
 		const value = 'ok: hello';
 		const result = await sm.call('getResult', value);
+		const inferredString: string = result;
+		void inferredString;
 		expect(result).equals(value);
 		// The TestPort observes service calls just like plain events.
 		expect(port.trace).eqls([`getResult:${value}`]);

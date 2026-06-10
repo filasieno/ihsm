@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.24] - 2026-06-10
+
+### Fixed
+
+- **`call()` service response typing** — `ServiceResponse` now infers the payload type passed to
+  `resolve(result)` instead of inferring the callback function type itself. This restores correct
+  output inference for `await actor.call(...)` and removes the need for downstream casts.
+
+### Changed
+
+- Added compile-time coverage in call-related specs to assert inferred result types without casts.
+
 ## [0.0.23] - 2026-06-09
 
 ### Fixed
@@ -201,5 +213,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Last npm release before the documentation and API refresh above.
 
 [0.0.19]: https://github.com/filasieno/ihsm/compare/0.0.18...0.0.19
+[0.0.24]: https://github.com/filasieno/ihsm/compare/0.0.23...0.0.24
+[0.0.23]: https://github.com/filasieno/ihsm/compare/0.0.22...0.0.23
 [0.0.18]: https://github.com/filasieno/ihsm/compare/0.0.14...0.0.18
 [0.0.14]: https://github.com/filasieno/ihsm/releases/tag/0.0.14
