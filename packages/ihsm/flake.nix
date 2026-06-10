@@ -17,7 +17,7 @@
 
       # Regenerate when package-lock.json changes:
       #   nix run nixpkgs#prefetch-npm-deps -- package-lock.json
-      npmDepsHash = "sha256-u2ra/DJ0yTM+Xcemb9JuuwJuzoqn0Rc/wcA+oxDOlTE=";
+      npmDepsHash = "sha256-FMz5xSJ+dIGHhUSZBTFYqMohDul6JViFNhAV0rpnC08=";
 
       nixpkgsRev = (builtins.fromJSON (builtins.readFile ./flake.lock)).nodes.nixpkgs.locked.rev;
 

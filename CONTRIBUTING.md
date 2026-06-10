@@ -36,6 +36,19 @@ nix develop ./packages/ihsm --command npm test
 If you see `remove local node_modules/ to use Nix store deps`, delete a plain
 `npm install` tree: `rm -rf node_modules` and enter `nix develop` again.
 
+### Local pre-push guard (not CI)
+
+To block accidental pushes when `packages/ihsm/flake.nix` `npmDepsHash` is out of
+sync with `packages/ihsm/package-lock.json`, install the repo-local pre-push hook:
+
+```shell
+cd packages/ihsm
+npm run hooks:install
+```
+
+The hook runs `npm run check:nix-hash` before every local `git push` and aborts
+the push on mismatch with the exact hash to copy into `flake.nix`.
+
 ## Building
 
 ### Nix commands (CI parity)

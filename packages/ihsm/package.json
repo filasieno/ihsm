@@ -116,6 +116,8 @@
 		"predist": "npm run clean",
 		"prettier": "prettier --write 'src/**/*.ts' 'examples/**/*.ts' 'website/**/*.{ts,tsx}'",
 		"release:check": "npm run test:all && npm run lint && npm run build && npm run doc && npm run verify:doc",
+		"check:nix-hash": "bash scripts/check-npm-deps-hash.sh",
+		"hooks:install": "bash scripts/install-local-hooks.sh",
 		"prepublishOnly": "npm run test:all && npm run build",
 		"test:node": "TS_NODE_PROJECT=tsconfig.lib.json nyc mocha",
 		"test:browser": "node scripts/run-browser-tests.mjs",
