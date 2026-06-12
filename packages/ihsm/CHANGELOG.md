@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.25] - 2026-06-12
+
+### Added
+
+- **Local pre-push Nix hash guard** — added a repo-local `pre-push` hook and helper scripts to
+  validate `npmDepsHash` against `package-lock.json` before allowing local pushes.
+
+### Fixed
+
+- **`flake.nix` npm dependency hash** — updated `npmDepsHash` to match current lockfile content.
+
 ## [0.0.24] - 2026-06-10
 
 ### Fixed
@@ -213,6 +224,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Last npm release before the documentation and API refresh above.
 
 [0.0.19]: https://github.com/filasieno/ihsm/compare/0.0.18...0.0.19
+[0.0.25]: https://github.com/filasieno/ihsm/compare/0.0.24...0.0.25
 [0.0.24]: https://github.com/filasieno/ihsm/compare/0.0.23...0.0.24
 [0.0.23]: https://github.com/filasieno/ihsm/compare/0.0.22...0.0.23
 [0.0.18]: https://github.com/filasieno/ihsm/compare/0.0.14...0.0.18
