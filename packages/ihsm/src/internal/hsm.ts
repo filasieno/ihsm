@@ -46,7 +46,7 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 	public _currentEventName?: string;
 	public _currentEventPayload?: any[];
 	private _observers?: Set<EventObserver>;
-	public dispatchErrorCallback: DispatchErrorCallback<Context, Protocol>;
+	public dispatchErrorCallback: DispatchErrorCallback<Context>;
 	private _traceLevel: TraceLevel;
 	private _traceDomainStack: string[];
 	public _createInitTask: <DispatchContext, DispatchProtocol extends {} | undefined>(hsm: HsmWithTracing<DispatchContext, DispatchProtocol>) => Task;
@@ -57,7 +57,7 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 		instance: Instance<Context, Protocol>,
 		traceWriter: TraceWriter,
 		traceLevel: TraceLevel,
-		dispatchErrorCallback: DispatchErrorCallback<Context, Protocol>,
+		dispatchErrorCallback: DispatchErrorCallback<Context>,
 		initialize: boolean
 	) {
 		this._instance = instance;
@@ -124,6 +124,11 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 		const message = { event: String(eventName), payload: [...eventPayload] };
 		for (const observer of this._observers) observer(message);
 	}
+
+	/** @internal — v2 protocol surfaces notify observers without enqueueing v1 dispatch tasks. */
+	protected recordObserverEvent(eventName: string | number | symbol, eventPayload: unknown[]): void {
+		this._notifyObservers(eventName, eventPayload);
+	}
 	deferredPost<EventName extends keyof Protocol>(millis: number, eventName: PostedEvent<Protocol, EventName>, ...eventPayload: EventPayload<Protocol, EventName>): void {
 		const enqueue = (): void => { this.pushTask(this._createEventDispatchTask(this, eventName, ...eventPayload)); };
 		// Use the port's timer service when available (Port / TestPort always provide setTimeout);
@@ -136,7 +141,7 @@ export class HsmObject<Context, Protocol extends {} | undefined> implements HsmW
 		}
 	}
 	transition(nextState: StateClass<Context, Protocol>): void { this._transitionState = nextState; }
-	unhandled(): never { throw new UnhandledEventError(this); }
+	unhandled(): never { throw new UnhandledEventError(this as import('../').State<Context, Protocol>); }
 	sleep(millis: number): Promise<void> { return new Promise(resolve => setTimeout(() => resolve(), millis)); }
 
 	get traceLevel(): TraceLevel {

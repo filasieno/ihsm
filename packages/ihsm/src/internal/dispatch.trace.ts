@@ -80,7 +80,7 @@ function lookupErrorHandler<Context, Protocol extends {} | undefined, EventName 
 		}
 	}
 	hsm._tracePopDone(`found in state ${getStateName(TopState)}`);
-	return TopState.prototype.onError;
+	return TopState.prototype.onError as (error: RuntimeError<Context, Protocol, EventName>) => void | Promise<void>;
 }
 
 /** @internal */

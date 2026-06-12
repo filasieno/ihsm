@@ -1,33 +1,48 @@
 import { expect } from 'chai';
 import 'mocha';
-import { InitialState, TopState, TraceLevel, Any, TraceWriter } from '../';
-import { TestPort, TestActor, makeTestActor } from '../testing';
+import { InitialState, TopState, TraceLevel, TraceWriter, makeOwnerActor, manifestFor } from '../';
+import type { Config, OwnerActor } from '../';
+import { TestPort } from '../testing';
 import { traceActorOnPort } from './spec.utils';
 import * as ihsm from '../index';
 
-interface Protocol {
-	switchTraceWriter(tw: TraceWriter): Promise<void>;
-	switchTraceLevel(tl: TraceLevel): Promise<void>;
-	hello(): void;
+interface TraceLevelConfig extends Config {
+	context: Record<string, never>;
+	notifications: {
+		switchTraceWriter(tw: TraceWriter): Promise<void>;
+		switchTraceLevel(tl: TraceLevel): Promise<void>;
+		hello(): void;
+	};
 }
 
-class HsmTop extends TopState<Any, Protocol> {
+const traceLevelManifest = manifestFor<TraceLevelConfig>({
+	services: [],
+	notifications: ['switchTraceWriter', 'switchTraceLevel', 'hello'],
+	internalServices: [],
+	internalNotifications: [],
+});
+
+class HsmTop extends TopState {
+	static readonly manifest = traceLevelManifest;
+	declare readonly __ihsm: TraceLevelConfig;
+
 	async switchTraceWriter(tw: TraceWriter): Promise<void> {
-		this.traceWriter = tw;
+		this.hsm.traceWriter = tw;
 	}
+
 	async switchTraceLevel(tl: TraceLevel): Promise<void> {
 		console.log(`new trace level = ${TraceLevel[tl]}`);
-		this.traceLevel = tl;
+		this.hsm.traceLevel = tl;
 	}
 
 	hello(): void {
-		console.log(`Hello: TraceLevel = ${TraceLevel[this.traceLevel]}`);
+		console.log(`Hello: TraceLevel = ${TraceLevel[this.hsm.traceLevel]}`);
 	}
 }
 
 class TestTraceWriter implements ihsm.TraceWriter {
 	lines: string[] = [];
-	write<Context, Protocol extends {} | undefined>(hsm: ihsm.Properties<Context, Protocol>, msg: any): void {
+	write(_hsm: unknown, msg: unknown): void {
 		this.lines.push(`TEST: ${msg}`);
 	}
 }
@@ -46,41 +61,41 @@ class E extends D {}
 class F extends E {}
 
 describe(`Switch TraceLevel`, function (): void {
-	let sm: TestActor<Any, Protocol, {}, TestPort>;
+	let sm: OwnerActor<TraceLevelConfig>;
 	let port: TestPort;
 
 	beforeEach(async () => {
 		port = new TestPort();
-		sm = makeTestActor(HsmTop, {}, port);
+		sm = makeOwnerActor(HsmTop as never, {}, port);
 		traceActorOnPort(sm, port);
-		await sm.sync();
+		await sm.hsm.sync();
 	});
 
 	it(`trace level switch`, async () => {
-		expect(sm.currentState).eqls(F);
+		expect(sm.hsm.currentState).eqls(F);
 
-		sm.post('switchTraceLevel', TraceLevel.VERBOSE_DEBUG);
-		await sm.sync();
+		sm.switchTraceLevel(TraceLevel.VERBOSE_DEBUG);
+		await sm.hsm.sync();
 
 		console.log('>>>');
-		sm.post('hello');
-		await sm.sync();
+		sm.hello();
+		await sm.hsm.sync();
 		console.log('<<<');
 
-		sm.post('switchTraceLevel', TraceLevel.DEBUG);
-		await sm.sync();
+		sm.switchTraceLevel(TraceLevel.DEBUG);
+		await sm.hsm.sync();
 
 		console.log('>>>');
-		sm.post('hello');
-		await sm.sync();
+		sm.hello();
+		await sm.hsm.sync();
 		console.log('<<<');
 
-		sm.post('switchTraceLevel', TraceLevel.PRODUCTION);
-		await sm.sync();
+		sm.switchTraceLevel(TraceLevel.PRODUCTION);
+		await sm.hsm.sync();
 
 		console.log('>>>');
-		sm.post('hello');
-		await sm.sync();
+		sm.hello();
+		await sm.hsm.sync();
 		console.log('<<<');
 
 		// The TestPort observed each level switch and hello, in order.
@@ -89,8 +104,8 @@ describe(`Switch TraceLevel`, function (): void {
 
 	it('changes trace writer at runtime', async () => {
 		const tw = new TestTraceWriter();
-		sm.post('switchTraceWriter', tw);
-		sm.post('hello');
+		sm.switchTraceWriter(tw);
+		sm.hello();
 		expect(tw.lines.filter(line => line.startsWith('TEST: '))).eqls([]);
 	});
 });

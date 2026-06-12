@@ -1,10 +1,32 @@
 import { expect } from 'chai';
 import 'mocha';
-import { TopState, InitialState, Any } from '../';
-import { TestPort, makeTestActor } from '../testing';
+import { TopState, InitialState, Any, makeOwnerActor, manifestFor } from '../';
+import type { Config } from '../';
+import { TestPort } from '../testing';
 import { clearLastError, TRACE_LEVELS, createTestDispatchErrorCallback, traceActorOnPort } from './spec.utils';
 
+interface RestoreCtx {
+	value: string;
+}
+
+interface RestoreConfig extends Config {
+	context: RestoreCtx;
+	notifications: {
+		getValue(obj: { value: string }): void;
+	};
+}
+
+const restoreManifest = manifestFor<RestoreConfig>({
+	services: [],
+	notifications: ['getValue'],
+	internalServices: [],
+	internalNotifications: [],
+});
+
 class HsmTop extends TopState {
+	static readonly manifest = restoreManifest;
+	declare readonly __ihsm: RestoreConfig;
+
 	getValue(obj: { value: string }): void {
 		obj.value = this.ctx.value;
 	}
@@ -30,27 +52,30 @@ for (const traceLevel of TRACE_LEVELS) {
 			const second = { value: 'second' };
 
 			const port = new TestPort();
-			const hsm = makeTestActor(HsmTop, initial, port, { initialize: false, traceLevel, dispatchErrorCallback });
+			const hsm = makeOwnerActor(HsmTop as never, initial, port, {
+				initialize: false,
+				traceLevel,
+				dispatchErrorCallback,
+			});
 			traceActorOnPort(hsm, port);
 			const query: Any = { value: undefined };
-			hsm.post('getValue', query);
-			await hsm.sync();
+			hsm.getValue(query);
+			await hsm.hsm.sync();
 			expect(query.value).equals(initial.value);
-			expect(hsm.currentState).equals(HsmTop);
+			expect(hsm.hsm.currentState).equals(HsmTop);
 
-			hsm.restore(B, first);
-			hsm.post('getValue', query);
-			await hsm.sync();
+			hsm.hsm.restore(B, first);
+			hsm.getValue(query);
+			await hsm.hsm.sync();
 			expect(query.value).equals(first.value);
-			expect(hsm.currentState).equals(B);
+			expect(hsm.hsm.currentState).equals(B);
 
-			hsm.restore(C, second);
-			hsm.post('getValue', query);
-			await hsm.sync();
+			hsm.hsm.restore(C, second);
+			hsm.getValue(query);
+			await hsm.hsm.sync();
 			expect(query.value).equals(second.value);
-			expect(hsm.currentState).equals(C);
+			expect(hsm.hsm.currentState).equals(C);
 
-			// The TestPort observed every getValue post across the restores.
 			expect(port.events).eqls(['getValue', 'getValue', 'getValue']);
 		});
 	});

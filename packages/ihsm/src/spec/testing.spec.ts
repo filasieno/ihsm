@@ -1,13 +1,12 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { BasePort, Disposable, InitialState, PortHandle, RejectCallback, ResolveCallback, ResultWithSubscription, TopState, TraceLevel, defaultTraceWriter } from '../';
-import { Mock, Port, PreloadError, TestPort, makeActor, makeTestActor, makeTestPort, mock } from '../testing';
+import { Disposable, InitialState, ResultWithSubscription, TopState, TraceLevel, defaultTraceWriter, makeActor, manifestFor, registerStateNames } from '../';
+import type { Config } from '../';
+import { Mock, Port, PreloadError, TestActor, TestPort, makeTestActor, makeTestPort, mock } from '../testing';
 import { traceActorOnPort } from './spec.utils';
 import { clearLastError, createTestDispatchErrorCallback } from './spec.utils';
 
-// A small device machine with a public protocol, an internal (port-driven) protocol, a service,
-// and an outbound port. Mirrors the network-fetch example but trimmed for unit coverage.
 interface DeviceCtx {
 	target: string;
 	handle: number;
@@ -16,39 +15,60 @@ interface DeviceCtx {
 	subscription?: Disposable;
 }
 
-interface DevicePublic {
-	open(target: string): void;
-	poke(): void;
-	cancel(): void;
-	lastHandle(resolve: ResolveCallback<number>, reject: RejectCallback): void;
+interface DeviceConfig extends Config {
+	context: DeviceCtx;
+	services: {
+		lastHandle(): Promise<number>;
+	};
+	notifications: {
+		open(target: string): void;
+		poke(): void;
+		cancel(): void;
+	};
+	internalNotifications: {
+		onOpened(handle: number): void;
+		scheduleOnOpened(ms: number, handle: number): void;
+	};
+	port: {
+		connect(target: string): ResultWithSubscription<number>;
+		noop(): void;
+	};
 }
 
-interface DeviceInternal {
-	onOpened(handle: number): void;
-}
+const deviceManifest = manifestFor<DeviceConfig>({
+	services: ['lastHandle'],
+	notifications: ['open', 'poke', 'cancel'],
+	internalServices: [],
+	internalNotifications: ['onOpened', 'scheduleOnOpened'],
+});
 
-interface DevicePort extends PortHandle<DeviceCtx, DeviceInternal> {
-	connect(target: string): ResultWithSubscription<number>;
-	noop(): void;
-}
+class DeviceTop extends TopState {
+	static readonly manifest = deviceManifest;
+	declare readonly __ihsm: DeviceConfig;
 
-class DeviceTop extends TopState<DeviceCtx, DevicePublic, DeviceInternal, DevicePort> {
 	open(target: string): void {
 		this.ctx.target = target;
-		// Reading `this.port` here exercises the State.port getter.
-		const { value, subscription } = this.port.connect(target);
+		const { value, subscription } = this.hsm.port.connect(target);
 		this.ctx.handle = value;
 		this.ctx.subscription = subscription;
-		this.transition(Connecting);
+		this.hsm.transition(Connecting);
 	}
+
 	poke(): void {
 		this.ctx.pokes += 1;
-		this.port.noop();
+		this.hsm.port.noop();
 	}
+
 	cancel(): void {}
+
 	onOpened(_handle: number): void {}
-	lastHandle(resolve: ResolveCallback<number>): void {
-		resolve(this.ctx.handle);
+
+	lastHandle(): number {
+		return this.ctx.handle;
+	}
+
+	scheduleOnOpened(ms: number, handle: number): void {
+		this.hsm.defer(ms).onOpened(handle);
 	}
 }
 
@@ -59,21 +79,24 @@ class Connecting extends DeviceTop {
 	onOpened(handle: number): void {
 		this.ctx.handle = handle;
 		this.ctx.opened = true;
-		this.transition(Open);
+		this.hsm.transition(Open);
 	}
+
 	cancel(): void {
 		this.ctx.subscription?.dispose();
-		this.transition(Idle);
+		this.hsm.transition(Idle);
 	}
 }
 
 class Open extends DeviceTop {}
 
+registerStateNames({ DeviceTop, Idle, Connecting, Open });
+
 function freshCtx(): DeviceCtx {
 	return { target: '', handle: 0, opened: false, pokes: 0 };
 }
 
-@mock
+@mock('connect', 'noop')
 abstract class MockDevicePort extends TestPort<DeviceTop> {
 	abstract connect(target: string): ResultWithSubscription<number>;
 	abstract noop(): void;
@@ -100,33 +123,31 @@ describe('ihsm/testing', () => {
 			});
 		});
 
-		it('drives a port-mediated open and settles it inward with send()', async () => {
+		it('drives a port-mediated open and settles it inward with onOpened()', async () => {
 			const sm = makeTestActor(DeviceTop, freshCtx(), port);
-			await sm.sync();
-			expect(sm.currentState).equals(Idle);
-			// Reading the actor-level port getter.
-			expect(sm.port).equals(port);
+			await sm.hsm.sync();
+			expect(sm.hsm.currentState).equals(Idle);
+			expect(sm.hsm.port).equals(port);
 
-			// The port's bound actor link points back at the machine.
-			expect(port.hsm()).equals(sm);
+			expect(port.actor).to.exist;
 
-			sm.post('open', 'tty0');
-			await sm.sync();
-			expect(sm.currentState).equals(Connecting);
+			sm.open('tty0');
+			await sm.hsm.sync();
+			expect(sm.hsm.currentState).equals(Connecting);
 			expect(port.trace).eqls(['connect:tty0']);
 			expect(port.connect.calls).eqls([['tty0']]);
 
-			port.send('onOpened', 42); // the device "replies" now
-			await sm.sync();
-			expect(sm.currentState).equals(Open);
-			expect(await sm.call('lastHandle')).equals(42);
+			port.actor!.onOpened(42);
+			await sm.hsm.sync();
+			expect(sm.hsm.currentState).equals(Open);
+			expect(await sm.lastHandle()).equals(42);
 		});
 
 		it('records messages and exposes last/count/clear', async () => {
 			const sm = makeTestActor(DeviceTop, freshCtx(), port);
-			await sm.sync();
-			sm.post('open', 'tty1');
-			await sm.sync();
+			await sm.hsm.sync();
+			sm.open('tty1');
+			await sm.hsm.sync();
 			expect(port.count).equals(1);
 			expect(port.last).to.deep.include({ event: 'connect' });
 			expect(port.messages.map(m => m.event)).eqls(['connect']);
@@ -137,29 +158,27 @@ describe('ihsm/testing', () => {
 
 		it('consumes once() stubs before default() and tracks calls', async () => {
 			const sm = makeTestActor(DeviceTop, freshCtx(), port);
-			await sm.sync();
+			await sm.hsm.sync();
 			const seen: string[] = [];
 			port.noop.default(() => void seen.push('default'));
 			port.noop.once(() => void seen.push('once'));
 
-			sm.post('poke');
-			sm.post('poke');
-			await sm.sync();
+			sm.poke();
+			sm.poke();
+			await sm.hsm.sync();
 
 			expect(seen).eqls(['once', 'default']);
 			expect(port.noop.calls.length).equals(2);
 			expect(sm.ctx.pokes).equals(2);
-			// `noop` records with no payload, so its rendered trace entry is the bare event name.
 			expect(port.trace).eqls(['noop', 'noop']);
 		});
 
 		it('reset() clears queued/persistent stubs and recorded calls', () => {
 			port.noop.default(() => undefined);
-			port.noop(); // direct invocation records a call
+			port.noop();
 			expect(port.noop.calls.length).equals(1);
 			port.noop.reset();
 			expect(port.noop.calls.length).equals(0);
-			// After reset there is no implementation, so calling throws a PreloadError.
 			expect(() => port.noop()).to.throw(PreloadError, /not stubbed/);
 		});
 
@@ -169,13 +188,9 @@ describe('ihsm/testing', () => {
 		});
 	});
 
-	it('makeTestPort rejects a class not decorated with @mock', () => {
-		expect(() => makeTestPort(UndecoratedPort)).to.throw(/@ihsm\.mock/);
-	});
-
-	it('port.send throws when the actor has not been bound yet', () => {
+	it('port.actor throws when the actor has not been bound yet', () => {
 		const port = makeTestPort(MockDevicePort);
-		expect(() => port.send('onOpened', 1)).to.throw(/before the actor was bound/);
+		expect(() => port.actor!.onOpened(1)).to.throw();
 	});
 
 	it('subscribe → TestPort.record traces events until the subscription is disposed', async () => {
@@ -184,16 +199,16 @@ describe('ihsm/testing', () => {
 		const sm = makeTestActor(DeviceTop, freshCtx(), port);
 		const trace = new TestPort<DeviceTop>();
 		const sub = traceActorOnPort(sm, trace);
-		await sm.sync();
+		await sm.hsm.sync();
 
-		sm.post('open', 'a');
-		await sm.sync();
+		sm.open('a');
+		await sm.hsm.sync();
 		expect(trace.events).eqls(['open']);
 		expect(trace.trace).eqls(['open:a']);
 
 		sub.dispose();
-		sm.post('cancel');
-		await sm.sync();
+		sm.cancel();
+		await sm.hsm.sync();
 		expect(trace.events).eqls(['open']);
 	});
 
@@ -221,7 +236,7 @@ describe('ihsm/testing', () => {
 			const clock = new TestPort();
 			const fired: number[] = [];
 			clock.setTimeout(() => fired.push(1), 100);
-			clock.setTimeout(() => fired.push(2), 100); // same deadline → tie broken by id
+			clock.setTimeout(() => fired.push(2), 100);
 			clock.advance(100);
 			expect(fired).eqls([1, 2]);
 		});
@@ -240,7 +255,6 @@ describe('ihsm/testing', () => {
 			const clock = new TestPort();
 			clock.setTimeout(() => undefined, 0);
 			clock.advance(-100);
-			// now never moves backwards; the zero-delay timer is due at 0.
 			expect(clock.now).equals(0);
 			expect(clock.pending).equals(0);
 		});
@@ -254,8 +268,8 @@ describe('ihsm/testing', () => {
 			expect(clock.pending).equals(1);
 			clock.clearTimeout(handle);
 			expect(clock.pending).equals(0);
-			clock.clearTimeout(undefined); // no-op
-			clock.clearTimeout(handle); // idempotent — unknown handle
+			clock.clearTimeout(undefined);
+			clock.clearTimeout(handle);
 			clock.advance(1000);
 			expect(fired).equals(false);
 		});
@@ -279,24 +293,21 @@ describe('ihsm/testing', () => {
 			clock.clearInterval(handle);
 			clock.advance(200);
 			expect(ticks).equals(3);
-			clock.clearInterval(undefined); // no-op
+			clock.clearInterval(undefined);
 		});
 	});
 
 	it('Port exposes its (unbound) actor and schedules real timers', async () => {
 		const port = new Port();
 		expect(port.actor).equals(undefined);
-		expect(port.hsm()).equals(undefined);
 
-		// setTimeout() + clearTimeout() cancels the timer before it fires.
 		let firedEarly = false;
 		const early = port.setTimeout(() => {
 			firedEarly = true;
 		}, 50);
 		port.clearTimeout(early);
-		port.clearTimeout(undefined); // no-op
+		port.clearTimeout(undefined);
 
-		// A live timer fires through setTimeout (including omitted delay → 0).
 		await new Promise<void>(resolve => {
 			port.setTimeout(() => resolve());
 		});
@@ -313,7 +324,7 @@ describe('ihsm/testing', () => {
 		}, 10);
 		await new Promise<void>(resolve => port.setTimeout(() => resolve(), 25));
 		port.clearInterval(interval);
-		port.clearInterval(undefined); // no-op
+		port.clearInterval(undefined);
 		expect(intervalTicks).greaterThan(0);
 
 		expect(port.random()).greaterThanOrEqual(0);
@@ -324,27 +335,28 @@ describe('ihsm/testing', () => {
 		expect(bytes.some(b => b !== 0)).equals(true);
 	});
 
-	it('deferredPost falls back to global setTimeout when the port omits setTimeout', async () => {
-		class BarePort extends BasePort<DeviceTop> {}
+	it('defer falls back to global setTimeout when the port omits setTimeout', async () => {
+		class BarePort extends Port<DeviceTop> {}
 		const port = new BarePort();
 		const sm = makeTestActor(Connecting, freshCtx(), port, { initialize: false });
-		await sm.sync();
-		(sm as unknown as { deferredPost(ms: number, ev: string, ...args: unknown[]): void }).deferredPost(0, 'onOpened', 5);
+		await sm.hsm.sync();
+		sm.scheduleOnOpened(0, 5);
 		await new Promise(resolve => setTimeout(resolve, 20));
-		await sm.sync();
-		expect(sm.currentState).equals(Open);
+		await sm.hsm.sync();
+		expect(sm.hsm.currentState).equals(Open);
 		expect(sm.ctx.handle).equals(5);
 	});
 
-	it('deferredPost uses the test port virtual clock', async () => {
+	it('defer uses the test port virtual clock', async () => {
 		const port = makeTestPort(MockDevicePort);
 		port.connect.default(() => ({ value: 7, subscription: { dispose: () => undefined } }));
 		const sm = makeTestActor(Connecting, freshCtx(), port, { initialize: false });
-		await sm.sync();
-		(sm as unknown as { deferredPost(ms: number, ev: string, ...args: unknown[]): void }).deferredPost(0, 'onOpened', 5);
+		await sm.hsm.sync();
+		sm.scheduleOnOpened(0, 5);
+		await sm.hsm.sync();
 		port.advance(0);
-		await sm.sync();
-		expect(sm.currentState).equals(Open);
+		await sm.hsm.sync();
+		expect(sm.hsm.currentState).equals(Open);
 		expect(sm.ctx.handle).equals(5);
 	});
 
@@ -422,68 +434,96 @@ describe('ihsm/testing', () => {
 		}
 	});
 
-	describe('makeActor public facade', () => {
-		it('exposes only the public surface and forwards every member', async () => {
+	describe('makeTestActor public facade', () => {
+		it('exposes owner protocol and hsm test machinery', async () => {
 			const port = makeTestPort(MockDevicePort);
 			port.connect.default(() => ({ value: 9, subscription: { dispose: () => undefined } }));
 			const cb = createTestDispatchErrorCallback(true);
-			const actor = makeActor(DeviceTop, freshCtx(), port, { traceLevel: TraceLevel.PRODUCTION, dispatchErrorCallback: cb });
-			await actor.sync();
+			const sm: TestActor<DeviceConfig> = makeTestActor(DeviceTop, freshCtx(), port, {
+				traceLevel: TraceLevel.PRODUCTION,
+				dispatchErrorCallback: cb,
+			});
+			await sm.hsm.sync();
 
-			// Read-only getters.
-			expect(actor.ctx.target).equals('');
-			expect(actor.currentState).equals(Idle);
-			expect(actor.currentStateName).equals('Idle');
-			expect(actor.topState).equals(DeviceTop);
-			expect(actor.topStateName).equals('DeviceTop');
-			expect(actor.ctxTypeName).to.be.a('string');
-			expect(actor.traceHeader).to.be.a('string');
-			expect(actor.eventName).to.satisfy((v: unknown) => v === undefined || typeof v === 'string');
-			expect(actor.eventPayload).to.satisfy((v: unknown) => v === undefined || Array.isArray(v));
+			expect(sm.ctx.target).equals('');
+			expect(sm.hsm.currentState).equals(Idle);
+			expect(sm.hsm.currentStateName).equals('Idle');
+			expect(sm.hsm.topState).equals(DeviceTop);
+			expect(sm.hsm.topStateName).equals('DeviceTop');
+			expect(sm.hsm.port).equals(port);
+			expect(sm.hsm.subscribe).to.be.a('function');
+			const events: string[] = [];
+			const sub = sm.hsm.subscribe(msg => events.push(msg.event));
+			sm.open('usb0');
+			await sm.hsm.sync();
+			sub.dispose();
+			expect(events).includes('open');
+			expect(sm.hsm.traceLevel).equals(TraceLevel.PRODUCTION);
+			sm.hsm.traceLevel = TraceLevel.DEBUG;
+			expect(sm.hsm.traceLevel).equals(TraceLevel.DEBUG);
+			expect(sm.hsm.traceWriter).equals(defaultTraceWriter);
+			sm.hsm.traceWriter = defaultTraceWriter;
+			expect(sm.hsm.dispatchErrorCallback).equals(cb);
+			sm.hsm.dispatchErrorCallback = cb;
 
-			// Get/set accessors.
-			expect(actor.traceLevel).equals(TraceLevel.PRODUCTION);
-			actor.traceLevel = TraceLevel.DEBUG;
-			expect(actor.traceLevel).equals(TraceLevel.DEBUG);
-			expect(actor.traceWriter).equals(defaultTraceWriter);
-			actor.traceWriter = defaultTraceWriter;
-			expect(actor.dispatchErrorCallback).equals(cb);
-			actor.dispatchErrorCallback = cb;
-
-			// Forwarded methods: post / call / sync / restore.
-			actor.post('open', 'usb0');
-			await actor.sync();
-			expect(actor.currentStateName).equals('Connecting');
-			actor.restore(Idle, freshCtx());
-			actor.post('open', 'usb1');
-			await actor.sync();
-			expect(actor.ctx.target).equals('usb1');
-			expect(await actor.call('lastHandle')).equals(9);
+			sm.open('usb0');
+			await sm.hsm.sync();
+			expect(sm.hsm.currentStateName).equals('Connecting');
+			sm.hsm.restore(Idle, freshCtx());
+			await sm.hsm.sync();
+			sm.open('usb1');
+			await sm.hsm.sync();
+			expect(sm.ctx.target).equals('usb1');
+			expect(await sm.lastHandle()).equals(9);
 		});
 
 		it('applies option defaults when options are omitted, and honours all provided options', async () => {
 			const port = makeTestPort(MockDevicePort);
 			port.connect.default(() => ({ value: 1, subscription: { dispose: () => undefined } }));
 
-			// No options object at all → every default is applied (initialize, traceLevel, …).
-			const a = makeActor(DeviceTop, freshCtx(), port);
-			await a.sync();
-			expect(a.currentState).equals(Idle);
+			const a = makeTestActor(DeviceTop, freshCtx(), port);
+			await a.hsm.sync();
+			expect(a.hsm.currentState).equals(Idle);
 
-			// Explicitly provide the options that the other test left defaulted.
 			const port2 = makeTestPort(MockDevicePort);
 			port2.connect.default(() => ({ value: 2, subscription: { dispose: () => undefined } }));
 			const cb = createTestDispatchErrorCallback(true);
-			const b = makeActor(DeviceTop, freshCtx(), port2, {
+			const b = makeTestActor(DeviceTop, freshCtx(), port2, {
 				initialize: false,
 				traceLevel: TraceLevel.VERBOSE_DEBUG,
 				traceWriter: defaultTraceWriter,
 				dispatchErrorCallback: cb,
 			});
-			await b.sync();
-			// initialize:false → the @InitialState walk is skipped, so it rests on the root.
-			expect(b.currentState).equals(DeviceTop);
-			expect(b.dispatchErrorCallback).equals(cb);
+			await b.hsm.sync();
+			expect(b.hsm.currentState).equals(DeviceTop);
+			expect(b.hsm.dispatchErrorCallback).equals(cb);
+		});
+	});
+
+	describe('makeActor public facade', () => {
+		it('exposes only the public surface and forwards every member', async () => {
+			const port = makeTestPort(MockDevicePort);
+			port.connect.default(() => ({ value: 9, subscription: { dispose: () => undefined } }));
+			const cb = createTestDispatchErrorCallback(true);
+			const actor = makeActor(DeviceTop as never, freshCtx(), port, {
+				traceLevel: TraceLevel.PRODUCTION,
+				dispatchErrorCallback: cb,
+			});
+			await actor.hsm.sync();
+
+			expect(actor.ctx.target).equals('');
+			expect(actor.hsm.currentStateName).equals('Idle');
+			expect(actor.hsm.topStateName).equals('DeviceTop');
+			expect(actor.hsm.traceLevel).equals(TraceLevel.PRODUCTION);
+			actor.hsm.traceLevel = TraceLevel.DEBUG;
+			expect(actor.hsm.traceLevel).equals(TraceLevel.DEBUG);
+			expect(actor.hsm.traceWriter).equals(defaultTraceWriter);
+			actor.hsm.traceWriter = defaultTraceWriter;
+
+			actor.open('usb0');
+			await actor.hsm.sync();
+			expect(actor.hsm.currentStateName).equals('Connecting');
+			expect(await actor.lastHandle()).equals(9);
 		});
 	});
 });

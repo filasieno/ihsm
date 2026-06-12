@@ -1,18 +1,32 @@
 import { expect } from 'chai';
 import 'mocha';
-import { InitialState, TopState } from '../';
-import { TestPort, TestActor, makeTestActor } from '../testing';
+import { InitialState, TopState, makeOwnerActor, manifestFor, registerStateNames } from '../';
+import type { Config, OwnerActor } from '../';
+import { TestPort } from '../testing';
 import { TRACE_LEVELS, traceActorOnPort } from './spec.utils';
 
 class Report {
 	stateTrace: string[] = [];
 }
 
-interface Protocol {
-	task(): void;
+interface CacheConfig extends Config {
+	context: Report;
+	notifications: {
+		task(): void;
+	};
 }
 
-class HsmTop extends TopState<Report, Protocol> {}
+const cacheManifest = manifestFor<CacheConfig>({
+	services: [],
+	notifications: ['task'],
+	internalServices: [],
+	internalNotifications: [],
+});
+
+class HsmTop extends TopState {
+	static readonly manifest = cacheManifest;
+	declare readonly __ihsm: CacheConfig;
+}
 
 @InitialState
 class A extends HsmTop {
@@ -21,7 +35,7 @@ class A extends HsmTop {
 	}
 
 	task(): void {
-		this.transition(B);
+		this.hsm.transition(B);
 	}
 }
 class B extends HsmTop {
@@ -30,23 +44,25 @@ class B extends HsmTop {
 	}
 
 	task(): void {
-		this.transition(A);
+		this.hsm.transition(A);
 	}
 }
 
+registerStateNames({ HsmTop, A, B });
+
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Transition cache (traceLevel = ${traceLevel})`, () => {
-		let sm: TestActor<Report, Protocol, {}, TestPort<HsmTop>>;
+		let sm: OwnerActor<CacheConfig>;
 		it(`run a process`, async () => {
 			const ctx = new Report();
 			const port = new TestPort<HsmTop>();
-			sm = makeTestActor(HsmTop, ctx, port, { traceLevel });
+			sm = makeOwnerActor(HsmTop as never, ctx, port, { traceLevel });
 			traceActorOnPort(sm, port);
-			await sm.sync();
-			sm.post('task');
-			sm.post('task');
-			sm.post('task');
-			await sm.sync();
+			await sm.hsm.sync();
+			sm.task();
+			sm.task();
+			sm.task();
+			await sm.hsm.sync();
 			expect(ctx.stateTrace).eqls(['A', 'B', 'A', 'B']);
 			expect(port.events).eqls(['task', 'task', 'task']);
 		});

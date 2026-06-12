@@ -1,25 +1,39 @@
 import { expect } from 'chai';
 import 'mocha';
-import { InitialState, StateClass, TopState, TraceLevel } from '../';
-import { TestPort, TestActor, makeTestActor } from '../testing';
+import { InitialState, StateClass, TopState, TraceLevel, makeOwnerActor, manifestFor } from '../';
+import type { Config, OwnerActor } from '../';
+import { TestPort } from '../testing';
 import { TRACE_LEVELS, clearLastError, registerSpecStateNames, traceActorOnPort } from './spec.utils';
 
-type Cons = StateClass<TransitionTrace, Protocol>;
+type Cons = StateClass<TransitionTrace, Record<string, unknown>>;
 
 class TransitionTrace {
 	public exitList: Cons[] = [];
 	public entryList: Cons[] = [];
 }
 
-interface Protocol {
-	transitionTo(s: Cons): void;
-	clear(): void;
+interface TransitionConfig extends Config {
+	context: TransitionTrace;
+	notifications: {
+		transitionTo(s: Cons): void;
+		clear(): void;
+	};
 }
 
-class HsmTop extends TopState<TransitionTrace, Protocol> implements Protocol {
+const transitionManifest = manifestFor<TransitionConfig>({
+	services: [],
+	notifications: ['transitionTo', 'clear'],
+	internalServices: [],
+	internalNotifications: [],
+});
+
+class HsmTop extends TopState {
+	static readonly manifest = transitionManifest;
+	declare readonly __ihsm: TransitionConfig;
+
 	transitionTo(s: Cons): void {
 		this.clear();
-		this.transition(s);
+		this.hsm.transition(s);
 	}
 	clear(): void {
 		this.ctx.entryList = [];
@@ -33,7 +47,7 @@ class HsmTop extends TopState<TransitionTrace, Protocol> implements Protocol {
 	}
 }
 
-class A extends HsmTop implements Protocol {
+class A extends HsmTop {
 	onEntry(): void {
 		this.ctx.entryList.push(A);
 	}
@@ -195,95 +209,95 @@ registerSpecStateNames({
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Transition (traceLevel = ${traceLevel})`, function () {
 		let ctx: TransitionTrace;
-		let sm: TestActor<TransitionTrace, Protocol, {}, TestPort>;
+		let sm: OwnerActor<TransitionConfig>;
 		let port: TestPort;
 		beforeEach(async () => {
 			clearLastError();
 			ctx = new TransitionTrace();
 			port = new TestPort();
-			sm = makeTestActor(HsmTop, ctx, port, { traceLevel });
+			sm = makeOwnerActor(HsmTop as never, ctx, port, { traceLevel });
 			traceActorOnPort(sm, port);
-			await sm.sync();
+			await sm.hsm.sync();
 		});
 
 		it(`using sets the initial currentState following the @initialState annotation directives (traceLevel = ${traceLevel as TraceLevel})`, async (): Promise<void> => {
-			expect(sm.currentState).eq(C1111);
+			expect(sm.hsm.currentState).eq(C1111);
 			expect(ctx.entryList).to.eql([HsmTop, C, C1, C11, C111, C1111]);
 		});
 
 		it(`records every posted event on the attached TestPort (traceLevel = ${traceLevel as TraceLevel})`, async () => {
-			sm.post('transitionTo', A111);
-			sm.post('clear');
-			await sm.sync();
+			sm.transitionTo(A111);
+			sm.clear();
+			await sm.hsm.sync();
 			expect(port.events).to.eql(['transitionTo', 'clear']);
 		});
 
 		it(`checks nextState to another branch with common ancestor (traceLevel = ${traceLevel as TraceLevel})`, async () => {
-			sm.post('transitionTo', A111);
-			await sm.sync();
+			sm.transitionTo(A111);
+			await sm.hsm.sync();
 
-			expect(sm.currentStateName).eq('A111');
-			expect(sm.currentState).eq(A111);
+			expect(sm.hsm.currentStateName).eq('A111');
+			expect(sm.hsm.currentState).eq(A111);
 
-			sm.post('transitionTo', A211);
-			await sm.sync();
+			sm.transitionTo(A211);
+			await sm.hsm.sync();
 
-			expect(sm.currentStateName, 'A211');
-			expect(sm.currentState).eq(A211);
+			expect(sm.hsm.currentStateName, 'A211');
+			expect(sm.hsm.currentState).eq(A211);
 
 			expect(ctx.exitList).to.eql([A111, A11, A1]);
 			expect(ctx.entryList).to.eql([A2, A21, A211]);
 		});
 
 		it(`checks nextState to ancestor (traceLevel = ${traceLevel as TraceLevel})`, async () => {
-			sm.post('transitionTo', A111);
-			sm.post('transitionTo', A1);
-			await sm.sync();
+			sm.transitionTo(A111);
+			sm.transitionTo(A1);
+			await sm.hsm.sync();
 
 			expect(ctx.exitList).to.eql([A111, A11]);
 			expect(ctx.entryList).to.eql([]);
 		});
 
 		it(`checks nextState to descendant (traceLevel = ${traceLevel as TraceLevel})`, async () => {
-			sm.post('transitionTo', A111);
-			sm.post('transitionTo', A1);
-			await sm.sync();
+			sm.transitionTo(A111);
+			sm.transitionTo(A1);
+			await sm.hsm.sync();
 
 			expect(ctx.exitList).to.eql([A111, A11]);
 			expect(ctx.entryList).to.eql([]);
 		});
 
 		it(`checks nextState to another branch without common ancestor (traceLevel = ${traceLevel as TraceLevel})`, async () => {
-			sm.post('transitionTo', A2111);
-			sm.post('transitionTo', B1);
-			await sm.sync();
+			sm.transitionTo(A2111);
+			sm.transitionTo(B1);
+			await sm.hsm.sync();
 
 			expect(ctx.exitList).to.eql([A2111, A211, A21, A2, A]);
 			expect(ctx.entryList).to.eql([B, B1]);
 		});
 
 		it(`checks nextState to self (traceLevel = ${traceLevel as TraceLevel})`, async () => {
-			sm.post('transitionTo', A);
-			sm.post('transitionTo', A);
-			await sm.sync();
+			sm.transitionTo(A);
+			sm.transitionTo(A);
+			await sm.hsm.sync();
 
 			expect(ctx.exitList).to.eql([]);
 			expect(ctx.entryList).to.eql([]);
 		});
 
 		it(`checks nextState to a parent currentState (traceLevel = ${traceLevel as TraceLevel})`, async () => {
-			sm.post('transitionTo', A111);
-			sm.post('transitionTo', C1);
-			await sm.sync();
+			sm.transitionTo(A111);
+			sm.transitionTo(C1);
+			await sm.hsm.sync();
 
 			expect(ctx.exitList).to.eql([A111, A11, A1, A]);
 			expect(ctx.entryList).to.eql([C, C1, C11, C111, C1111]);
 		});
 
 		it(`checks nextState to parent currentState which initial currentState is the current currentState (traceLevel = ${traceLevel as TraceLevel})`, async () => {
-			sm.post('transitionTo', C1111);
-			sm.post('transitionTo', HsmTop);
-			await sm.sync();
+			sm.transitionTo(C1111);
+			sm.transitionTo(HsmTop);
+			await sm.hsm.sync();
 
 			expect(ctx.exitList).to.eql([C1111, C111, C11, C1, C]);
 			expect(ctx.entryList).to.eql([C, C1, C11, C111, C1111]);
