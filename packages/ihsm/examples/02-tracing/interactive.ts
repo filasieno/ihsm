@@ -6,6 +6,6 @@ export const interactive = singleSenderTutorial({
 	topState: machine.PingTop,
 	machineExports: machine,
 	initialCtx: { pings: 0 },
-	messages: [{ id: 'ping', label: 'ping', kind: 'post' }],
-	stateSummary: sm => `State: ${sm.currentStateName} · pings: ${sm.ctx.pings}`,
+	messages: [{ id: 'ping', label: 'ping', kind: 'notification' }],
+	stateSummary: sm => `State: ${sm.hsm.currentStateName} · pings: ${sm.ctx.pings}`,
 });

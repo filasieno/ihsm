@@ -13,7 +13,7 @@ import { FetchTop, Idle, Fetching, Done, Failed, freshCtx } from './machine';
  * separation is what makes the in-flight `Fetching` state observable and the whole thing
  * timer-free — one mock serves the success, failure, and cancellation scenarios.
  */
-@ihsm.mock
+@ihsm.mock('request')
 abstract class MockFetchPort extends ihsm.TestPort<FetchTop> {
 	abstract request(url: string): ihsm.ResultWithSubscription<number>;
 }
@@ -38,67 +38,67 @@ describe('Testing 02: network fetch behind a port', () => {
 
 	it('drives a successful fetch, observing the in-flight state before settling it', async () => {
 		const fetcher = ihsm.makeTestActor(FetchTop, freshCtx(), port);
-		await fetcher.sync();
-		expect(fetcher.currentState).equals(Idle);
+		await fetcher.hsm.sync();
+		expect(fetcher.hsm.currentState).equals(Idle);
 
-		fetcher.post('fetch', 'https://google.com');
-		await fetcher.sync();
+		fetcher.fetch('https://google.com');
+		await fetcher.hsm.sync();
 		// Request issued, but no response was delivered from the sync call — we control when it lands.
-		expect(fetcher.currentState).equals(Fetching);
+		expect(fetcher.hsm.currentState).equals(Fetching);
 		expect(port.trace).to.deep.equal(['request:https://google.com']);
 		// `request.calls` is typed exactly as the port method's parameters — `[url: string][]`.
 		expect(port.request.calls).to.deep.equal([['https://google.com']]);
 
 		port.send('onResponse', 200, '<!doctype html><title>google</title>'); // network "replies" now
-		await fetcher.sync();
-		expect(fetcher.currentState).equals(Done);
+		await fetcher.hsm.sync();
+		expect(fetcher.hsm.currentState).equals(Done);
 
-		const body = await fetcher.call('body');
+		const body = await fetcher.body();
 		expect(body).to.contain('google');
 	});
 
 	it('routes a non-2xx response to Failed', async () => {
 		const fetcher = ihsm.makeTestActor(FetchTop, freshCtx(), port);
-		await fetcher.sync();
+		await fetcher.hsm.sync();
 
-		fetcher.post('fetch', 'https://google.com/down');
-		await fetcher.sync();
+		fetcher.fetch('https://google.com/down');
+		await fetcher.hsm.sync();
 		port.send('onResponse', 503, 'unavailable');
-		await fetcher.sync();
+		await fetcher.hsm.sync();
 
-		expect(fetcher.currentState).equals(Failed);
+		expect(fetcher.hsm.currentState).equals(Failed);
 	});
 
 	it('routes a transport error to Failed via onFailure', async () => {
 		const fetcher = ihsm.makeTestActor(FetchTop, freshCtx(), port);
-		await fetcher.sync();
+		await fetcher.hsm.sync();
 
-		fetcher.post('fetch', 'https://nope.invalid');
-		await fetcher.sync();
+		fetcher.fetch('https://nope.invalid');
+		await fetcher.hsm.sync();
 		port.send('onFailure', 'ENOTFOUND');
-		await fetcher.sync();
+		await fetcher.hsm.sync();
 
-		expect(fetcher.currentState).equals(Failed);
+		expect(fetcher.hsm.currentState).equals(Failed);
 		expect(fetcher.ctx.error).equals('ENOTFOUND');
 	});
 
 	it('cancel() aborts the request so a late response is never applied', async () => {
 		const fetcher = ihsm.makeTestActor(FetchTop, freshCtx(), port);
-		await fetcher.sync();
+		await fetcher.hsm.sync();
 
-		fetcher.post('fetch', 'https://google.com');
-		await fetcher.sync();
-		expect(fetcher.currentState).equals(Fetching);
+		fetcher.fetch('https://google.com');
+		await fetcher.hsm.sync();
+		expect(fetcher.hsm.currentState).equals(Fetching);
 
-		fetcher.post('cancel');
-		await fetcher.sync();
-		expect(fetcher.currentState).equals(Idle);
+		fetcher.cancel();
+		await fetcher.hsm.sync();
+		expect(fetcher.hsm.currentState).equals(Idle);
 		expect(port.trace).to.include('abort:1'); // dispose() ran when the machine cancelled
 
 		// The source replies after the abort — Idle ignores onResponse (top-state no-op), so it is dropped.
 		port.send('onResponse', 200, 'too late');
-		await fetcher.sync();
-		expect(fetcher.currentState).equals(Idle);
+		await fetcher.hsm.sync();
+		expect(fetcher.hsm.currentState).equals(Idle);
 		expect(fetcher.ctx.body).equals('');
 	});
 
@@ -109,13 +109,13 @@ describe('Testing 02: network fetch behind a port', () => {
 			port,
 			{ initialize: false } // skip the @InitialState walk — start in Fetching
 		);
-		await test.sync();
-		expect(test.currentState).equals(Fetching);
+		await test.hsm.sync();
+		expect(test.hsm.currentState).equals(Fetching);
 
 		// No live port needed: post the settled-response event the port would have raised.
-		test.post('onResponse', 200, 'pong');
-		await test.sync();
-		expect(test.currentState).equals(Done);
+		test.onResponse(200, 'pong');
+		await test.hsm.sync();
+		expect(test.hsm.currentState).equals(Done);
 		expect(test.ctx.body).equals('pong');
 	});
 
@@ -126,17 +126,17 @@ describe('Testing 02: network fetch behind a port', () => {
 			const fetcher = ihsm.makeActor(FetchTop, freshCtx(), ihsm.makeTestPort(MockFetchPort));
 
 			// @ts-expect-error 'onResponse' is internal — not callable on the public Actor surface.
-			fetcher.post('onResponse', 200, 'x');
+			fetcher.onResponse(200, 'x');
 			// @ts-expect-error 'fetch' requires a url argument.
-			fetcher.post('fetch');
-			fetcher.post('fetch', 'https://google.com'); // valid public event
+			fetcher.fetch();
+			fetcher.fetch('https://google.com'); // valid public event
 
 			// T2 — services are invoked with call(), plain events with post():
 			// @ts-expect-error 'body' is a service (resolve/reject signature); it is not postable.
-			fetcher.post('body');
-			void fetcher.call('body'); // valid: 'body' is a service
+			fetcher.body();
+			void fetcher.body(); // valid: 'body' is a service
 			// @ts-expect-error 'fetch' is a void event; it is not callable.
-			void fetcher.call('fetch', 'https://google.com');
+			void fetcher.fetch('https://google.com');
 
 			interface CollidingInternal {
 				// Collides with FetchPublic.fetch — must be rejected by the disjointness gate.

@@ -1,7 +1,7 @@
 /**
- * postNow — hi-priority steps before normal post from the same confirm() handler.
+ * immediate — hi-priority steps before normal actor notifications from the same confirm() handler.
  *
- * confirm posts cancel (normal) but lock/capture run via postNow first.
+ * confirm schedules cancel (normal) but lock/capture run via immediate first.
  */
 import * as ihsm from '../../src';
 import { PlaygroundTopState } from '../shared/playground-top';
@@ -13,23 +13,36 @@ export interface CheckoutCtx {
 	cancelled: boolean;
 }
 
-export interface CheckoutProtocol {
-	confirm(): void;
-	lockInventory(): void;
-	capturePayment(): void;
-	cancel(): void;
+export interface CheckoutConfig extends ihsm.Config {
+	context: CheckoutCtx;
+	notifications: {
+		confirm(): void;
+		lockInventory(): void;
+		capturePayment(): void;
+		cancel(): void;
+	};
 }
 
-export class CheckoutTop extends PlaygroundTopState<CheckoutCtx, CheckoutProtocol> {
+const checkoutManifest = ihsm.manifestFor<CheckoutConfig>({
+	services: [],
+	notifications: ['confirm', 'lockInventory', 'capturePayment', 'cancel'],
+	internalServices: [],
+	internalNotifications: [],
+});
+
+export class CheckoutTop extends PlaygroundTopState<CheckoutConfig> {
+	static readonly manifest = checkoutManifest;
+	declare readonly __ihsm: CheckoutConfig;
+
 	confirm(): void {
 		this.ctx.steps.push('confirm-start');
 		// Extended transition: critical steps must finish before any normal follow-up
 		// (including `cancel` posted from the same handler).
-		this.post('cancel');
-		this.postNow('lockInventory');
-		this.postNow('capturePayment');
+		this.hsm.actor.cancel();
+		this.hsm.immediate.lockInventory();
+		this.hsm.immediate.capturePayment();
 		this.ctx.steps.push('confirm-end');
-		this.transition(Confirmed);
+		this.hsm.transition(Confirmed);
 	}
 
 	lockInventory(): void {
@@ -55,9 +68,13 @@ export class Draft extends CheckoutTop {}
 ihsm.registerStateNames(self);
 
 export function createCheckout() {
-	return ihsm.makeHsm(CheckoutTop, {
-		steps: [],
-		committed: false,
-		cancelled: false,
-	});
+	return ihsm.makeOwnerActor(
+		CheckoutTop,
+		{
+			steps: [],
+			committed: false,
+			cancelled: false,
+		},
+		new ihsm.Port(),
+	);
 }

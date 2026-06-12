@@ -10,15 +10,15 @@ export const interactive = singleSenderTutorial({
 		{
 			id: 'scheduleReminder',
 			label: 'scheduleReminder',
-			kind: 'post',
+			kind: 'notification',
 			fields: [{ name: 'text', label: 'Reminder text', type: 'string', default: 'Buy milk' }],
 		},
 		{
 			id: 'deliver',
 			label: 'deliver',
-			kind: 'post',
+			kind: 'notification',
 			fields: [{ name: 'text', label: 'Deliver text', type: 'string', default: 'Buy milk' }],
 		},
 	],
-	stateSummary: sm => `State: ${sm.currentStateName} · message: "${sm.ctx.message}"`,
+	stateSummary: sm => `State: ${sm.hsm.currentStateName} · message: "${sm.ctx.message}"`,
 });

@@ -25,16 +25,16 @@ function mulberry32(seed: number): () => number {
  * `port.attempt.default(...)` — either a seeded fault injector that pushes `onResult` inward, or a
  * no-op so the test can drive `onResult` by hand.
  */
-@ihsm.mock
+@ihsm.mock('attempt')
 abstract class FaultMock extends ihsm.TestPort<WorkerTop> {
 	abstract attempt(n: number): void;
 }
 
 /** Drive the actor until it reaches a terminal state (bounded so a bug can't hang the suite). */
-async function runToCompletion(sm: { sync(): Promise<void>; currentState: unknown }, budget = 50): Promise<void> {
+async function runToCompletion(sm: { hsm: { sync(): Promise<void>; currentState: unknown } }, budget = 50): Promise<void> {
 	for (let i = 0; i < budget; i++) {
-		await sm.sync();
-		if (sm.currentState === Succeeded || sm.currentState === Failed) {
+		await sm.hsm.sync();
+		if (sm.hsm.currentState === Succeeded || sm.hsm.currentState === Failed) {
 			return;
 		}
 	}
@@ -53,10 +53,10 @@ describe('Testing 04: fault injection & seeded DST', () => {
 			port.attempt.default(() => port.send('onResult', port.random() >= failRate));
 
 			const worker = ihsm.makeTestActor(WorkerTop, freshCtx(5), port);
-			await worker.sync();
-			worker.post('run');
+			await worker.hsm.sync();
+			worker.run();
 			await runToCompletion(worker);
-			return { state: worker.currentState, calls: [...port.trace], log: worker.ctx.log };
+			return { state: worker.hsm.currentState, calls: [...port.trace], log: worker.ctx.log };
 		};
 
 		const a = await runOnce();
@@ -72,11 +72,11 @@ describe('Testing 04: fault injection & seeded DST', () => {
 		port.attempt.default(() => port.send('onResult', false)); // always fail
 
 		const worker = ihsm.makeTestActor(WorkerTop, freshCtx(3), port);
-		await worker.sync();
-		worker.post('run');
+		await worker.hsm.sync();
+		worker.run();
 		await runToCompletion(worker);
 
-		expect(worker.currentState).equals(Failed);
+		expect(worker.hsm.currentState).equals(Failed);
 		expect(worker.ctx.attempts).equals(3);
 		expect(port.trace).to.deep.equal(['attempt:1', 'attempt:2', 'attempt:3']);
 		expect(worker.ctx.log).to.deep.equal(['attempt 1: fail', 'attempt 2: fail', 'attempt 3: fail']);
@@ -87,11 +87,11 @@ describe('Testing 04: fault injection & seeded DST', () => {
 		port.attempt.default(() => port.send('onResult', true)); // always succeed
 
 		const worker = ihsm.makeTestActor(WorkerTop, freshCtx(3), port);
-		await worker.sync();
-		worker.post('run');
+		await worker.hsm.sync();
+		worker.run();
 		await runToCompletion(worker);
 
-		expect(worker.currentState).equals(Succeeded);
+		expect(worker.hsm.currentState).equals(Succeeded);
 		expect(worker.ctx.attempts).equals(1);
 	});
 
@@ -100,20 +100,20 @@ describe('Testing 04: fault injection & seeded DST', () => {
 		port.attempt.default(() => {}); // record the call (automatic), but report nothing — the test drives onResult
 
 		const test = ihsm.makeTestActor(WorkerTop, freshCtx(2), port);
-		await test.sync();
+		await test.hsm.sync();
 
-		test.post('run');
-		await test.sync();
-		expect(test.currentState).equals(Working);
+		test.run();
+		await test.hsm.sync();
+		expect(test.hsm.currentState).equals(Working);
 
-		test.post('onResult', false); // inject a fault → retry
-		await test.sync();
-		expect(test.currentState).equals(Working);
+		test.onResult(false); // inject a fault → retry
+		await test.hsm.sync();
+		expect(test.hsm.currentState).equals(Working);
 		expect(test.ctx.attempts).equals(2);
 
-		test.post('onResult', false); // fault again → budget exhausted
-		await test.sync();
-		expect(test.currentState).equals(Failed);
+		test.onResult(false); // fault again → budget exhausted
+		await test.hsm.sync();
+		expect(test.hsm.currentState).equals(Failed);
 		expect(port.trace).to.deep.equal(['attempt:1', 'attempt:2']); // the recorded retries
 		// `attempt.calls` is typed `[n: number][]` — the exact arguments of each retry.
 		expect(port.attempt.calls).to.deep.equal([[1], [2]]);
@@ -127,8 +127,8 @@ describe('Testing 04: fault injection & seeded DST', () => {
 			const worker = ihsm.makeActor(WorkerTop, freshCtx(), ihsm.makeTestPort(FaultMock));
 
 			// @ts-expect-error 'onResult' is internal — not callable on the public Actor surface.
-			worker.post('onResult', true);
-			worker.post('run'); // valid public event
+			worker.onResult(true);
+			worker.run(); // valid public event
 
 			interface CollidingInternal {
 				// Collides with WorkerPublic.run — must be rejected by the disjointness gate.

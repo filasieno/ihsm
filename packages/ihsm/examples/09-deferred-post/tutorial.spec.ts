@@ -10,11 +10,11 @@ function sleep(ms: number): Promise<void> {
 describe('Tutorial 09: deferred post', () => {
 	it('delivers a message after a delay', async () => {
 		const sm = createReminder();
-		await sm.sync();
+		await sm.hsm.sync();
 
-		sm.post('scheduleReminder', 'hello later');
+		sm.scheduleReminder('hello later');
 		await sleep(100);
-		await sm.sync();
+		await sm.hsm.sync();
 
 		expect(sm.ctx.message).equals('hello later');
 	});

@@ -28,7 +28,8 @@ export type Any = Record<string, any>;
  *
  * @category Event handler
  */
-export type RejectCallback = (error: Error) => void;
+/** @internal Legacy v0.0.x — not part of the v0.1 public API. */
+type RejectCallback = (error: Error) => void;
 
 /**
  * Resolves an in-flight {@link Hsm.call} service with a typed reply.
@@ -47,7 +48,8 @@ export type RejectCallback = (error: Error) => void;
  *
  * @category Event handler
  */
-export type ResolveCallback<Reply> = (result: Reply) => void;
+/** @internal Legacy v0.0.x — not part of the v0.1 public API. */
+type ResolveCallback<Reply> = (result: Reply) => void;
 
 //
 // Configuration

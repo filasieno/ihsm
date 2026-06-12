@@ -7,8 +7,8 @@ export const interactive = singleSenderTutorial({
 	machineExports: machine,
 	initialCtx: { openCount: 0 },
 	messages: [
-		{ id: 'open', label: 'open', kind: 'post' },
-		{ id: 'close', label: 'close', kind: 'post' },
+		{ id: 'open', label: 'open', kind: 'notification' },
+		{ id: 'close', label: 'close', kind: 'notification' },
 	],
-	stateSummary: sm => `State: ${sm.currentStateName} · openCount: ${sm.ctx.openCount}`,
+	stateSummary: sm => `State: ${sm.hsm.currentStateName} · openCount: ${sm.ctx.openCount}`,
 });

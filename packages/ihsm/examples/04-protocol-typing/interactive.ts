@@ -10,9 +10,9 @@ export const interactive = singleSenderTutorial({
 		{
 			id: 'setTarget',
 			label: 'setTarget',
-			kind: 'post',
+			kind: 'notification',
 			fields: [{ name: 'celsius', label: 'Target °C', type: 'number', default: 22 }],
 		},
 	],
-	stateSummary: sm => `State: ${sm.currentStateName} · target: ${sm.ctx.celsius}°C`,
+	stateSummary: sm => `State: ${sm.hsm.currentStateName} · target: ${sm.ctx.celsius}°C`,
 });

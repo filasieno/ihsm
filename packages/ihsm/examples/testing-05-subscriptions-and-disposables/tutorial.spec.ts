@@ -11,7 +11,7 @@ import { WatcherTop, Idle, Watching, WatcherCtx } from './machine';
  * `Disposable`, so the test controls teardown. Pushing `onChange` / `onClosed` *inward* is the
  * separate, explicit {@link ihsm.BasePort.send | send} channel. One mock, many tests.
  */
-@ihsm.mock
+@ihsm.mock('watch')
 abstract class WatcherMock extends ihsm.TestPort<WatcherTop> {
 	abstract watch(path: string): ihsm.ResultWithSubscription<number>;
 }
@@ -38,23 +38,23 @@ describe('Testing 05: subscriptions & disposables', () => {
 		}));
 
 		const sm = ihsm.makeTestActor(WatcherTop, new WatcherCtx(), port);
-		await sm.sync();
-		expect(sm.currentState).equals(Idle);
+		await sm.hsm.sync();
+		expect(sm.hsm.currentState).equals(Idle);
 
-		sm.post('start', '/etc/hosts');
-		await sm.sync();
-		expect(sm.currentState).equals(Watching);
+		sm.start('/etc/hosts');
+		await sm.hsm.sync();
+		expect(sm.hsm.currentState).equals(Watching);
 		expect(sm.ctx.watchId).equals(7); // the value the test scripted
 
 		// The source pushes changes inward — explicit, on the test's command (the `send` channel).
 		port.send('onChange', 1);
 		port.send('onChange', 2);
-		await sm.sync();
+		await sm.hsm.sync();
 		expect(sm.ctx.changes).to.deep.equal([1, 2]);
 
-		sm.post('stop');
-		await sm.sync();
-		expect(sm.currentState).equals(Idle);
+		sm.stop();
+		await sm.hsm.sync();
+		expect(sm.hsm.currentState).equals(Idle);
 		expect(disposeCount).equals(1); // disposed exactly once — no leak, no double-free
 		expect(sm.ctx.subscription).equals(undefined); // the machine released its handle
 
@@ -67,19 +67,19 @@ describe('Testing 05: subscriptions & disposables', () => {
 		port.watch.default(() => ({ value: 1, subscription: { dispose: () => port.record('dispose') } }));
 
 		const sm = ihsm.makeTestActor(WatcherTop, new WatcherCtx(), port);
-		await sm.sync();
-		sm.post('start', '/var/log');
-		await sm.sync();
+		await sm.hsm.sync();
+		sm.start('/var/log');
+		await sm.hsm.sync();
 		port.send('onChange', 10);
-		await sm.sync();
-		sm.post('stop');
-		await sm.sync();
-		expect(sm.currentState).equals(Idle);
+		await sm.hsm.sync();
+		sm.stop();
+		await sm.hsm.sync();
+		expect(sm.hsm.currentState).equals(Idle);
 
 		// A late change after dispose: a real source would not send it, but the machine must not
 		// corrupt Idle even if one slips through. Top-state `onChange` is a no-op.
 		port.send('onChange', 99);
-		await sm.sync();
+		await sm.hsm.sync();
 		expect(sm.ctx.changes).to.deep.equal([10]); // unchanged
 	});
 
@@ -97,15 +97,15 @@ describe('Testing 05: subscriptions & disposables', () => {
 		}));
 
 		const sm = ihsm.makeTestActor(WatcherTop, new WatcherCtx(), port);
-		await sm.sync();
-		sm.post('start', '/tmp');
-		await sm.sync();
-		expect(sm.currentState).equals(Watching);
+		await sm.hsm.sync();
+		sm.start('/tmp');
+		await sm.hsm.sync();
+		expect(sm.hsm.currentState).equals(Watching);
 
 		// The source closes itself (e.g. the watched file was deleted) — it pushes onClosed inward.
 		port.send('onClosed');
-		await sm.sync();
-		expect(sm.currentState).equals(Idle);
+		await sm.hsm.sync();
+		expect(sm.hsm.currentState).equals(Idle);
 		expect(disposed).equals(true); // dispose() is idempotent, so releasing again is safe
 		expect(sm.ctx.subscription).equals(undefined);
 	});
@@ -115,14 +115,14 @@ describe('Testing 05: subscriptions & disposables', () => {
 			const port = ihsm.makeTestPort(WatcherMock);
 			port.watch.default(() => ({ value: 1, subscription: { dispose: () => port.record('dispose') } }));
 			const sm = ihsm.makeTestActor(WatcherTop, new WatcherCtx(), port);
-			await sm.sync();
-			sm.post('start', '/p');
-			await sm.sync();
+			await sm.hsm.sync();
+			sm.start('/p');
+			await sm.hsm.sync();
 			port.send('onChange', 1);
 			port.send('onChange', 2);
-			await sm.sync();
-			sm.post('stop');
-			await sm.sync();
+			await sm.hsm.sync();
+			sm.stop();
+			await sm.hsm.sync();
 			return [...port.trace];
 		};
 

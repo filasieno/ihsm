@@ -8,13 +8,13 @@ describe('Tutorial 14: nested machines', () => {
 		const order = createOrderCoordinator();
 		await order.sync();
 
-		expect(order.payment.currentState).equals(PaymentPending);
-		expect(order.shipping.currentState).equals(ShippingWaiting);
+		expect(order.payment.hsm.currentState).equals(PaymentPending);
+		expect(order.shipping.hsm.currentState).equals(ShippingWaiting);
 
 		await order.fulfill();
 
-		expect(order.payment.currentState).equals(PaymentDone);
-		expect(order.shipping.currentState).equals(ShippingDone);
+		expect(order.payment.hsm.currentState).equals(PaymentDone);
+		expect(order.shipping.hsm.currentState).equals(ShippingDone);
 		expect(order.payment.ctx.paid).equals(true);
 		expect(order.shipping.ctx.shipped).equals(true);
 	});

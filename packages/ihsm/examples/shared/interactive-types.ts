@@ -1,4 +1,4 @@
-import type { Hsm, StateClass } from '../../src';
+import type { Config, ConfigContext, OwnerActor, TopStateArg } from '../../src';
 import type { CollectingTraceWriter } from './trace';
 
 export type TutorialFieldType = 'number' | 'string';
@@ -13,7 +13,7 @@ export interface TutorialField {
 export interface TutorialMessage {
 	id: string;
 	label: string;
-	kind: 'post' | 'call';
+	kind: 'notification' | 'service';
 	fields?: TutorialField[];
 }
 
@@ -22,24 +22,24 @@ export interface TutorialSender {
 	label: string;
 }
 
-export interface SingleHsmRuntime<Context, Protocol extends {} | undefined> {
+export interface SingleHsmRuntime<C extends Config = Config> {
 	kind: 'single';
-	sm: Hsm<Context, Protocol>;
+	sm: OwnerActor<C>;
 	writer: CollectingTraceWriter;
 }
 
 export interface CoordinatorRuntime {
 	kind: 'coordinator';
 	coordinator: {
-		payment: Hsm<{ paid: boolean }, { markPaid(): void }>;
-		shipping: Hsm<{ shipped: boolean }, { markShipped(): void }>;
+		payment: OwnerActor<Config>;
+		shipping: OwnerActor<Config>;
 		fulfill(): Promise<void>;
 		sync(): Promise<void>;
 	};
 	writer: CollectingTraceWriter;
 }
 
-export type InteractiveRuntime = SingleHsmRuntime<any, any> | CoordinatorRuntime;
+export type InteractiveRuntime = SingleHsmRuntime | CoordinatorRuntime;
 
 export interface TutorialExtraAction {
 	id: string;
@@ -68,13 +68,13 @@ export interface TutorialInteractiveMeta {
 	mousePad?: TutorialMousePad;
 }
 
-export interface SingleSenderTutorialOptions<Context, Protocol extends {} | undefined> {
+export interface SingleSenderTutorialOptions<C extends Config> {
 	title: string;
-	topState: StateClass<Context, Protocol>;
-	initialCtx: Context;
+	topState: TopStateArg<C>;
+	initialCtx: ConfigContext<C>;
 	initialize?: boolean;
 	messages: TutorialMessage[];
-	stateSummary: (sm: Hsm<Context, Protocol>) => string;
+	stateSummary: (sm: OwnerActor<C>) => string;
 	extraActions?: TutorialExtraAction[];
 	/** Pass `import * as machine from './machine'` so state names survive production minification. */
 	machineExports?: Record<string, unknown>;

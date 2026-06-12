@@ -6,10 +6,14 @@ const graphByRoot = new WeakMap<StateClass, Set<StateClass>>();
 
 function findRootState(state: StateClass): StateClass {
 	let current: StateClass = state;
+	let manifestRoot: StateClass | undefined;
 	while (true) {
+		if (Object.hasOwn(current, 'manifest') && (current as { manifest?: unknown }).manifest !== undefined) {
+			manifestRoot = current;
+		}
 		const parent = Object.getPrototypeOf(current) as StateClass;
 		if (parent === TopState || parent.prototype === TopState.prototype) {
-			return current;
+			return manifestRoot ?? current;
 		}
 		current = parent;
 	}

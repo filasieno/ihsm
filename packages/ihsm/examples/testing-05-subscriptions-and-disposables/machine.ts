@@ -42,26 +42,42 @@ export class WatcherCtx {
 	subscription?: ihsm.Disposable;
 }
 
-/** Public protocol — the only events clients may post. */
-export interface WatcherPublic {
-	start(path: string): void;
-	stop(): void;
+export interface WatcherConfig extends ihsm.Config {
+	context: WatcherCtx;
+	notifications: {
+		start(path: string): void;
+		stop(): void;
+	};
+	internalNotifications: {
+		onChange(version: number): void;
+		onClosed(): void;
+	};
+	port: {
+		watch(path: string): ihsm.ResultWithSubscription<number>;
+	};
 }
 
-/** Internal protocol — pushed by the watch source only (never by a client). */
-export interface WatcherInternal {
-	onChange(version: number): void;
-	onClosed(): void;
-}
+/** @deprecated use WatcherConfig['notifications'] */
+export type WatcherPublic = WatcherConfig['notifications'];
+
+/** @deprecated use WatcherConfig['internalNotifications'] */
+export type WatcherInternal = WatcherConfig['internalNotifications'];
 
 /** Outbound boundary to the (impure) watch source. */
-export interface WatcherPort extends ihsm.PortHandle<WatcherCtx, WatcherInternal> {
-	/** Open a watch on `path`; `dispose()` on the result closes it. Returns a watch id. */
-	watch(path: string): ihsm.ResultWithSubscription<number>;
-}
+export type WatcherPort = WatcherConfig['port'];
+
+const watcherManifest = ihsm.manifestFor<WatcherConfig>({
+	services: [],
+	notifications: ['start', 'stop'],
+	internalServices: [],
+	internalNotifications: ['onChange', 'onClosed'],
+});
 
 /** Root state. "Wrong state" events are safe no-ops so a late change can never corrupt Idle. */
-export class WatcherTop extends ihsm.TopState<WatcherCtx, WatcherPublic, WatcherInternal, WatcherPort> {
+export class WatcherTop extends ihsm.TopState<WatcherConfig> {
+	static readonly manifest = watcherManifest;
+	declare readonly __ihsm: WatcherConfig;
+
 	start(_path: string): void {} // ignored unless Idle
 	stop(): void {} // ignored unless Watching
 	onChange(_version: number): void {} // ignored unless Watching
@@ -78,12 +94,12 @@ export class WatcherTop extends ihsm.TopState<WatcherCtx, WatcherPublic, Watcher
 export class Idle extends WatcherTop {
 	start(path: string): void {
 		// Open the watch; take ownership of the Disposable it returns.
-		const { value, subscription } = this.port.watch(path);
+		const { value, subscription } = this.hsm.port.watch(path);
 		this.ctx.path = path;
 		this.ctx.watchId = value;
 		this.ctx.subscription = subscription;
 		this.ctx.changes = [];
-		this.transition(Watching);
+		this.hsm.transition(Watching);
 	}
 }
 
@@ -94,12 +110,12 @@ export class Watching extends WatcherTop {
 
 	stop(): void {
 		this.releaseSubscription(); // client asked to stop — we dispose our handle
-		this.transition(Idle);
+		this.hsm.transition(Idle);
 	}
 
 	onClosed(): void {
 		this.releaseSubscription(); // source closed on its own — dispose is idempotent, so this is safe
-		this.transition(Idle);
+		this.hsm.transition(Idle);
 	}
 }
 

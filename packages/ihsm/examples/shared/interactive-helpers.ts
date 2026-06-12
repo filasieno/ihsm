@@ -1,11 +1,13 @@
-import type { Hsm, StateClass } from '../../src';
+import type { Config, OwnerActor } from '../../src';
 import { CollectingTraceWriter, withTrace } from './trace';
 import { registerStateNamesFromExports } from './state-names';
 import type { InteractiveRuntime, SingleHsmRuntime, SingleSenderTutorialOptions, TutorialInteractiveMeta, TutorialMessage } from './interactive-types';
 
 const DEFAULT_SENDER = 'machine';
 
-export function singleSenderTutorial<Context, Protocol extends {} | undefined>(options: SingleSenderTutorialOptions<Context, Protocol>): TutorialInteractiveMeta {
+type DispatchableActor = OwnerActor<Config> & Record<string, (...args: unknown[]) => unknown>;
+
+export function singleSenderTutorial<C extends Config>(options: SingleSenderTutorialOptions<C>): TutorialInteractiveMeta {
 	const { title, topState, initialCtx, initialize = true, messages, stateSummary, extraActions, machineExports } = options;
 
 	return {
@@ -29,7 +31,7 @@ export function singleSenderTutorial<Context, Protocol extends {} | undefined>(o
 	};
 }
 
-export function getSenderHsm(runtime: InteractiveRuntime, senderId: string): Hsm<any, any> {
+export function getSenderHsm(runtime: InteractiveRuntime, senderId: string): OwnerActor<Config> {
 	if (runtime.kind === 'single') {
 		return runtime.sm;
 	}
@@ -47,28 +49,33 @@ export function traceFromRuntime(runtime: InteractiveRuntime): string {
 }
 
 export async function dispatchMessage(runtime: InteractiveRuntime, senderId: string, message: TutorialMessage, fieldValues: Record<string, string>): Promise<string | undefined> {
-	const sm = getSenderHsm(runtime, senderId);
+	const sm = getSenderHsm(runtime, senderId) as DispatchableActor;
 	const args = (message.fields ?? []).map(field => {
 		const raw = fieldValues[field.name] ?? String(field.default);
 		return field.type === 'number' ? Number(raw) : raw;
 	});
 
-	if (message.kind === 'call') {
-		const result = await sm.call(message.id, ...args);
+	const method = sm[message.id];
+	if (typeof method !== 'function') {
+		throw new Error(`unknown message: ${message.id}`);
+	}
+
+	if (message.kind === 'service') {
+		const result = await method.call(sm, ...args);
 		runtime.writer.lines.push(`↳ call ${message.id} → ${JSON.stringify(result)}`);
-		await sm.sync();
+		await sm.hsm.sync();
 		return String(result);
 	}
 
-	sm.post(message.id, ...args);
-	await sm.sync();
+	method.call(sm, ...args);
+	await sm.hsm.sync();
 	return undefined;
 }
 
 export function resetRuntime(meta: TutorialInteractiveMeta, runtime: InteractiveRuntime): InteractiveRuntime {
 	runtime.writer.clear();
 	if (runtime.kind === 'single') {
-		const fresh = meta.createRuntime() as SingleHsmRuntime<any, any>;
+		const fresh = meta.createRuntime() as SingleHsmRuntime;
 		runtime.sm = fresh.sm;
 		runtime.writer = fresh.writer;
 		return runtime;
@@ -78,6 +85,10 @@ export function resetRuntime(meta: TutorialInteractiveMeta, runtime: Interactive
 	return runtime;
 }
 
-export function wrapWithTrace<Context, Protocol extends {} | undefined>(topState: StateClass<Context, Protocol>, ctx: Context, initialize = true): { sm: Hsm<Context, Protocol>; writer: CollectingTraceWriter } {
+export function wrapWithTrace<C extends Config>(
+	topState: SingleSenderTutorialOptions<C>['topState'],
+	ctx: SingleSenderTutorialOptions<C>['initialCtx'],
+	initialize = true,
+): { sm: OwnerActor<C>; writer: CollectingTraceWriter } {
 	return withTrace(topState, ctx, initialize);
 }

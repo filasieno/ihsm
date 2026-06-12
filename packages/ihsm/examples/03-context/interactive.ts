@@ -7,9 +7,9 @@ export const interactive = singleSenderTutorial({
 	machineExports: machine,
 	initialCtx: { value: 0, step: 1 },
 	messages: [
-		{ id: 'increment', label: 'increment', kind: 'post' },
-		{ id: 'decrement', label: 'decrement', kind: 'post' },
-		{ id: 'reset', label: 'reset', kind: 'post' },
+		{ id: 'increment', label: 'increment', kind: 'notification' },
+		{ id: 'decrement', label: 'decrement', kind: 'notification' },
+		{ id: 'reset', label: 'reset', kind: 'notification' },
 	],
-	stateSummary: sm => `State: ${sm.currentStateName} · value: ${sm.ctx.value} · step: ${sm.ctx.step}`,
+	stateSummary: sm => `State: ${sm.hsm.currentStateName} · value: ${sm.ctx.value} · step: ${sm.ctx.step}`,
 });

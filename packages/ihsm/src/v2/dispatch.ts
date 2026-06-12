@@ -104,13 +104,8 @@ async function invokeHandler<Context, Protocol extends object>(
 				finishEventDispatch(host);
 				throw recoveryErr;
 			}
-			const original = asError(recoveryErr);
-			try {
-				await doError(host, resolver, original, () => finishEventDispatch(host));
-			} catch {
-				// onError did not recover — client still rejects with the handler error
-			}
-			throw original;
+			finishEventDispatch(host);
+			throw asError(recoveryErr);
 		}
 	} catch (err) {
 		finishEventDispatch(host);

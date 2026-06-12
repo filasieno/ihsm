@@ -1,12 +1,14 @@
 # ihsm Reference Manual
 
 **ihsm** is a zero-dependency hierarchical state machine library for TypeScript
-and JavaScript. States are **classes**, events are **methods**, hierarchy is
+and JavaScript. States are **classes**, protocol members are **methods**, hierarchy is
 **inheritance**, and the runtime is an **actor** with serialized, run-to-completion dispatch.
 
+> **v0.1.0 model (current):** one **`Config`** bag per machine (`context`, `services`, `notifications`, `internalServices`, `internalNotifications`, `port`). Factories return **generated handles** with flat user method names (`conn.open()`, `await conn.fetchFrames(n)`). Machinery lives behind **`this.hsm`** / **`actor.hsm`**. Services return **`Promise<Reply>`** on the client. See [`examples/00-config/`](../examples/00-config/README.md). Sections below that still mention `post`/`call`/`Protocol` are being updated — use the migration table in [`CHANGELOG.md`](../CHANGELOG.md#010---2026-06-12).
+
 Lineage: Harel’s hierarchical statecharts, encoded the Samek/QP way (class
-hierarchy + explicit transitions), with **cached LCA transition paths** and a
-typed **`call()`** request/response channel.
+hierarchy + explicit transitions), with **cached LCA transition paths** and
+typed **promise services** on generated actor handles.
 
 | Attribute | Value |
 | --------- | ----- |

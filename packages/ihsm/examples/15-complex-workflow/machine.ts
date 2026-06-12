@@ -1,7 +1,7 @@
 /**
- * Complex workflow — async submit, Validating + postNow guard, terminal states.
+ * Complex workflow — async submit, Validating + immediate guard, terminal states.
  *
- * Teaches: postNow from onEntry; transition() cleared if only scheduled from onExit/onEntry.
+ * Teaches: hsm.immediate from onEntry; transition() cleared if only scheduled from onExit/onEntry.
  */
 import * as ihsm from '../../src';
 import { PlaygroundTopState } from '../shared/playground-top';
@@ -17,17 +17,32 @@ export interface CheckoutCtx {
 	validationNotes: string[];
 }
 
-export interface CheckoutProtocol {
-	submit(): Promise<void>;
-	applyValidation(): void;
-	approve(): Promise<void>;
-	reject(reason: string): void;
-	getStatus(resolve: ihsm.ResolveCallback<OrderPhase>, reject: ihsm.RejectCallback): void;
+export interface CheckoutConfig extends ihsm.Config {
+	context: CheckoutCtx;
+	notifications: {
+		submit(): Promise<void>;
+		applyValidation(): void;
+		approve(): Promise<void>;
+		reject(reason: string): void;
+	};
+	services: {
+		getStatus(): Promise<OrderPhase>;
+	};
 }
 
-export class CheckoutTop extends PlaygroundTopState<CheckoutCtx, CheckoutProtocol> {
-	getStatus(resolve: ihsm.ResolveCallback<OrderPhase>, _reject: ihsm.RejectCallback): void {
-		resolve(this.ctx.phase);
+const checkoutManifest = ihsm.manifestFor<CheckoutConfig>({
+	services: ['getStatus'],
+	notifications: ['submit', 'applyValidation', 'approve', 'reject'],
+	internalServices: [],
+	internalNotifications: [],
+});
+
+export class CheckoutTop extends PlaygroundTopState<CheckoutConfig> {
+	static readonly manifest = checkoutManifest;
+	declare readonly __ihsm: CheckoutConfig;
+
+	getStatus(): OrderPhase {
+		return this.ctx.phase;
 	}
 
 	reject(_reason: string): void {
@@ -39,25 +54,25 @@ export class CheckoutTop extends PlaygroundTopState<CheckoutCtx, CheckoutProtoco
 export class Draft extends CheckoutTop {
 	async submit(): Promise<void> {
 		this.ctx.phase = 'validating';
-		await this.sleep(10);
+		await this.hsm.sleep(10);
 		this.ctx.validationNotes.push('fraud-check-ok');
-		this.transition(Validating);
+		this.hsm.transition(Validating);
 	}
 }
 
-/** Decision pseudo state — guard runs via postNow after entry (hi-priority before normal post). */
+/** Decision pseudo state — guard runs via immediate after entry (hi-priority before normal post). */
 export class Validating extends CheckoutTop {
 	onEntry(): void {
-		this.postNow('applyValidation');
+		this.hsm.immediate.applyValidation();
 	}
 
 	applyValidation(): void {
 		if (this.ctx.amount <= this.ctx.limit) {
-			this.transition(Approved);
+			this.hsm.transition(Approved);
 		} else {
 			this.ctx.phase = 'rejected';
 			this.ctx.validationNotes.push('over-limit');
-			this.transition(Rejected);
+			this.hsm.transition(Rejected);
 		}
 	}
 }
@@ -65,7 +80,7 @@ export class Validating extends CheckoutTop {
 export class Approved extends CheckoutTop {
 	async approve(): Promise<void> {
 		this.ctx.phase = 'approved';
-		this.transition(Completing);
+		this.hsm.transition(Completing);
 	}
 }
 
@@ -73,7 +88,7 @@ export class Rejected extends CheckoutTop {}
 
 export class Completing extends CheckoutTop {
 	async onEntry(): Promise<void> {
-		await this.sleep(10);
+		await this.hsm.sleep(10);
 		this.ctx.phase = 'completed';
 	}
 }
@@ -81,11 +96,15 @@ export class Completing extends CheckoutTop {
 ihsm.registerStateNames(self);
 
 export function createCheckout(orderId: string, amount: number, limit: number) {
-	return ihsm.makeHsm(CheckoutTop, {
-		orderId,
-		amount,
-		limit,
-		phase: 'draft',
-		validationNotes: [],
-	});
+	return ihsm.makeOwnerActor(
+		CheckoutTop,
+		{
+			orderId,
+			amount,
+			limit,
+			phase: 'draft',
+			validationNotes: [],
+		},
+		new ihsm.Port(),
+	);
 }

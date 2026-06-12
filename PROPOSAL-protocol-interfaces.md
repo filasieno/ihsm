@@ -1,8 +1,8 @@
 # Proposal: split `Protocol` into Services / Notifications / InternalNotifications / InternalServices
 
-**Status:** draft — not started · **Date:** 2026-06-12
+**Status:** implemented · **Date:** 2026-06-12 · **Release:** `0.1.0`
 **Scope:** `packages/ihsm/src/index.ts`, `src/testing.ts`, `src/internal/*`, all `src/spec/*.spec.ts`, `reference/REFERENCE.md`, `reference/TESTING.md`, `examples/*`, `website/docs-src/*`
-**Versioning:** **major** (`2.0.0`). This is a breaking redesign of the protocol typing model, the actor client surface, and service handler signatures.
+**Versioning:** **`0.1.0`** (breaking vs `0.0.x`). Redesign of the protocol typing model, the actor client surface, and service handler signatures.
 
 This document is written as an **executable prompt plan**: each phase below is a
 self-contained prompt for an LLM coding agent, with context, tasks, and acceptance
@@ -83,12 +83,7 @@ defined by the four `Config` fields. Each member is a **user-chosen method name*
 exposed flat on the client handle — no `actor.services.*` namespace, no
 framework method names.
 
-| `Config` field | Client (user method name) | Returns | Visible on | Handler shape |
-| -------------- | ------------------------- | ------- | ---------- | ------------- |
-| `services` | `await actor.fetchFrames(...)` | `Promise<Reply>` | `makeActor` | `Reply \| Promise<Reply>` |
-| `notifications` | `actor.open(...)` | `void` | `makeActor` | `void \| Promise<void>` |
-| `internalServices` | `await owner.initialize(...)` | `Promise<Reply>` | `OwnerActor` — **never from self** | `Reply \| Promise<Reply>` |
-| `internalNotifications` | `actor.onData(...)` / `port.actor.onData(...)` / `this.hsm.actor.onData(...)` | `void` | `InternalActor`, `Port` (via `actor`), handler self-handle (`this.hsm.actor`) | `void \| Promise<void>` |
+config rq
 
 Discrimination is **nominal** (which `Config` field declared the member), not
 structural. The word *event* may be used in prose as an umbrella term only.

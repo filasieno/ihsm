@@ -14,23 +14,23 @@ class StubFaultPort extends TestPort<WorkerTop> implements FaultPort {
 	}
 }
 
-function summarize(sm: { currentStateName: string; ctx: WorkerCtx }): string {
+function summarize(sm: { hsm: { currentStateName: string }; ctx: WorkerCtx }): string {
 	const { attempts, maxAttempts, log } = sm.ctx;
 	const last = log[log.length - 1] ?? '—';
-	return `State: ${sm.currentStateName} · attempt ${attempts}/${maxAttempts} · last: ${last}`;
+	return `State: ${sm.hsm.currentStateName} · attempt ${attempts}/${maxAttempts} · last: ${last}`;
 }
 
 async function inject(runtime: InteractiveRuntime, ok: boolean): Promise<void> {
 	const sm = getSenderHsm(runtime, 'machine');
-	sm.post('onResult', ok);
-	await sm.sync();
+	sm.onResult(ok);
+	await sm.hsm.sync();
 }
 
 export const interactive: TutorialInteractiveMeta = {
 	title: 'Fault injection & seeded DST',
 	senders: [{ id: 'machine', label: 'Worker' }],
 	messagesBySender: {
-		machine: [{ id: 'run', label: 'run', kind: 'post' }],
+		machine: [{ id: 'run', label: 'run', kind: 'notification' }],
 	},
 	createRuntime: (): InteractiveRuntime => {
 		registerStateNamesFromExports(machine);
@@ -50,7 +50,7 @@ export const interactive: TutorialInteractiveMeta = {
 		if (runtime.kind !== 'single') {
 			return '';
 		}
-		return summarize(runtime.sm as unknown as { currentStateName: string; ctx: WorkerCtx });
+		return summarize(runtime.sm);
 	},
 	extraActions: [
 		{

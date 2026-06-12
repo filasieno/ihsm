@@ -4,6 +4,7 @@ Runnable ihsm example machines used by the documentation site (interactive playg
 
 | Series | Folders | Docs |
 | ------ | ------- | ---- |
+| **Config (start here)** | `00-config` | [Tutorial 00](./00-config/README.md) — `Config`, handles, `hsm` |
 | **Standard** | `01-*` … `17-*` (no 06/16) | [Reference](/reference) — one playground per section |
 | **Testing (DST)** | `testing-01-*` … `testing-05-*` | [Deterministic testing](/testing) |
 

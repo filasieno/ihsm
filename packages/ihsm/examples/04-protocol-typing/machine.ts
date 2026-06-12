@@ -1,5 +1,5 @@
 /**
- * Protocol typing — compile-time checks on post() event names and payloads.
+ * Protocol typing — compile-time checks on actor notification and service methods.
  *
  * Uncomment the lines at the bottom locally to see TypeScript reject typos.
  */
@@ -11,18 +11,31 @@ export interface ThermostatCtx {
 	celsius: number;
 }
 
-/** Event vocabulary — drives compile-time checks on post() and call(). */
-export interface ThermostatProtocol {
-	setTarget(celsius: number): void;
-	readTarget(): number;
+export interface ThermostatConfig extends ihsm.Config {
+	context: ThermostatCtx;
+	notifications: {
+		setTarget(celsius: number): void;
+	};
+	services: {
+		readTarget(): Promise<number>;
+	};
 }
 
-export class ThermostatTop extends PlaygroundTopState<ThermostatCtx, ThermostatProtocol> {
+const thermostatManifest = ihsm.manifestFor<ThermostatConfig>({
+	services: ['readTarget'],
+	notifications: ['setTarget'],
+	internalServices: [],
+	internalNotifications: [],
+});
+
+export class ThermostatTop extends PlaygroundTopState<ThermostatConfig> {
+	static readonly manifest = thermostatManifest;
+	declare readonly __ihsm: ThermostatConfig;
+
 	setTarget(celsius: number): void {
 		this.ctx.celsius = celsius;
 	}
 
-	/** Synchronous “service-like” method still typed on the protocol (not call() here). */
 	readTarget(): number {
 		return this.ctx.celsius;
 	}
@@ -34,10 +47,10 @@ export class Idle extends ThermostatTop {}
 ihsm.registerStateNames(self);
 
 export function createThermostat(initialCelsius: number) {
-	return ihsm.makeHsm(ThermostatTop, { celsius: initialCelsius });
+	return ihsm.makeOwnerActor(ThermostatTop, { celsius: initialCelsius }, new ihsm.Port());
 }
 
 // Compile-time examples (uncomment to verify the compiler rejects mistakes):
 // const t = createThermostat(20);
-// t.post('setTargt', 22);        // error: unknown event
-// t.post('setTarget', 'hot');    // error: string not assignable to number
+// t.setTargt(22);        // error: unknown method
+// t.setTarget('hot');    // error: string not assignable to number

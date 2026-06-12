@@ -5,7 +5,6 @@ import {
 	protocolCollisionMissingHandler,
 	protocolCollisionReservedConfig,
 	protocolCollisionReservedState,
-	protocolCollisionUnbucketedHandler,
 } from './errors';
 import { collectStateClasses, stateDisplayName } from './state-graph';
 import type { Config, ProtocolBucket, ReservedName } from './types';
@@ -108,11 +107,6 @@ export function buildProtocolIndex(topState: StateClass, manifest: ProtocolBucke
 	}
 
 	const slots = new Map<string, ProtocolSlot>();
-	for (const [name] of handlersByName) {
-		const bucket = bucketForName(manifest, name);
-		if (bucket === undefined) throw protocolCollisionUnbucketedHandler(handlersByName.get(name)!, name);
-		slots.set(name, { bucket, name });
-	}
 
 	for (const bucket of ['services', 'notifications', 'internalServices', 'internalNotifications'] as const) {
 		for (const name of manifest[bucket]) {

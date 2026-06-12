@@ -7,8 +7,8 @@ export const interactive = singleSenderTutorial({
 	machineExports: machine,
 	initialCtx: { failures: 0, recovered: 0 },
 	messages: [
-		{ id: 'risky', label: 'risky', kind: 'post' },
-		{ id: 'unknown', label: 'unknown', kind: 'post' },
+		{ id: 'risky', label: 'risky', kind: 'notification' },
+		{ id: 'unknown', label: 'unknown', kind: 'notification' },
 	],
-	stateSummary: sm => `State: ${sm.currentStateName} · failures: ${sm.ctx.failures} · recovered: ${sm.ctx.recovered}`,
+	stateSummary: sm => `State: ${sm.hsm.currentStateName} · failures: ${sm.ctx.failures} · recovered: ${sm.ctx.recovered}`,
 });

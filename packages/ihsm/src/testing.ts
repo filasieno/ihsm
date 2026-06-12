@@ -111,6 +111,21 @@ export class TestPort<T = Any> extends BasePort<T> implements RandomService {
 		this._messages.push({ event, payload: [...payload] });
 	}
 
+	/**
+	 * Push an **inbound** internal notification into the bound actor (`port.actor.onData(…)`).
+	 *
+	 * Convenience for deterministic tests — equivalent to calling the generated method on
+	 * {@link BasePort.actor} after the factory has wired it.
+	 */
+	send(event: string, ...payload: unknown[]): void {
+		const actor = this.actor as Record<string, ((...args: unknown[]) => void) | undefined> | undefined;
+		const inbound = actor?.[event];
+		if (inbound === undefined) {
+			throw new Error(`ihsm: TestPort.send — actor has no internal notification "${event}" (bind the port with makeActor/makeTestActor first)`);
+		}
+		inbound.call(actor, ...payload);
+	}
+
 	private _slot(name: string): { queue: Array<(...args: unknown[]) => unknown>; fallback?: (...args: unknown[]) => unknown; calls: unknown[][] } {
 		let slot = this._preloads.get(name);
 		if (slot === undefined) {
@@ -450,13 +465,7 @@ type MockMarkedCtor = abstract new (...args: Any[]) => TestPort<Any> & {
  */
 function markMockPort(Ctor: MockMarkedCtor, methodNames: readonly string[]): void {
 	(Ctor as { [MOCK_MARKER]?: boolean })[MOCK_MARKER] = true;
-	const fromPrototype: string[] = [];
-	for (let proto: object | null = Ctor.prototype; proto !== null && proto !== TestPort.prototype; proto = Object.getPrototypeOf(proto)) {
-		for (const name of Object.getOwnPropertyNames(proto)) {
-			if (name !== 'constructor' && !NON_STUB_PROPS.has(name)) fromPrototype.push(name);
-		}
-	}
-	(Ctor as { [MOCK_METHODS]?: readonly string[] })[MOCK_METHODS] = [...new Set([...methodNames, ...fromPrototype])];
+	(Ctor as { [MOCK_METHODS]?: readonly string[] })[MOCK_METHODS] = [...methodNames];
 }
 
 /** Decorate an abstract {@link TestPort} subclass; pass port method names (abstract members are type-only at runtime). */

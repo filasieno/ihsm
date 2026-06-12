@@ -1,7 +1,7 @@
 /**
  * restore — suspend/resume session without init entry/exit.
  *
- * Teaches: makeHsm(..., false), restore(StateClass, ctx), JSON persistence helpers.
+ * Teaches: makeOwnerActor(..., { initialize: false }), hsm.restore(StateClass, ctx), JSON persistence helpers.
  */
 import * as ihsm from '../../src';
 import { PlaygroundTopState } from '../shared/playground-top';
@@ -14,11 +14,24 @@ export interface SessionCtx {
 	entryLog: string[];
 }
 
-export interface SessionProtocol {
-	navigate(page: string): void;
+export interface SessionConfig extends ihsm.Config {
+	context: SessionCtx;
+	notifications: {
+		navigate(page: string): void;
+	};
 }
 
-export class SessionTop extends PlaygroundTopState<SessionCtx, SessionProtocol> {
+const sessionManifest = ihsm.manifestFor<SessionConfig>({
+	services: [],
+	notifications: ['navigate'],
+	internalServices: [],
+	internalNotifications: [],
+});
+
+export class SessionTop extends PlaygroundTopState<SessionConfig> {
+	static readonly manifest = sessionManifest;
+	declare readonly __ihsm: SessionConfig;
+
 	navigate(page: string): void {
 		this.ctx.lastPage = page;
 	}
@@ -57,20 +70,19 @@ export const sessionDb = new Map<string, string>();
 ihsm.registerStateNames(self);
 
 export function createSession(userId: string) {
-	return ihsm.makeHsm(SessionTop, { userId, lastPage: 'home', entryLog: [] });
+	return ihsm.makeOwnerActor(SessionTop, { userId, lastPage: 'home', entryLog: [] }, new ihsm.Port());
 }
 
-function stateNameOf(sm: ihsm.Hsm<SessionCtx, SessionProtocol>): SessionStateName {
-	for (const [name, stateClass] of Object.entries(SESSION_STATES) as [SessionStateName, typeof Anonymous][]) {
-		if (sm.currentState === stateClass) {
-			return name;
-		}
+function stateNameOf(sm: ihsm.OwnerActor<SessionConfig>): SessionStateName {
+	const name = sm.hsm.currentStateName as SessionStateName;
+	if (!(name in SESSION_STATES)) {
+		throw new Error(`unknown active state: ${name}`);
 	}
-	throw new Error(`unknown active state: ${String(sm.currentState.name)}`);
+	return name;
 }
 
 /** Serialize active state + ctx to a JSON string (file or DB column). */
-export function suspendSession(sm: ihsm.Hsm<SessionCtx, SessionProtocol>): string {
+export function suspendSession(sm: ihsm.OwnerActor<SessionConfig>): string {
 	const payload: PersistedSession = {
 		stateName: stateNameOf(sm),
 		ctx: { ...sm.ctx, entryLog: [...sm.ctx.entryLog] },
@@ -82,12 +94,14 @@ export function suspendSession(sm: ihsm.Hsm<SessionCtx, SessionProtocol>): strin
 export function resumeSession(json: string) {
 	const { stateName, ctx } = JSON.parse(json) as PersistedSession;
 	const stateClass = SESSION_STATES[stateName];
-	const sm = ihsm.makeHsm(SessionTop, { userId: '', lastPage: '', entryLog: [] }, false);
-	sm.restore(stateClass, ctx);
+	const sm = ihsm.makeOwnerActor(SessionTop as ihsm.TopStateArg<SessionConfig>, { userId: '', lastPage: '', entryLog: [] }, new ihsm.Port(), {
+		initialize: false,
+	});
+	(sm.hsm as ihsm.OwnerActorHsm<SessionConfig>).restore(stateClass, ctx);
 	return sm;
 }
 
-export function suspendSessionToDb(sessionId: string, sm: ihsm.Hsm<SessionCtx, SessionProtocol>): void {
+export function suspendSessionToDb(sessionId: string, sm: ihsm.OwnerActor<SessionConfig>): void {
 	sessionDb.set(sessionId, suspendSession(sm));
 }
 

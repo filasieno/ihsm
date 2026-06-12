@@ -10,17 +10,17 @@ describe('Tutorial 11: restore', () => {
 
 	it('suspends to JSON, resumes on a new instance, and continues', async () => {
 		const live = createSession('user-42');
-		await live.sync();
-		expect(live.currentState).equals(Anonymous);
+		await live.hsm.sync();
+		expect(live.hsm.currentState).equals(Anonymous);
 		expect(live.ctx.entryLog).deep.equals(['Anonymous']);
 
-		live.restore(Authenticated, {
+		live.hsm.restore(Authenticated, {
 			userId: 'user-42',
 			lastPage: 'settings',
 			entryLog: live.ctx.entryLog,
 		});
-		live.post('navigate', 'billing');
-		await live.sync();
+		live.navigate('billing');
+		await live.hsm.sync();
 		expect(live.ctx.lastPage).equals('billing');
 
 		const json = suspendSession(live);
@@ -34,35 +34,35 @@ describe('Tutorial 11: restore', () => {
 		});
 
 		const resumed = resumeSession(json);
-		await resumed.sync();
-		expect(resumed.currentState).equals(Authenticated);
+		await resumed.hsm.sync();
+		expect(resumed.hsm.currentState).equals(Authenticated);
 		expect(resumed.ctx.userId).equals('user-42');
 		expect(resumed.ctx.lastPage).equals('billing');
 		expect(resumed.ctx.entryLog).deep.equals(['Anonymous']);
 
-		resumed.post('navigate', 'profile');
-		await resumed.sync();
+		resumed.navigate('profile');
+		await resumed.hsm.sync();
 		expect(resumed.ctx.lastPage).equals('profile');
 	});
 
 	it('suspend to db map and resume after simulated restart', async () => {
 		const sessionId = 'sess-7';
 		const live = createSession('user-7');
-		await live.sync();
+		await live.hsm.sync();
 
-		live.restore(Authenticated, {
+		live.hsm.restore(Authenticated, {
 			userId: 'user-7',
 			lastPage: 'dashboard',
 			entryLog: live.ctx.entryLog,
 		});
-		await live.sync();
+		await live.hsm.sync();
 
 		suspendSessionToDb(sessionId, live);
 		expect(sessionDb.has(sessionId)).equals(true);
 
 		const afterRestart = resumeSessionFromDb(sessionId);
-		await afterRestart.sync();
-		expect(afterRestart.currentState).equals(Authenticated);
+		await afterRestart.hsm.sync();
+		expect(afterRestart.hsm.currentState).equals(Authenticated);
 		expect(afterRestart.ctx.lastPage).equals('dashboard');
 		expect(afterRestart.ctx.entryLog).deep.equals(['Anonymous']);
 	});

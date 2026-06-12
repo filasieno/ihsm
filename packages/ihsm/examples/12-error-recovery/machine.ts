@@ -10,29 +10,42 @@ export interface WorkerCtx {
 	recovered: number;
 }
 
-export interface WorkerProtocol {
-	risky(): void;
-	unknown(): void;
+export interface WorkerConfig extends ihsm.Config {
+	context: WorkerCtx;
+	notifications: {
+		risky(): void;
+		unknown(): void;
+	};
 }
 
-export class WorkerTop extends PlaygroundTopState<WorkerCtx, WorkerProtocol> {
+const workerManifest = ihsm.manifestFor<WorkerConfig>({
+	services: [],
+	notifications: ['risky', 'unknown'],
+	internalServices: [],
+	internalNotifications: [],
+});
+
+export class WorkerTop extends PlaygroundTopState<WorkerConfig> {
+	static readonly manifest = workerManifest;
+	declare readonly __ihsm: WorkerConfig;
+
 	risky(): void {
 		throw new Error('simulated failure');
 	}
 
 	unknown(): void {
-		this.unhandled();
+		this.hsm.unhandled();
 	}
 }
 
 @ihsm.InitialState
 export class Working extends WorkerTop {
-	onError<EventName extends keyof WorkerProtocol>(_error: ihsm.EventHandlerError<WorkerCtx, WorkerProtocol, EventName>): void {
+	onError(_error: ihsm.EventHandlerError<WorkerCtx, Record<string, unknown>, string>): void {
 		this.ctx.recovered += 1;
 		this.ctx.failures += 1;
 	}
 
-	onUnhandled<EventName extends keyof WorkerProtocol>(_error: ihsm.UnhandledEventError<WorkerCtx, WorkerProtocol, EventName>): void {
+	onUnhandled(_error: ihsm.UnhandledEventError<WorkerCtx, Record<string, unknown>, string>): void {
 		this.ctx.failures += 1;
 	}
 }
@@ -40,5 +53,5 @@ export class Working extends WorkerTop {
 ihsm.registerStateNames(self);
 
 export function createWorker() {
-	return ihsm.makeHsm(WorkerTop, { failures: 0, recovered: 0 });
+	return ihsm.makeOwnerActor(WorkerTop, { failures: 0, recovered: 0 }, new ihsm.Port());
 }

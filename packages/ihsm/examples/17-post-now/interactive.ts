@@ -7,10 +7,10 @@ export const interactive = singleSenderTutorial({
 	machineExports: machine,
 	initialCtx: { steps: [], committed: false, cancelled: false },
 	messages: [
-		{ id: 'confirm', label: 'confirm', kind: 'post' },
-		{ id: 'lockInventory', label: 'lockInventory', kind: 'post' },
-		{ id: 'capturePayment', label: 'capturePayment', kind: 'post' },
-		{ id: 'cancel', label: 'cancel', kind: 'post' },
+		{ id: 'confirm', label: 'confirm', kind: 'notification' },
+		{ id: 'lockInventory', label: 'lockInventory', kind: 'notification' },
+		{ id: 'capturePayment', label: 'capturePayment', kind: 'notification' },
+		{ id: 'cancel', label: 'cancel', kind: 'notification' },
 	],
-	stateSummary: sm => `State: ${sm.currentStateName} · steps: [${sm.ctx.steps.join(', ')}] · committed: ${sm.ctx.committed} · cancelled: ${sm.ctx.cancelled}`,
+	stateSummary: sm => `State: ${sm.hsm.currentStateName} · steps: [${sm.ctx.steps.join(', ')}] · committed: ${sm.ctx.committed} · cancelled: ${sm.ctx.cancelled}`,
 });

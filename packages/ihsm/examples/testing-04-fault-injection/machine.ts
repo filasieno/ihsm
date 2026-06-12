@@ -22,24 +22,40 @@ export interface WorkerCtx {
 	log: string[];
 }
 
-/** Public protocol — what a client posts. */
-export interface WorkerPublic {
-	run(): void;
+export interface WorkerConfig extends ihsm.Config {
+	context: WorkerCtx;
+	notifications: {
+		run(): void;
+	};
+	internalNotifications: {
+		onResult(ok: boolean): void;
+	};
+	port: {
+		attempt(n: number): void;
+	};
 }
 
-/** Internal protocol — per-attempt outcome, pushed by the (fault-injecting) port. */
-export interface WorkerInternal {
-	onResult(ok: boolean): void;
-}
+/** @deprecated use WorkerConfig['notifications'] */
+export type WorkerPublic = WorkerConfig['notifications'];
+
+/** @deprecated use WorkerConfig['internalNotifications'] */
+export type WorkerInternal = WorkerConfig['internalNotifications'];
 
 /** Outbound boundary to the impure, occasionally-failing operation. */
-export interface FaultPort extends ihsm.PortHandle<WorkerCtx, WorkerInternal> {
-	/** Perform attempt number `n`; the result arrives later as an internal `onResult`. */
-	attempt(n: number): void;
-}
+export type FaultPort = WorkerConfig['port'];
+
+const workerManifest = ihsm.manifestFor<WorkerConfig>({
+	services: [],
+	notifications: ['run'],
+	internalServices: [],
+	internalNotifications: ['onResult'],
+});
 
 /** Root state. A stray `onResult` outside `Working` is a safe no-op. */
-export class WorkerTop extends ihsm.TopState<WorkerCtx, WorkerPublic, WorkerInternal, FaultPort> {
+export class WorkerTop extends ihsm.TopState<WorkerConfig> {
+	static readonly manifest = workerManifest;
+	declare readonly __ihsm: WorkerConfig;
+
 	run(): void {} // ignored unless Idle/Succeeded/Failed
 	onResult(_ok: boolean): void {} // ignored unless Working
 }
@@ -49,8 +65,8 @@ export class Idle extends WorkerTop {
 	run(): void {
 		this.ctx.attempts = 1;
 		this.ctx.log = [];
-		this.port.attempt(this.ctx.attempts);
-		this.transition(Working);
+		this.hsm.port.attempt(this.ctx.attempts);
+		this.hsm.transition(Working);
 	}
 }
 
@@ -58,15 +74,15 @@ export class Working extends WorkerTop {
 	onResult(ok: boolean): void {
 		this.ctx.log.push(`attempt ${this.ctx.attempts}: ${ok ? 'ok' : 'fail'}`);
 		if (ok) {
-			this.transition(Succeeded);
+			this.hsm.transition(Succeeded);
 			return;
 		}
 		if (this.ctx.attempts < this.ctx.maxAttempts) {
 			this.ctx.attempts += 1;
-			this.port.attempt(this.ctx.attempts); // retry — result comes back as another onResult
+			this.hsm.port.attempt(this.ctx.attempts); // retry — result comes back as another onResult
 			return;
 		}
-		this.transition(Failed);
+		this.hsm.transition(Failed);
 	}
 }
 

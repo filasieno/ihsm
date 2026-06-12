@@ -1,4 +1,4 @@
-import { Hsm, StateClass, TraceLevel, TraceWriter, makeHsm } from '../../src';
+import { TraceLevel, TraceWriter, makeOwnerActor, Port, type ActorOptions, type Config, type ConfigContext, type OwnerActor, type TopStateArg } from '../../src';
 
 /** Mirrors {@link ConsoleTraceWriter} — one line per dispatch step. */
 export class CollectingTraceWriter implements TraceWriter {
@@ -17,9 +17,18 @@ export class CollectingTraceWriter implements TraceWriter {
 	}
 }
 
-export function withTrace<Context, Protocol extends {} | undefined>(topState: StateClass<Context, Protocol>, ctx: Context, initialize = true): { sm: Hsm<Context, Protocol>; writer: CollectingTraceWriter } {
+export function withTrace<C extends Config>(
+	topState: TopStateArg<C>,
+	ctx: ConfigContext<C>,
+	initialize = true,
+): { sm: OwnerActor<C>; writer: CollectingTraceWriter } {
 	const writer = new CollectingTraceWriter();
-	const sm = makeHsm(topState, ctx, initialize, TraceLevel.VERBOSE_DEBUG, writer);
+	const options: ActorOptions<C> = {
+		initialize,
+		traceLevel: TraceLevel.VERBOSE_DEBUG,
+		traceWriter: writer,
+	};
+	const sm = makeOwnerActor(topState, ctx, new Port(), options);
 	return { sm, writer };
 }
 

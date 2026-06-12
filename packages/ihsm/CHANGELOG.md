@@ -5,6 +5,43 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0] - 2026-06-12
+
+### Added
+
+- **`Config`** — single type bag (`context`, `services`, `notifications`, `internalServices`, `internalNotifications`, `port`) replacing v0.0.x positional `TopState<Context, Public, Internal, Port>` generics.
+- **Generated actor handles** — materialized prototypes per `(rootState, width)`; flat user method names (`conn.open()`, `await conn.fetchFrames(n)`). **No `Proxy`.**
+- **`makeActor` / `makeInternalActor` / `makeOwnerActor`** (`makeHsm` alias) — factories infer `Config` from `TopState`; `manifestFor<Config>()` + `static readonly manifest` on the root state class.
+- **`HandlerHsm` / `ActorHsm`** — machinery namespace behind **`this.hsm`** (handlers) and **`actor.hsm`** (clients): `transition`, `actor` / `immediate` / `defer`, `port`, `sleep`, trace.
+- **Promise services** — `Config.services` / `internalServices` members return `Promise<Reply>` on the client; handlers may return values or `Promise` (no `resolve`/`reject` injection).
+- **`RequestingPort`** — opt-in port base widening `port.actor` with `internalServices`.
+- **`SelfCallDeadlockError`** — debug-build guard when a service targets the machine currently dispatching (Node `AsyncLocalStorage`).
+- **`CallTimeoutError`** — optional `{ timeoutMs }` trailing arg on service client methods.
+- **`ProtocolCollisionError`**, **`ReservedNames`**, **`buildProtocolIndex`** — runtime + compile-time protocol collision guards.
+- **`examples/00-config/`** — tutorial for the new model.
+
+### Changed
+
+- **Breaking:** removed string dispatch **`post`**, **`call`**, **`send`**, **`postNow`**, **`deferredPost`** from the public actor surface (use generated methods and `hsm.actor` / `hsm.immediate` / `hsm.defer`).
+- **Breaking:** handler machinery moved behind **`this.hsm`** (`this.transition(…)` → `this.hsm.transition(…)`).
+- **Breaking:** removed **`ResolveCallback`** / **`RejectCallback`** service handler pattern.
+- All **`examples/`** and specs migrated to `Config` + generated handles.
+- **`TestPort.send`** — forwards to `port.actor.<internalNotification>(…)` for deterministic inbound events.
+
+### Migration (0.0.x → 0.1.0)
+
+| Before | After |
+| ------ | ----- |
+| `interface DoorProtocol { open(): void }` + `TopState<Ctx, Protocol>` | `interface DoorConfig extends Config { context; notifications: { open(): void } }` + `manifestFor` |
+| `door.post('open')` | `door.open()` |
+| `await wallet.call('getBalance')` | `await wallet.getBalance()` |
+| `this.transition(S)` | `this.hsm.transition(S)` |
+| `this.post('tick')` | `this.hsm.actor.tick()` |
+| `getBalance(resolve, reject)` handler | `getBalance(): Promise<number>` handler |
+| `makeHsm(Top, ctx)` | `makeOwnerActor(Top, ctx, new Port())` |
+| `await door.sync()` | `await door.hsm.sync()` |
+| `port.send('onData', x)` (tests) | `port.actor!.onData(x)` or `port.send('onData', x)` on `TestPort` |
+
 ## [0.0.22] - 2026-06-09
 
 ### Added

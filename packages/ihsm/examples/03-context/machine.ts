@@ -13,13 +13,26 @@ export interface CounterCtx {
 	step: number;
 }
 
-export interface CounterProtocol {
-	increment(): void;
-	decrement(): void;
-	reset(): void;
+export interface CounterConfig extends ihsm.Config {
+	context: CounterCtx;
+	notifications: {
+		increment(): void;
+		decrement(): void;
+		reset(): void;
+	};
 }
 
-export class CounterTop extends PlaygroundTopState<CounterCtx, CounterProtocol> {
+const counterManifest = ihsm.manifestFor<CounterConfig>({
+	services: [],
+	notifications: ['increment', 'decrement', 'reset'],
+	internalServices: [],
+	internalNotifications: [],
+});
+
+export class CounterTop extends PlaygroundTopState<CounterConfig> {
+	static readonly manifest = counterManifest;
+	declare readonly __ihsm: CounterConfig;
+
 	increment(): void {
 		this.ctx.value += this.ctx.step;
 		// No transition() → internal transition; Running stays active.
@@ -40,5 +53,5 @@ export class Running extends CounterTop {}
 ihsm.registerStateNames(self);
 
 export function createCounter(initial = 0, step = 1) {
-	return ihsm.makeHsm(CounterTop, { value: initial, step });
+	return ihsm.makeOwnerActor(CounterTop, { value: initial, step }, new ihsm.Port());
 }

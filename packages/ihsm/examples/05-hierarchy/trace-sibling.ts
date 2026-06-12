@@ -11,13 +11,26 @@ export interface TraceCtx {
 	log: string[];
 }
 
-export interface TraceProtocol {
-	goToB(): void;
-	goToC(): void;
+export interface TraceConfig extends ihsm.Config {
+	context: TraceCtx;
+	notifications: {
+		goToB(): void;
+		goToC(): void;
+	};
 }
 
+const traceManifest = ihsm.manifestFor<TraceConfig>({
+	services: [],
+	notifications: ['goToB', 'goToC'],
+	internalServices: [],
+	internalNotifications: [],
+});
+
 /** Shallow sibling chain — entry/exit order without deep nesting. */
-export class TraceTop extends PlaygroundTopState<TraceCtx, TraceProtocol> {
+export class TraceTop extends PlaygroundTopState<TraceConfig> {
+	static readonly manifest = traceManifest;
+	declare readonly __ihsm: TraceConfig;
+
 	onEntry(): void {
 		this.ctx.log.push('enter:Top');
 	}
@@ -25,10 +38,10 @@ export class TraceTop extends PlaygroundTopState<TraceCtx, TraceProtocol> {
 		this.ctx.log.push('exit:Top');
 	}
 	goToB(): void {
-		this.transition(B);
+		this.hsm.transition(B);
 	}
 	goToC(): void {
-		this.transition(C);
+		this.hsm.transition(C);
 	}
 }
 
@@ -58,5 +71,5 @@ export class C extends TraceTop {
 }
 
 export function createTracer() {
-	return ihsm.makeHsm(TraceTop, { log: [] });
+	return ihsm.makeOwnerActor(TraceTop, { log: [] }, new ihsm.Port());
 }

@@ -1,7 +1,7 @@
 /**
- * call services — sync and async handlers with resolve/reject injected by runtime.
+ * call services — sync and async handlers returning Promise directly.
  *
- * Client: await wallet.call('getBalance') — no resolve/reject in the call arguments.
+ * Client: await wallet.getBalance() — no resolve/reject in handler signatures.
  */
 import * as ihsm from '../../src';
 import { PlaygroundTopState } from '../shared/playground-top';
@@ -11,37 +11,48 @@ export interface WalletCtx {
 	balance: number;
 }
 
-export interface WalletProtocol {
-	deposit(amount: number): void;
-	getBalance(resolve: ihsm.ResolveCallback<number>, reject: ihsm.RejectCallback): void;
-	fetchBalanceDelayed(resolve: ihsm.ResolveCallback<number>, reject: ihsm.RejectCallback, delayMs: number): Promise<void>;
-	withdraw(resolve: ihsm.ResolveCallback<number>, reject: ihsm.RejectCallback, amount: number): void;
+export interface WalletConfig extends ihsm.Config {
+	context: WalletCtx;
+	notifications: {
+		deposit(amount: number): void;
+	};
+	services: {
+		getBalance(): Promise<number>;
+		fetchBalanceDelayed(delayMs: number): Promise<number>;
+		withdraw(amount: number): Promise<number>;
+	};
 }
 
-export class WalletTop extends PlaygroundTopState<WalletCtx, WalletProtocol> {
+const walletManifest = ihsm.manifestFor<WalletConfig>({
+	services: ['getBalance', 'fetchBalanceDelayed', 'withdraw'],
+	notifications: ['deposit'],
+	internalServices: [],
+	internalNotifications: [],
+});
+
+export class WalletTop extends PlaygroundTopState<WalletConfig> {
+	static readonly manifest = walletManifest;
+	declare readonly __ihsm: WalletConfig;
+
 	deposit(amount: number): void {
 		this.ctx.balance += amount;
 	}
 
-	/** Sync service — call resolve (or reject) before the handler returns. */
-	getBalance(resolve: ihsm.ResolveCallback<number>, _reject: ihsm.RejectCallback): void {
-		resolve(this.ctx.balance);
+	getBalance(): number {
+		return this.ctx.balance;
 	}
 
-	/** Async service — return a Promise; call resolve/reject after await. */
-	async fetchBalanceDelayed(resolve: ihsm.ResolveCallback<number>, _reject: ihsm.RejectCallback, delayMs: number): Promise<void> {
-		await this.sleep(delayMs);
-		resolve(this.ctx.balance);
+	async fetchBalanceDelayed(delayMs: number): Promise<number> {
+		await this.hsm.sleep(delayMs);
+		return this.ctx.balance;
 	}
 
-	/** Sync service with reject — caller's Promise becomes a rejection. */
-	withdraw(resolve: ihsm.ResolveCallback<number>, reject: ihsm.RejectCallback, amount: number): void {
+	withdraw(amount: number): number {
 		if (amount > this.ctx.balance) {
-			reject(new Error('insufficient funds'));
-			return;
+			throw new Error('insufficient funds');
 		}
 		this.ctx.balance -= amount;
-		resolve(this.ctx.balance);
+		return this.ctx.balance;
 	}
 }
 
@@ -51,5 +62,5 @@ export class Open extends WalletTop {}
 ihsm.registerStateNames(self);
 
 export function createWallet(initialBalance: number) {
-	return ihsm.makeHsm(WalletTop, { balance: initialBalance });
+	return ihsm.makeOwnerActor(WalletTop, { balance: initialBalance }, new ihsm.Port());
 }

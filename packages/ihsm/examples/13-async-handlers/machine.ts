@@ -14,9 +14,19 @@ export interface FileCtx {
 	steps: string[];
 }
 
-export interface FileProtocol {
-	transfer(from: string, to: string): Promise<void>;
+export interface FileConfig extends ihsm.Config {
+	context: FileCtx;
+	notifications: {
+		transfer(from: string, to: string): Promise<void>;
+	};
 }
+
+const fileManifest = ihsm.manifestFor<FileConfig>({
+	services: [],
+	notifications: ['transfer'],
+	internalServices: [],
+	internalNotifications: [],
+});
 
 /** Simulated file API — each step returns a Promise like real I/O. */
 async function open(path: string, mode: 'r' | 'w'): Promise<number> {
@@ -38,7 +48,10 @@ async function close(_fd: number): Promise<void> {
 	await Promise.resolve();
 }
 
-export class FileTop extends PlaygroundTopState<FileCtx, FileProtocol> {}
+export class FileTop extends PlaygroundTopState<FileConfig> {
+	static readonly manifest = fileManifest;
+	declare readonly __ihsm: FileConfig;
+}
 
 @ihsm.InitialState
 export class Idle extends FileTop {
@@ -69,7 +82,7 @@ export class Idle extends FileTop {
 		await close(writeFd);
 		this.ctx.steps.push('close(write)');
 
-		this.transition(Done);
+		this.hsm.transition(Done);
 	}
 }
 
@@ -78,10 +91,14 @@ export class Done extends FileTop {}
 ihsm.registerStateNames(self);
 
 export function createFileActor() {
-	return ihsm.makeHsm(FileTop, {
-		sourcePath: '',
-		destPath: '',
-		bytesWritten: 0,
-		steps: [],
-	});
+	return ihsm.makeOwnerActor(
+		FileTop,
+		{
+			sourcePath: '',
+			destPath: '',
+			bytesWritten: 0,
+			steps: [],
+		},
+		new ihsm.Port(),
+	);
 }

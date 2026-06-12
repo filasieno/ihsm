@@ -13,15 +13,15 @@ export const interactive = singleSenderTutorial({
 		validationNotes: [],
 	},
 	messages: [
-		{ id: 'submit', label: 'submit', kind: 'post' },
-		{ id: 'approve', label: 'approve', kind: 'post' },
+		{ id: 'submit', label: 'submit', kind: 'notification' },
+		{ id: 'approve', label: 'approve', kind: 'notification' },
 		{
 			id: 'reject',
 			label: 'reject',
-			kind: 'post',
+			kind: 'notification',
 			fields: [{ name: 'reason', label: 'Reason', type: 'string', default: 'manual reject' }],
 		},
-		{ id: 'getStatus', label: 'getStatus', kind: 'call' },
+		{ id: 'getStatus', label: 'getStatus', kind: 'service' },
 	],
-	stateSummary: sm => `State: ${sm.currentStateName} · phase: ${sm.ctx.phase} · amount: ${sm.ctx.amount} · notes: [${sm.ctx.validationNotes.join(', ')}]`,
+	stateSummary: sm => `State: ${sm.hsm.currentStateName} · phase: ${sm.ctx.phase} · amount: ${sm.ctx.amount} · notes: [${sm.ctx.validationNotes.join(', ')}]`,
 });

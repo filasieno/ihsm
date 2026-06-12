@@ -10,12 +10,12 @@ export const interactive = singleSenderTutorial({
 		{
 			id: 'transfer',
 			label: 'transfer',
-			kind: 'post',
+			kind: 'notification',
 			fields: [
 				{ name: 'from', label: 'Source path', type: 'string', default: '/tmp/source.txt' },
 				{ name: 'to', label: 'Dest path', type: 'string', default: '/tmp/dest.txt' },
 			],
 		},
 	],
-	stateSummary: sm => `State: ${sm.currentStateName} · bytesWritten: ${sm.ctx.bytesWritten} · steps: [${sm.ctx.steps.join(', ')}]`,
+	stateSummary: sm => `State: ${sm.hsm.currentStateName} · bytesWritten: ${sm.ctx.bytesWritten} · steps: [${sm.ctx.steps.join(', ')}]`,
 });

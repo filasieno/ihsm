@@ -10,10 +10,10 @@ registerStateNamesFromExports(machine);
 function createCoordinatorRuntime(): CoordinatorRuntime {
 	const writer = new CollectingTraceWriter();
 	const coordinator = createOrderCoordinator();
-	coordinator.payment.traceLevel = TraceLevel.VERBOSE_DEBUG;
-	coordinator.payment.traceWriter = writer;
-	coordinator.shipping.traceLevel = TraceLevel.VERBOSE_DEBUG;
-	coordinator.shipping.traceWriter = writer;
+	coordinator.payment.hsm.traceLevel = TraceLevel.VERBOSE_DEBUG;
+	coordinator.payment.hsm.traceWriter = writer;
+	coordinator.shipping.hsm.traceLevel = TraceLevel.VERBOSE_DEBUG;
+	coordinator.shipping.hsm.traceWriter = writer;
 	return { kind: 'coordinator', coordinator, writer };
 }
 
@@ -24,8 +24,8 @@ export const interactive: TutorialInteractiveMeta = {
 		{ id: 'shipping', label: 'Shipping region' },
 	],
 	messagesBySender: {
-		payment: [{ id: 'markPaid', label: 'markPaid', kind: 'post' }],
-		shipping: [{ id: 'markShipped', label: 'markShipped', kind: 'post' }],
+		payment: [{ id: 'markPaid', label: 'markPaid', kind: 'notification' }],
+		shipping: [{ id: 'markShipped', label: 'markShipped', kind: 'notification' }],
 	},
 	createRuntime: createCoordinatorRuntime,
 	stateSummary: runtime => {
@@ -33,7 +33,7 @@ export const interactive: TutorialInteractiveMeta = {
 			return '';
 		}
 		const { payment, shipping } = runtime.coordinator;
-		return `Payment: ${payment.currentStateName} (paid=${payment.ctx.paid}) · Shipping: ${shipping.currentStateName} (shipped=${shipping.ctx.shipped})`;
+		return `Payment: ${payment.hsm.currentStateName} (paid=${payment.ctx.paid}) · Shipping: ${shipping.hsm.currentStateName} (shipped=${shipping.ctx.shipped})`;
 	},
 	extraActions: [
 		{

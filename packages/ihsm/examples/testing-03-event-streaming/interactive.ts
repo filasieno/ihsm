@@ -26,16 +26,16 @@ class PlaygroundMouseStream extends TestPort<MouseTop> implements MouseStreamPor
 	}
 }
 
-function summarize(sm: { currentStateName: string; ctx: MouseCtx }): string {
+function summarize(sm: { hsm: { currentStateName: string }; ctx: MouseCtx }): string {
 	const last = sm.ctx.moves[sm.ctx.moves.length - 1];
 	const lastText = last ? `(${last.x}, ${last.y})` : '—';
-	return `State: ${sm.currentStateName} · listening: ${sm.ctx.listening} · moves: ${sm.ctx.moves.length} · last: ${lastText}`;
+	return `State: ${sm.hsm.currentStateName} · listening: ${sm.ctx.listening} · moves: ${sm.ctx.moves.length} · last: ${lastText}`;
 }
 
 async function streamMove(runtime: InteractiveRuntime, x: number, y: number): Promise<void> {
 	const sm = getSenderHsm(runtime, 'machine');
-	sm.post('onMouseMove', x, y);
-	await sm.sync();
+	sm.onMouseMove(x, y);
+	await sm.hsm.sync();
 }
 
 function randomCoord(): number {
@@ -47,8 +47,8 @@ export const interactive: TutorialInteractiveMeta = {
 	senders: [{ id: 'machine', label: 'Event streaming (mouse)' }],
 	messagesBySender: {
 		machine: [
-			{ id: 'listen', label: 'listen', kind: 'post' },
-			{ id: 'stopListening', label: 'stop listening', kind: 'post' },
+			{ id: 'listen', label: 'listen', kind: 'notification' },
+			{ id: 'stopListening', label: 'stop listening', kind: 'notification' },
 		],
 	},
 	createRuntime: (): InteractiveRuntime => {
@@ -69,7 +69,7 @@ export const interactive: TutorialInteractiveMeta = {
 		if (runtime.kind !== 'single') {
 			return '';
 		}
-		return summarize(runtime.sm as unknown as { currentStateName: string; ctx: MouseCtx });
+		return summarize(runtime.sm);
 	},
 	extraActions: [
 		{
@@ -91,8 +91,8 @@ export const interactive: TutorialInteractiveMeta = {
 			label: 'run simulated session',
 			run: async (runtime): Promise<void> => {
 				const sm = getSenderHsm(runtime, 'machine');
-				sm.post('listen');
-				await sm.sync();
+				sm.listen();
+				await sm.hsm.sync();
 				for (const [x, y] of [
 					[10, 20],
 					[14, 26],
@@ -100,8 +100,8 @@ export const interactive: TutorialInteractiveMeta = {
 				]) {
 					await streamMove(runtime, x, y);
 				}
-				sm.post('stopListening');
-				await sm.sync();
+				sm.stopListening();
+				await sm.hsm.sync();
 				await streamMove(runtime, 99, 99); // ignored: not listening
 			},
 		},

@@ -14,11 +14,11 @@ const base = singleSenderTutorial({
 		{
 			id: 'navigate',
 			label: 'navigate',
-			kind: 'post',
+			kind: 'notification',
 			fields: [{ name: 'page', label: 'Page', type: 'string', default: '/dashboard' }],
 		},
 	],
-	stateSummary: sm => `State: ${sm.currentStateName} · user: ${sm.ctx.userId} · page: ${sm.ctx.lastPage} · entryLog: [${sm.ctx.entryLog.join(', ')}]`,
+	stateSummary: sm => `State: ${sm.hsm.currentStateName} · user: ${sm.ctx.userId} · page: ${sm.ctx.lastPage} · entryLog: [${sm.ctx.entryLog.join(', ')}]`,
 });
 
 export const interactive: TutorialInteractiveMeta = {
@@ -43,10 +43,10 @@ export const interactive: TutorialInteractiveMeta = {
 					return;
 				}
 				const restored = resumeSessionFromDb(SESSION_ID);
-				restored.traceWriter = runtime.writer;
+				restored.hsm.traceWriter = runtime.writer;
 				runtime.sm = restored;
-				runtime.writer.lines.push(`↳ resumed session ${SESSION_ID} at ${restored.currentStateName}`);
-				await restored.sync();
+				runtime.writer.lines.push(`↳ resumed session ${SESSION_ID} at ${restored.hsm.currentStateName}`);
+				await restored.hsm.sync();
 			},
 		},
 	],

@@ -30,18 +30,18 @@ describe('Testing 01: deferred timers & simulated time', () => {
 		const clock = new ihsm.TestPort<HeartbeatTop>();
 		// No traceLevel given → makeTestActor defaults to VERBOSE_DEBUG, so a failing run is fully readable.
 		const sm = ihsm.makeTestActor(HeartbeatTop, new HeartbeatCtx(), clock);
-		await sm.sync();
-		expect(sm.currentState).equals(Stopped);
+		await sm.hsm.sync();
+		expect(sm.hsm.currentState).equals(Stopped);
 
-		sm.post('start');
-		await sm.sync();
-		expect(sm.currentState).equals(Running);
+		sm.start();
+		await sm.hsm.sync();
+		expect(sm.hsm.currentState).equals(Running);
 		expect(clock.pending).equals(1); // the first hourly tick is armed, not yet fired
 
 		// Drive 48 hours: advance the virtual clock one hour, drain pending events, repeat.
 		for (let hour = 1; hour <= 48; hour++) {
 			clock.advance(HOUR_MS);
-			await sm.sync();
+			await sm.hsm.sync();
 		}
 
 		expect(sm.ctx.ticks).equals(48);
@@ -49,45 +49,45 @@ describe('Testing 01: deferred timers & simulated time', () => {
 		expect(clock.pending).equals(1); // hour 49 is already armed — the heartbeat keeps recurring
 
 		// Stopping leaves the stray armed tick harmless: Stopped ignores onTick (top-state no-op).
-		sm.post('stop');
-		await sm.sync();
-		expect(sm.currentState).equals(Stopped);
+		sm.stop();
+		await sm.hsm.sync();
+		expect(sm.hsm.currentState).equals(Stopped);
 		clock.advance(HOUR_MS);
-		await sm.sync();
+		await sm.hsm.sync();
 		expect(sm.ctx.ticks).equals(48); // no further ticks counted after stop
 	});
 
 	it('drives the internal onTick directly with makeTestActor (the test actor exposes the merged protocol)', async () => {
 		const test = ihsm.makeTestActor(HeartbeatTop, new HeartbeatCtx(), new ihsm.TestPort<HeartbeatTop>());
-		await test.sync();
+		await test.hsm.sync();
 
-		test.post('start');
-		await test.sync();
-		expect(test.currentState).equals(Running);
+		test.start();
+		await test.hsm.sync();
+		expect(test.hsm.currentState).equals(Running);
 
 		// No clock, no timer: a test actor can post the internal `onTick` itself.
-		test.post('onTick');
-		test.post('onTick');
-		test.post('onTick');
-		await test.sync();
+		test.onTick();
+		test.onTick();
+		test.onTick();
+		await test.hsm.sync();
 		expect(test.ctx.ticks).equals(3);
 
 		// The test actor also exposes the typed port and a subscribe() channel — neither exists on
 		// the public Actor surface.
-		expect(test.port).to.be.instanceOf(ihsm.TestPort);
-		expect(typeof test.subscribe).to.equal('function');
+		expect(test.hsm.port).to.be.instanceOf(ihsm.TestPort);
+		expect(typeof test.hsm.subscribe).to.equal('function');
 	});
 
 	it('traces every event via subscribe → TestPort.record (unique to the test actor)', async () => {
 		const port = new ihsm.TestPort<HeartbeatTop>();
 		const test = ihsm.makeTestActor(HeartbeatTop, new HeartbeatCtx(), port);
-		const sub = test.subscribe(m => port.record(m.event, ...m.payload));
-		await test.sync();
+		const sub = test.hsm.subscribe(m => port.record(m.event, ...m.payload));
+		await test.hsm.sync();
 
-		test.post('start');
-		await test.sync();
-		test.post('onTick');
-		await test.sync();
+		test.start();
+		await test.hsm.sync();
+		test.onTick();
+		await test.hsm.sync();
 
 		expect(port.events).to.deep.equal(['start', 'onTick']);
 		expect(port.last?.event).to.equal('onTick');
@@ -95,8 +95,8 @@ describe('Testing 01: deferred timers & simulated time', () => {
 		port.clear();
 		expect(port.count).to.equal(0);
 		sub.dispose();
-		test.post('stop');
-		await test.sync();
+		test.stop();
+		await test.hsm.sync();
 		expect(port.count).to.equal(0);
 	});
 
@@ -109,10 +109,10 @@ describe('Testing 01: deferred timers & simulated time', () => {
 			const sm = ihsm.makeActor(HeartbeatTop, new HeartbeatCtx(), new ihsm.TestPort<HeartbeatTop>());
 
 			// @ts-expect-error 'onTick' is internal — not callable on the public Actor surface.
-			sm.post('onTick');
+			sm.onTick();
 			// @ts-expect-error 'start' takes no arguments.
-			sm.post('start', 1);
-			sm.post('start'); // valid public event
+			sm.start(1);
+			sm.start(); // valid public event
 
 			interface CollidingInternal {
 				// Collides with HeartbeatPublic.start — must be rejected by the disjointness gate.

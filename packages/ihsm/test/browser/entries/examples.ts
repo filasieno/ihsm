@@ -4,6 +4,7 @@ import * as chai from 'chai';
 
 (globalThis as typeof globalThis & { expect: typeof chai.expect }).expect = chai.expect;
 
+import '../../../examples/00-config/tutorial.spec.ts';
 import '../../../examples/01-hello-state-machine/tutorial.spec.ts';
 import '../../../examples/02-tracing/tutorial.spec.ts';
 import '../../../examples/03-context/tutorial.spec.ts';

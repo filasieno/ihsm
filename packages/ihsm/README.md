@@ -6,7 +6,7 @@
 
 # ihsm
 
-**Class-based hierarchical state machines and run-to-completion actors for TypeScript, explicitly designed for [Deterministic Simulation Testing](https://filasieno.github.io/ihsm/testing) (DST)** — typed `post`/`call`, **zero** production dependencies, **~4.6 KB gzip** in the browser. → [Documentation](https://filasieno.github.io/ihsm/)
+**Class-based hierarchical state machines and run-to-completion actors for TypeScript, explicitly designed for [Deterministic Simulation Testing](https://filasieno.github.io/ihsm/testing) (DST)** — nominal **`Config`**, generated handles, promise **services**, **zero** production dependencies, **~4.6 KB gzip** in the browser. → [Documentation](https://filasieno.github.io/ihsm/) · [Tutorial 00 — Config](examples/00-config/README.md)
 
 ihsm is state management and orchestration for backends, session actors, protocol handlers, and embedded tooling: states are **classes**, events are **methods**, hierarchy is **inheritance**, and each machine is an **actor** with serialized, run-to-completion dispatch.
 
@@ -53,116 +53,132 @@ npm install ihsm
 ```
 
 ```ts
-import { InitialState, makeHsm, TopState } from 'ihsm';
+import { InitialState, makeActor, manifestFor, Port, TopState } from 'ihsm';
+import type { Config } from 'ihsm';
 
 interface DoorCtx {
   openCount: number;
 }
 
-// All possible signals are enumerated in a formal protocol
-interface DoorProtocol {
-  open(): void;
-  close(): void;
+interface DoorConfig extends Config {
+  context: DoorCtx;
+  notifications: {
+    open(): void;
+    close(): void;
+  };
 }
 
-class DoorTop extends TopState<DoorCtx, DoorProtocol> {}
+const doorManifest = manifestFor<DoorConfig>({
+  services: [],
+  notifications: ['open', 'close'],
+  internalServices: [],
+  internalNotifications: [],
+});
+
+class DoorTop extends TopState {
+  static readonly manifest = doorManifest;
+  declare readonly __ihsm: DoorConfig;
+}
 
 @InitialState
 class Closed extends DoorTop {
   open(): void {
     this.ctx.openCount += 1;
-    this.transition(Open);
+    this.hsm.transition(Open);
   }
 }
 
 class Open extends DoorTop {
   close(): void {
-    this.transition(Closed);
+    this.hsm.transition(Closed);
   }
 }
 
-const door = makeHsm(DoorTop, { openCount: 0 });
-await door.sync(); // wait for initialization
+const door = makeActor(DoorTop, { openCount: 0 }, new Port());
+await door.hsm.sync();
 
-door.post('open');
-await door.sync();
+door.open();
+await door.hsm.sync();
 
-console.log(door.currentStateName); // 'Open'
-console.log(door.ctx.openCount);    // 1
+console.log(door.hsm.currentStateName); // 'Open'
+console.log(door.ctx.openCount);        // 1
 ```
+
+See **[examples/00-config/](examples/00-config/README.md)** for the full `Config` tour.
 
 ---
 
-## Typed services with `call()`
+## Typed services (promise-returning)
 
-Most state-machine libraries make you reach for snapshots, child actors, or ad hoc callbacks to ask the machine a question. ihsm treats **services** as ordinary protocol methods — the runtime injects `resolve` / `reject`, and the client gets a typed `Promise`.
-
-Define the service once on your `Protocol`. Implement it on a state class. Call it from anywhere that holds the `Hsm` handle.
+Services are declared on `Config.services`. The generated client method **always** returns `Promise<Reply>` — callers must `await`, so RTC ordering is explicit.
 
 ```ts
-import {
-  InitialState,
-  makeHsm,
-  RejectCallback,
-  ResolveCallback,
-  TopState,
-} from 'ihsm';
+import { InitialState, makeOwnerActor, manifestFor, Port, TopState } from 'ihsm';
+import type { Config } from 'ihsm';
 
 interface WalletCtx {
   balance: number;
 }
 
-// note the `getBalance` and `withdraw`.
-// since they have a *resolve* and *reject* the are services allowing State Machines to serve requests **AND** transition at the same time if required. 
-interface WalletProtocol {
-  deposit(amount: number): void;
-  getBalance(resolve: ResolveCallback<number>, reject: RejectCallback): void;
-  withdraw(resolve: ResolveCallback<number>, reject: RejectCallback, amount: number): void;
+interface WalletConfig extends Config {
+  context: WalletCtx;
+  notifications: { deposit(amount: number): void };
+  services: {
+    getBalance(): Promise<number>;
+    withdraw(amount: number): Promise<number>;
+  };
 }
 
-class WalletTop extends TopState<WalletCtx, WalletProtocol> {
+const walletManifest = manifestFor<WalletConfig>({
+  services: ['getBalance', 'withdraw'],
+  notifications: ['deposit'],
+  internalServices: [],
+  internalNotifications: [],
+});
+
+class WalletTop extends TopState {
+  static readonly manifest = walletManifest;
+  declare readonly __ihsm: WalletConfig;
+
   deposit(amount: number): void {
     this.ctx.balance += amount;
   }
 
-  getBalance(resolve: ResolveCallback<number>): void {
-    resolve(this.ctx.balance);
+  getBalance(): number {
+    return this.ctx.balance;
   }
 
-  withdraw(resolve: ResolveCallback<number>, reject: RejectCallback, amount: number): void {
+  withdraw(amount: number): number {
     if (amount > this.ctx.balance) {
-      reject(new Error('insufficient funds'));
-      return;
+      throw new Error('insufficient funds');
     }
     this.ctx.balance -= amount;
-    resolve(this.ctx.balance);
+    return this.ctx.balance;
   }
 }
 
 @InitialState
 class Open extends WalletTop {}
 
-const wallet = makeHsm(WalletTop, { balance: 100 });
-await wallet.sync();
+const wallet = makeOwnerActor(WalletTop, { balance: 100 }, new Port());
+await wallet.hsm.sync();
 
-wallet.post('deposit', 50);
+wallet.deposit(50);
 
-const balance = await wallet.call('getBalance'); // Promise<number> — no extra sync()
+const balance = await wallet.getBalance();
 
 try {
-  await wallet.call('withdraw', 200);
-} catch (err) {
-  // reject() from the handler becomes a thrown Error here
+  await wallet.withdraw(200);
+} catch {
+  // handler throw → rejected Promise
 }
 
-const left = await wallet.call('getBalance'); // 150
+const left = await wallet.getBalance(); // 150
 ```
 
-**Events** (`void` handlers) → `post('deposit', 50)`. **Services** (`resolve` / `reject` handlers) → `await call('getBalance')`. Same run-to-completion dispatch, same serialization guarantees, full TypeScript inference on names, payloads, and return types.
+**Notifications** → `wallet.deposit(50)` (void). **Services** → `await wallet.getBalance()` (Promise). The split is **nominal** via `Config.notifications` vs `Config.services`.
 
-The split is enforced **at compile time**: the protocol is partitioned into event keys and service keys, so `post('getBalance')` (a service) and `call('deposit', 50)` (an event) are both type errors — you can only `post` events and `call` services.
-
-See [Call services](https://filasieno.github.io/ihsm/reference#_4-messaging-post-call-sync) in the reference.
+See [Tutorial 00 — Config](examples/00-config/README.md) and the [reference](https://filasieno.github.io/ihsm/reference).
 
 ---
 

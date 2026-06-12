@@ -2,7 +2,7 @@
  * Deferred timers & simulated time — the foundational deterministic-testing example.
  *
  * A `Heartbeat` machine emits one tick **every hour**. It does not own a domain port: the hourly
- * follow-up is scheduled with {@link ihsm.State.deferredPost | deferredPost}, which is backed by
+ * follow-up is scheduled with {@link ihsm.HandlerHsm.defer | hsm.defer}, which is backed by
  * the machine's **standard port timer service** ({@link ihsm.Port} in production, real
  * `setTimeout`). Because the timer is a port service, a test can substitute a controllable clock
  * ({@link ihsm.TestPort}) and simulate days of ticks in microseconds — no real waiting, no
@@ -28,19 +28,35 @@ export class HeartbeatCtx {
 	running = false;
 }
 
-/** Public protocol — the only events clients may post. */
-export interface HeartbeatPublic {
-	start(): void;
-	stop(): void;
+export interface HeartbeatConfig extends ihsm.Config {
+	context: HeartbeatCtx;
+	notifications: {
+		start(): void;
+		stop(): void;
+	};
+	internalNotifications: {
+		onTick(): void;
+	};
 }
 
-/** Internal protocol — raised only by the deferred timer (never by a client). */
-export interface HeartbeatInternal {
-	onTick(): void;
-}
+/** @deprecated use HeartbeatConfig['notifications'] */
+export type HeartbeatPublic = HeartbeatConfig['notifications'];
+
+/** @deprecated use HeartbeatConfig['internalNotifications'] */
+export type HeartbeatInternal = HeartbeatConfig['internalNotifications'];
+
+const heartbeatManifest = ihsm.manifestFor<HeartbeatConfig>({
+	services: [],
+	notifications: ['start', 'stop'],
+	internalServices: [],
+	internalNotifications: ['onTick'],
+});
 
 /** Root state. Stray events in the "wrong" state are safe no-ops. */
-export class HeartbeatTop extends ihsm.TopState<HeartbeatCtx, HeartbeatPublic, HeartbeatInternal, undefined> {
+export class HeartbeatTop extends ihsm.TopState<HeartbeatConfig> {
+	static readonly manifest = heartbeatManifest;
+	declare readonly __ihsm: HeartbeatConfig;
+
 	start(): void {} // ignored unless Stopped
 	stop(): void {} // ignored unless Running
 	onTick(): void {} // ignored unless Running (e.g. a tick scheduled just before stop)
@@ -50,24 +66,24 @@ export class HeartbeatTop extends ihsm.TopState<HeartbeatCtx, HeartbeatPublic, H
 export class Stopped extends HeartbeatTop {
 	start(): void {
 		this.ctx.running = true;
-		this.transition(Running);
+		this.hsm.transition(Running);
 	}
 }
 
 export class Running extends HeartbeatTop {
 	/** On entry, arm the first hourly tick through the port timer service. */
 	onEntry(): void {
-		this.deferredPost(HOUR_MS, 'onTick');
+		this.hsm.defer(HOUR_MS).onTick();
 	}
 
 	onTick(): void {
 		this.ctx.ticks += 1;
-		this.deferredPost(HOUR_MS, 'onTick'); // recur: arm the next hour
+		this.hsm.defer(HOUR_MS).onTick(); // recur: arm the next hour
 	}
 
 	stop(): void {
 		this.ctx.running = false;
-		this.transition(Stopped);
+		this.hsm.transition(Stopped);
 	}
 }
 

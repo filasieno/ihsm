@@ -29,15 +29,15 @@ class PlaygroundWatcherPort extends TestPort<WatcherTop> implements WatcherPort 
 /** Monotonic version counter for simulated change events. */
 let nextVersion = 1;
 
-function summarize(sm: { currentStateName: string; ctx: WatcherCtx }): string {
+function summarize(sm: { hsm: { currentStateName: string }; ctx: WatcherCtx }): string {
 	const watching = sm.ctx.subscription !== undefined;
-	return `State: ${sm.currentStateName} · watching: ${watching} · path: ${sm.ctx.path || '—'} · changes: ${sm.ctx.changes.length}`;
+	return `State: ${sm.hsm.currentStateName} · watching: ${watching} · path: ${sm.ctx.path || '—'} · changes: ${sm.ctx.changes.length}`;
 }
 
 async function emitChange(runtime: InteractiveRuntime): Promise<void> {
 	const sm = getSenderHsm(runtime, 'machine');
-	sm.post('onChange', nextVersion++);
-	await sm.sync();
+	sm.onChange(nextVersion++);
+	await sm.hsm.sync();
 }
 
 export const interactive: TutorialInteractiveMeta = {
@@ -48,10 +48,10 @@ export const interactive: TutorialInteractiveMeta = {
 			{
 				id: 'start',
 				label: 'start watching',
-				kind: 'post',
+				kind: 'notification',
 				fields: [{ name: 'path', label: 'path', type: 'string', default: '/etc/hosts' }],
 			},
-			{ id: 'stop', label: 'stop watching', kind: 'post' },
+			{ id: 'stop', label: 'stop watching', kind: 'notification' },
 		],
 	},
 	createRuntime: (): InteractiveRuntime => {
@@ -73,7 +73,7 @@ export const interactive: TutorialInteractiveMeta = {
 		if (runtime.kind !== 'single') {
 			return '';
 		}
-		return summarize(runtime.sm as unknown as { currentStateName: string; ctx: WatcherCtx });
+		return summarize(runtime.sm);
 	},
 	extraActions: [
 		{
@@ -95,8 +95,8 @@ export const interactive: TutorialInteractiveMeta = {
 			label: 'source closes',
 			run: async (runtime): Promise<void> => {
 				const sm = getSenderHsm(runtime, 'machine');
-				sm.post('onClosed');
-				await sm.sync();
+				sm.onClosed();
+				await sm.hsm.sync();
 			},
 		},
 	],

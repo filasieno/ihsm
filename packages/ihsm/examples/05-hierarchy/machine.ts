@@ -15,28 +15,55 @@ export interface DeepCtx {
 	failExit: boolean;
 }
 
-export interface DeepProtocol {
-	tick(): void;
-	goSiblingWest(): void;
-	goParentWest(): void;
-	goAncestorWest(): void;
-	goRoot(): void;
-	goSelfWest(): void;
-	goCrossToLeafEastB(): void;
-	goCrossToBranchEast(): void;
-	goCrossToMidEast(): void;
-	goSiblingEast(): void;
-	goCrossToLeafWestB(): void;
-	goAsyncCrossEast(): void;
-	armFailExit(): void;
+export interface DeepConfig extends ihsm.Config {
+	context: DeepCtx;
+	notifications: {
+		tick(): void;
+		goSiblingWest(): void;
+		goParentWest(): void;
+		goAncestorWest(): void;
+		goRoot(): void;
+		goSelfWest(): void;
+		goCrossToLeafEastB(): void;
+		goCrossToBranchEast(): void;
+		goCrossToMidEast(): void;
+		goSiblingEast(): void;
+		goCrossToLeafWestB(): void;
+		goAsyncCrossEast(): void;
+		armFailExit(): void;
+	};
 }
+
+const deepManifest = ihsm.manifestFor<DeepConfig>({
+	services: [],
+	notifications: [
+		'tick',
+		'goSiblingWest',
+		'goParentWest',
+		'goAncestorWest',
+		'goRoot',
+		'goSelfWest',
+		'goCrossToLeafEastB',
+		'goCrossToBranchEast',
+		'goCrossToMidEast',
+		'goSiblingEast',
+		'goCrossToLeafWestB',
+		'goAsyncCrossEast',
+		'armFailExit',
+	],
+	internalServices: [],
+	internalNotifications: [],
+});
 
 function pushTrace(ctx: DeepCtx, line: string): void {
 	ctx.trace.push(line);
 }
 
 /** Root — LCA for every cross-stack transition. */
-export class DeepTop extends PlaygroundTopState<DeepCtx, DeepProtocol> {
+export class DeepTop extends PlaygroundTopState<DeepConfig> {
+	static readonly manifest = deepManifest;
+	declare readonly __ihsm: DeepConfig;
+
 	onEntry(): void {
 		pushTrace(this.ctx, 'enter:DeepTop');
 	}
@@ -49,40 +76,40 @@ export class DeepTop extends PlaygroundTopState<DeepCtx, DeepProtocol> {
 		pushTrace(this.ctx, 'handler:tick');
 	}
 	goSiblingWest(): void {
-		this.transition(LeafWestB);
+		this.hsm.transition(LeafWestB);
 	}
 	goParentWest(): void {
-		this.transition(MidWest);
+		this.hsm.transition(MidWest);
 	}
 	goAncestorWest(): void {
-		this.transition(StackWest);
+		this.hsm.transition(StackWest);
 	}
 	goRoot(): void {
-		this.transition(DeepTop);
+		this.hsm.transition(DeepTop);
 	}
 	goSelfWest(): void {
-		this.transition(LeafWestA);
+		this.hsm.transition(LeafWestA);
 	}
 	goCrossToLeafEastB(): void {
-		this.transition(LeafEastB);
+		this.hsm.transition(LeafEastB);
 	}
 	goCrossToBranchEast(): void {
-		this.transition(StackEast);
+		this.hsm.transition(StackEast);
 	}
 	goCrossToMidEast(): void {
-		this.transition(MidEast);
+		this.hsm.transition(MidEast);
 	}
 	goSiblingEast(): void {
-		this.transition(LeafEastA);
+		this.hsm.transition(LeafEastA);
 	}
 	goCrossToLeafWestB(): void {
-		this.transition(LeafWestB);
+		this.hsm.transition(LeafWestB);
 	}
 	async goAsyncCrossEast(): Promise<void> {
 		pushTrace(this.ctx, 'handler:goAsyncCrossEast:start');
-		await this.sleep(10);
+		await this.hsm.sleep(10);
 		pushTrace(this.ctx, 'handler:goAsyncCrossEast:after-await');
-		this.transition(LeafEastA);
+		this.hsm.transition(LeafEastA);
 	}
 	armFailExit(): void {
 		this.ctx.failExit = true;
@@ -183,7 +210,7 @@ export class LeafEastB extends MidEast {
 }
 
 export function createDeepMachine() {
-	return ihsm.makeHsm(DeepTop, { trace: [], value: 0, failExit: false });
+	return ihsm.makeOwnerActor(DeepTop, { trace: [], value: 0, failExit: false }, new ihsm.Port());
 }
 
 /** After `create()` + `sync()`: outer → inner along `@ihsm.InitialState` chain. */

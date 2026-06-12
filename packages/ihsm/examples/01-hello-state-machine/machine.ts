@@ -1,8 +1,8 @@
 /**
  * Hello state machine — minimal open/closed door.
  *
- * Teaches: DoorCtx, DoorProtocol, TopState root, @InitialState, transition()
- * between sibling states, registerStateNames, makeHsm factory.
+ * Teaches: DoorCtx, DoorConfig, TopState root, @InitialState, hsm.transition()
+ * between sibling states, registerStateNames, makeOwnerActor factory.
  */
 import * as ihsm from '../../src';
 import { PlaygroundTopState } from '../shared/playground-top';
@@ -14,28 +14,40 @@ export interface DoorCtx {
 	openCount: number;
 }
 
-/** Event vocabulary — method names must match post('…') strings at compile time. */
-export interface DoorProtocol {
-	open(): void;
-	close(): void;
+export interface DoorConfig extends ihsm.Config {
+	context: DoorCtx;
+	notifications: {
+		open(): void;
+		close(): void;
+	};
 }
 
-/** Root state: inherits run-to-completion dispatch, transition(), and tracing from TopState. */
-export class DoorTop extends PlaygroundTopState<DoorCtx, DoorProtocol> {}
+const doorManifest = ihsm.manifestFor<DoorConfig>({
+	services: [],
+	notifications: ['open', 'close'],
+	internalServices: [],
+	internalNotifications: [],
+});
 
-/** Initial leaf after makeHsm + sync — door starts closed. */
+/** Root state: inherits run-to-completion dispatch, transition(), and tracing from TopState. */
+export class DoorTop extends PlaygroundTopState<DoorConfig> {
+	static readonly manifest = doorManifest;
+	declare readonly __ihsm: DoorConfig;
+}
+
+/** Initial leaf after makeOwnerActor + sync — door starts closed. */
 @ihsm.InitialState
 export class Closed extends DoorTop {
 	open(): void {
 		this.ctx.openCount += 1;
 		// External transition: exit Closed, enter Open (LCA = DoorTop).
-		this.transition(Open);
+		this.hsm.transition(Open);
 	}
 }
 
 export class Open extends DoorTop {
 	close(): void {
-		this.transition(Closed);
+		this.hsm.transition(Closed);
 	}
 }
 
@@ -44,5 +56,5 @@ ihsm.registerStateNames(self);
 
 /** Factory used by tests, interactive panel, and application code. */
 export function createDoor() {
-	return ihsm.makeHsm(DoorTop, { openCount: 0 });
+	return ihsm.makeOwnerActor(DoorTop, { openCount: 0 }, new ihsm.Port());
 }

@@ -26,16 +26,16 @@ class PlaygroundFetchPort extends TestPort<FetchTop> implements FetchPort {
 	}
 }
 
-function summarize(sm: { currentStateName: string; ctx: FetchCtx }): string {
+function summarize(sm: { hsm: { currentStateName: string }; ctx: FetchCtx }): string {
 	const { url, status, body, error } = sm.ctx;
 	const detail = error ? `error: ${error}` : `status: ${status || '—'} · body: ${body.length} bytes`;
-	return `State: ${sm.currentStateName} · url: ${url || '—'} · ${detail}`;
+	return `State: ${sm.hsm.currentStateName} · url: ${url || '—'} · ${detail}`;
 }
 
 async function settle(runtime: InteractiveRuntime, event: 'onResponse' | 'onFailure', ...args: (number | string)[]): Promise<void> {
 	const sm = getSenderHsm(runtime, 'machine');
-	sm.post(event, ...args);
-	await sm.sync();
+	sm[event](...args);
+	await sm.hsm.sync();
 }
 
 export const interactive: TutorialInteractiveMeta = {
@@ -46,11 +46,11 @@ export const interactive: TutorialInteractiveMeta = {
 			{
 				id: 'fetch',
 				label: 'fetch',
-				kind: 'post',
+				kind: 'notification',
 				fields: [{ name: 'url', label: 'url', type: 'string', default: 'https://google.com' }],
 			},
-			{ id: 'cancel', label: 'cancel', kind: 'post' },
-			{ id: 'body', label: 'body', kind: 'call' },
+			{ id: 'cancel', label: 'cancel', kind: 'notification' },
+			{ id: 'body', label: 'body', kind: 'service' },
 		],
 	},
 	createRuntime: (): InteractiveRuntime => {
@@ -71,7 +71,7 @@ export const interactive: TutorialInteractiveMeta = {
 		if (runtime.kind !== 'single') {
 			return '';
 		}
-		return summarize(runtime.sm as unknown as { currentStateName: string; ctx: FetchCtx });
+		return summarize(runtime.sm);
 	},
 	extraActions: [
 		{

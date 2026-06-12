@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
 
+import { interactive as t00 } from '../00-config/interactive';
 import { interactive as t01 } from '../01-hello-state-machine/interactive';
 import { interactive as t02 } from '../02-tracing/interactive';
 import { interactive as t03 } from '../03-context/interactive';
@@ -23,7 +24,7 @@ import { interactive as testing04 } from '../testing-04-fault-injection/interact
 import { interactive as testing05 } from '../testing-05-subscriptions-and-disposables/interactive';
 import { dispatchMessage, traceFromRuntime } from './interactive-helpers';
 
-const all = [t01, t02, t03, t04, t05, t07, t08, t09, t10, t11, t12, t13, t14, t15, t17, testing01, testing02, testing03, testing04, testing05];
+const all = [t00, t01, t02, t03, t04, t05, t07, t08, t09, t10, t11, t12, t13, t14, t15, t17, testing01, testing02, testing03, testing04, testing05];
 
 describe('Interactive tutorial metadata', () => {
 	for (const [index, meta] of all.entries()) {
@@ -53,7 +54,7 @@ describe('Interactive tutorial metadata', () => {
 		if (runtime.kind !== 'single') {
 			throw new Error('expected single-machine runtime');
 		}
-		await runtime.sm.sync();
+		await runtime.sm.hsm.sync();
 		const summary = t01.stateSummary(runtime);
 		expect(summary).to.include('Closed');
 		expect(summary).to.not.match(/State: [a-z] ·/);
@@ -64,7 +65,7 @@ describe('Interactive tutorial metadata', () => {
 		if (runtime.kind !== 'single') {
 			throw new Error('expected single-machine runtime');
 		}
-		await runtime.sm.sync();
+		await runtime.sm.hsm.sync();
 		const trace = traceFromRuntime(runtime);
 		expect(trace).to.include('Closed');
 		expect(trace).to.match(/initialize\|.*Closed/);

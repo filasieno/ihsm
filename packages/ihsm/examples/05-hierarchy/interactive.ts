@@ -8,6 +8,6 @@ export const interactive = singleSenderTutorial({
 	topState: machine.DeepTop,
 	machineExports: machine,
 	initialCtx: { trace: [], value: 0, failExit: false },
-	messages: transitionMessages.map(id => ({ id, label: id, kind: 'post' as const })),
-	stateSummary: sm => `State: ${sm.currentStateName} · value: ${sm.ctx.value} · ctx.trace lines: ${sm.ctx.trace.length} · failExit: ${sm.ctx.failExit}`,
+	messages: transitionMessages.map(id => ({ id, label: id, kind: 'notification' as const })),
+	stateSummary: sm => `State: ${sm.hsm.currentStateName} · value: ${sm.ctx.value} · ctx.trace lines: ${sm.ctx.trace.length} · failExit: ${sm.ctx.failExit}`,
 });

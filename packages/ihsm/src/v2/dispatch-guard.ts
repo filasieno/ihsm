@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { TraceLevel } from '../';
 
 import { SelfCallDeadlockError } from './errors';
@@ -50,7 +51,7 @@ export function assertNoSelfServiceDeadlock(
 		return;
 	}
 	const storage = nodeAsyncLocalStorage();
-	const token = storage?.getStore();
+	const token = storage?.getStore() as DispatchToken | undefined;
 	if (token?.machine === machine) {
 		throw new SelfCallDeadlockError();
 	}

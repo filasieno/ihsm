@@ -150,11 +150,13 @@ describe('protocol-collision (v2)', function (): void {
 		expect(() => buildProtocolIndex(MissingHandlerTop, manifest)).to.throw(ProtocolCollisionError, /no handler on the state graph/);
 	});
 
-	it('throws when handler is not declared on Config', () => {
+	it('allows private helper methods on states that are not listed on Config', () => {
 		class ExtraTop extends TopState {
+			static readonly manifest = hookManifest;
 			extra(): void {}
+			ping(): void {}
 		}
-		expect(() => buildProtocolIndex(ExtraTop, hookManifest)).to.throw(ProtocolCollisionError, /not declared on Config/);
+		expect(() => buildProtocolIndex(ExtraTop, hookManifest)).not.to.throw();
 	});
 
 	it('constructs when manifest and handlers align', () => {

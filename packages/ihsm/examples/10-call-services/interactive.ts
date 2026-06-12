@@ -10,22 +10,22 @@ export const interactive = singleSenderTutorial({
 		{
 			id: 'deposit',
 			label: 'deposit',
-			kind: 'post',
+			kind: 'notification',
 			fields: [{ name: 'amount', label: 'Amount', type: 'number', default: 25 }],
 		},
-		{ id: 'getBalance', label: 'getBalance', kind: 'call' },
+		{ id: 'getBalance', label: 'getBalance', kind: 'service' },
 		{
 			id: 'fetchBalanceDelayed',
 			label: 'fetchBalanceDelayed',
-			kind: 'call',
+			kind: 'service',
 			fields: [{ name: 'delayMs', label: 'Delay (ms)', type: 'number', default: 100 }],
 		},
 		{
 			id: 'withdraw',
 			label: 'withdraw',
-			kind: 'call',
+			kind: 'service',
 			fields: [{ name: 'amount', label: 'Amount', type: 'number', default: 10 }],
 		},
 	],
-	stateSummary: sm => `State: ${sm.currentStateName} · balance: ${sm.ctx.balance}`,
+	stateSummary: sm => `State: ${sm.hsm.currentStateName} · balance: ${sm.ctx.balance}`,
 });

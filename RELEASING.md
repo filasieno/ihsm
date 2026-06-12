@@ -21,7 +21,7 @@ bash packages/ihsm/scripts/verify-docs-site.sh packages/ihsm/docs-build
 `nix flake check` already runs `scripts/verify-no-generated-in-source.sh` (via the
 `lint` and `docs` derivations), so no separate generated-artifact check is needed.
 
-Confirm `packages/ihsm/package.json` and `packages/core/package.json` **`version`** values match the tag you will push (`0.0.22` → tag `0.0.22`, no `v` prefix). `@ihsm/core` depends on the same `ihsm` version.
+Confirm `packages/ihsm/package.json` and `packages/core/package.json` **`version`** values match the tag you will push (`0.1.0` → tag `0.1.0`, no `v` prefix). `@ihsm/core` depends on the same `ihsm` version.
 
 Update **`CHANGELOG.md`** for the new version.
 
@@ -41,8 +41,8 @@ Edit sources: `examples/`, `reference/REFERENCE.md`, `website/docs-src/`.
 2. Tag and push the release:
 
    ```shell
-   git tag 0.0.22
-   git push upstream 0.0.22
+   git tag 0.1.0
+   git push upstream 0.1.0
    ```
 
 3. **Release workflow** (`.github/workflows/release.yml`) runs on the tag:

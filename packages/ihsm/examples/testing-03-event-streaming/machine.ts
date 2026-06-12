@@ -26,28 +26,44 @@ export interface MouseCtx {
 	subscription?: ihsm.Disposable;
 }
 
-/** Public protocol — posted by UI buttons / clients. */
-export interface MousePublic {
-	listen(): void;
-	stopListening(): void;
+export interface MouseConfig extends ihsm.Config {
+	context: MouseCtx;
+	notifications: {
+		listen(): void;
+		stopListening(): void;
+	};
+	internalNotifications: {
+		onMouseMove(x: number, y: number): void;
+	};
+	port: {
+		subscribe(): ihsm.ResultWithSubscription<number>;
+	};
 }
 
-/** Internal protocol — pushed by the stream source only. */
-export interface MouseInternal {
-	onMouseMove(x: number, y: number): void;
-}
+/** @deprecated use MouseConfig['notifications'] */
+export type MousePublic = MouseConfig['notifications'];
+
+/** @deprecated use MouseConfig['internalNotifications'] */
+export type MouseInternal = MouseConfig['internalNotifications'];
 
 /** Outbound boundary to the (impure) event source. */
-export interface MouseStreamPort extends ihsm.PortHandle<MouseCtx, MouseInternal> {
-	/** Open the stream; `dispose()` on the result closes it. Returns a stream id. */
-	subscribe(): ihsm.ResultWithSubscription<number>;
-}
+export type MouseStreamPort = MouseConfig['port'];
+
+const mouseManifest = ihsm.manifestFor<MouseConfig>({
+	services: [],
+	notifications: ['listen', 'stopListening'],
+	internalServices: [],
+	internalNotifications: ['onMouseMove'],
+});
 
 /**
  * Root state. The "wrong state" cases are safe no-ops so the live demo never crashes:
  * a move that arrives while idle, or a redundant listen/stop, is simply ignored.
  */
-export class MouseTop extends ihsm.TopState<MouseCtx, MousePublic, MouseInternal, MouseStreamPort> {
+export class MouseTop extends ihsm.TopState<MouseConfig> {
+	static readonly manifest = mouseManifest;
+	declare readonly __ihsm: MouseConfig;
+
 	listen(): void {} // ignored unless Idle
 	stopListening(): void {} // ignored unless Listening
 	onMouseMove(_x: number, _y: number): void {} // ignored unless Listening
@@ -56,11 +72,11 @@ export class MouseTop extends ihsm.TopState<MouseCtx, MousePublic, MouseInternal
 @ihsm.InitialState
 export class Idle extends MouseTop {
 	listen(): void {
-		const { value, subscription } = this.port.subscribe();
+		const { value, subscription } = this.hsm.port.subscribe();
 		this.ctx.streamId = value;
 		this.ctx.subscription = subscription;
 		this.ctx.listening = true;
-		this.transition(Listening);
+		this.hsm.transition(Listening);
 	}
 }
 
@@ -73,7 +89,7 @@ export class Listening extends MouseTop {
 		this.ctx.subscription?.dispose();
 		this.ctx.subscription = undefined;
 		this.ctx.listening = false;
-		this.transition(Idle);
+		this.hsm.transition(Idle);
 	}
 }
 

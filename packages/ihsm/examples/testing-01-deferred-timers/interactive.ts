@@ -9,16 +9,16 @@ import { HeartbeatTop, HeartbeatCtx, HOUR_MS } from './machine';
 /** The manually-advanced clock backing the current playground run (one per `createRuntime`). */
 let activeClock: TestPort<HeartbeatTop> | undefined;
 
-function summarize(sm: { currentStateName: string; ctx: HeartbeatCtx }): string {
+function summarize(sm: { hsm: { currentStateName: string }; ctx: HeartbeatCtx }): string {
 	const simulatedHours = activeClock ? Math.round(activeClock.now / HOUR_MS) : 0;
-	return `State: ${sm.currentStateName} · running: ${sm.ctx.running} · ticks: ${sm.ctx.ticks} · simulated: ${simulatedHours}h`;
+	return `State: ${sm.hsm.currentStateName} · running: ${sm.ctx.running} · ticks: ${sm.ctx.ticks} · simulated: ${simulatedHours}h`;
 }
 
 async function advanceHours(runtime: InteractiveRuntime, hours: number): Promise<void> {
 	const sm = getSenderHsm(runtime, 'machine');
 	for (let hour = 0; hour < hours; hour++) {
 		activeClock?.advance(HOUR_MS);
-		await sm.sync();
+		await sm.hsm.sync();
 	}
 }
 
@@ -27,8 +27,8 @@ export const interactive: TutorialInteractiveMeta = {
 	senders: [{ id: 'machine', label: 'Heartbeat' }],
 	messagesBySender: {
 		machine: [
-			{ id: 'start', label: 'start', kind: 'post' },
-			{ id: 'stop', label: 'stop', kind: 'post' },
+			{ id: 'start', label: 'start', kind: 'notification' },
+			{ id: 'stop', label: 'stop', kind: 'notification' },
 		],
 	},
 	createRuntime: (): InteractiveRuntime => {
@@ -50,7 +50,7 @@ export const interactive: TutorialInteractiveMeta = {
 		if (runtime.kind !== 'single') {
 			return '';
 		}
-		return summarize(runtime.sm as unknown as { currentStateName: string; ctx: HeartbeatCtx });
+		return summarize(runtime.sm);
 	},
 	extraActions: [
 		{

@@ -1,3 +1,5 @@
+> **v0.1.0:** use `makeTestActor(ConnTop, ctx, port)` — `Config` is inferred from `ConnTop`. Internal events: `test.onData(…)` on the test actor, or `port.send('onData', …)` / `port.actor!.onData(…)` on a bound `TestPort`. Sync: `await actor.hsm.sync()`. See [`examples/00-config/`](../examples/00-config/README.md).
+
 Most state-machine bugs are not logic bugs — they are *timing* bugs. A socket replies a
 millisecond late, two events race through a queue, a retry fires while a teardown is half-done.
 Such bugs reproduce once in a thousand CI runs and never on your laptop. **Deterministic

@@ -1,5 +1,5 @@
 /**
- * post + sync — chained this.post from a handler; client waits with one sync().
+ * post + sync — chained hsm.actor notifications from a handler; client waits with one sync().
  *
  * Teaches: deferred posts until handler completes; sync marker drains the queue.
  */
@@ -12,19 +12,32 @@ export interface QueueCtx {
 	events: string[];
 }
 
-export interface QueueProtocol {
-	start(): void;
-	tick(): void;
-	done(): void;
+export interface QueueConfig extends ihsm.Config {
+	context: QueueCtx;
+	notifications: {
+		start(): void;
+		tick(): void;
+		done(): void;
+	};
 }
 
-export class QueueTop extends PlaygroundTopState<QueueCtx, QueueProtocol> {
+const queueManifest = ihsm.manifestFor<QueueConfig>({
+	services: [],
+	notifications: ['start', 'tick', 'done'],
+	internalServices: [],
+	internalNotifications: [],
+});
+
+export class QueueTop extends PlaygroundTopState<QueueConfig> {
+	static readonly manifest = queueManifest;
+	declare readonly __ihsm: QueueConfig;
+
 	start(): void {
 		this.ctx.events.push('start');
 		// These run after start() returns — not inline during start.
-		this.post('tick');
-		this.post('tick');
-		this.post('done');
+		this.hsm.actor.tick();
+		this.hsm.actor.tick();
+		this.hsm.actor.done();
 	}
 
 	tick(): void {
@@ -42,5 +55,5 @@ export class Idle extends QueueTop {}
 ihsm.registerStateNames(self);
 
 export function createQueueMachine() {
-	return ihsm.makeHsm(QueueTop, { events: [] });
+	return ihsm.makeOwnerActor(QueueTop, { events: [] }, new ihsm.Port());
 }

@@ -26,24 +26,39 @@ export interface FetchCtx {
 	subscription?: ihsm.Disposable;
 }
 
-/** Public protocol — what UI / clients may post or call. */
-export interface FetchPublic {
-	fetch(url: string): void;
-	cancel(): void;
-	body(resolve: ihsm.ResolveCallback<string>, reject: ihsm.RejectCallback): void;
+export interface FetchConfig extends ihsm.Config {
+	context: FetchCtx;
+	notifications: {
+		fetch(url: string): void;
+		cancel(): void;
+	};
+	services: {
+		body(): Promise<string>;
+	};
+	internalNotifications: {
+		onResponse(status: number, body: string): void;
+		onFailure(message: string): void;
+	};
+	port: {
+		request(url: string): ihsm.ResultWithSubscription<number>;
+	};
 }
 
-/** Internal protocol — settled-request events, pushed by the port only. */
-export interface FetchInternal {
-	onResponse(status: number, body: string): void;
-	onFailure(message: string): void;
-}
+/** @deprecated use FetchConfig['notifications'] */
+export type FetchPublic = FetchConfig['notifications'];
+
+/** @deprecated use FetchConfig['internalNotifications'] */
+export type FetchInternal = FetchConfig['internalNotifications'];
 
 /** Outbound boundary to the (impure) network. */
-export interface FetchPort extends ihsm.PortHandle<FetchCtx, FetchInternal> {
-	/** Start a request; `dispose()` on the result aborts it. Returns a request id. */
-	request(url: string): ihsm.ResultWithSubscription<number>;
-}
+export type FetchPort = FetchConfig['port'];
+
+const fetchManifest = ihsm.manifestFor<FetchConfig>({
+	services: ['body'],
+	notifications: ['fetch', 'cancel'],
+	internalServices: [],
+	internalNotifications: ['onResponse', 'onFailure'],
+});
 
 /**
  * Root state. `fetch` (start a request) is the shared behaviour of every *resting* state —
@@ -51,15 +66,18 @@ export interface FetchPort extends ihsm.PortHandle<FetchCtx, FetchInternal> {
  * `Fetching` overrides `fetch` to a no-op to reject a second request while one is in flight.
  * Late settled-events (`onResponse` / `onFailure` after a `cancel`) are safe no-ops here.
  */
-export class FetchTop extends ihsm.TopState<FetchCtx, FetchPublic, FetchInternal, FetchPort> {
+export class FetchTop extends ihsm.TopState<FetchConfig> {
+	static readonly manifest = fetchManifest;
+	declare readonly __ihsm: FetchConfig;
+
 	fetch(url: string): void {
 		this.ctx.url = url;
 		this.ctx.error = '';
 		// All network I/O flows through the port — never `fetch()` directly in a handler.
-		const { value, subscription } = this.port.request(url);
+		const { value, subscription } = this.hsm.port.request(url);
 		this.ctx.requestId = value;
 		this.ctx.subscription = subscription;
-		this.transition(Fetching);
+		this.hsm.transition(Fetching);
 	}
 
 	cancel(): void {} // ignored unless Fetching
@@ -67,8 +85,8 @@ export class FetchTop extends ihsm.TopState<FetchCtx, FetchPublic, FetchInternal
 	onFailure(_message: string): void {} // ignored unless Fetching
 
 	/** Reading the last body is always allowed. */
-	body(resolve: ihsm.ResolveCallback<string>): void {
-		resolve(this.ctx.body);
+	body(): string {
+		return this.ctx.body;
 	}
 }
 
@@ -86,18 +104,18 @@ export class Fetching extends FetchTop {
 		this.clearSubscription();
 		this.ctx.status = status;
 		this.ctx.body = body;
-		this.transition(status >= 200 && status < 300 ? Done : Failed);
+		this.hsm.transition(status >= 200 && status < 300 ? Done : Failed);
 	}
 
 	onFailure(message: string): void {
 		this.clearSubscription();
 		this.ctx.error = message;
-		this.transition(Failed);
+		this.hsm.transition(Failed);
 	}
 
 	cancel(): void {
 		this.clearSubscription();
-		this.transition(Idle);
+		this.hsm.transition(Idle);
 	}
 
 	private clearSubscription(): void {

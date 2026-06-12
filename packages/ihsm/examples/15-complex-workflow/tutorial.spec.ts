@@ -6,30 +6,30 @@ import { Approved, Completing, Draft, Rejected, createCheckout } from './machine
 describe('Tutorial 15: complex workflow', () => {
 	it('approves an order within limit and completes', async () => {
 		const order = createCheckout('ORD-100', 500, 1000);
-		await order.sync();
-		expect(order.currentState).equals(Draft);
+		await order.hsm.sync();
+		expect(order.hsm.currentState).equals(Draft);
 
-		order.post('submit');
-		await order.sync();
-		expect(order.currentState).equals(Approved);
+		order.submit();
+		await order.hsm.sync();
+		expect(order.hsm.currentState).equals(Approved);
 		expect(order.ctx.validationNotes).includes('fraud-check-ok');
 
-		order.post('approve');
-		await order.sync();
-		expect(order.currentState).equals(Completing);
+		order.approve();
+		await order.hsm.sync();
+		expect(order.hsm.currentState).equals(Completing);
 		expect(order.ctx.phase).equals('completed');
 
-		const phase = await order.call('getStatus');
+		const phase = await order.getStatus();
 		expect(phase).equals('completed');
 	});
 
 	it('rejects an order over the limit', async () => {
 		const order = createCheckout('ORD-200', 5000, 1000);
-		await order.sync();
+		await order.hsm.sync();
 
-		order.post('submit');
-		await order.sync();
-		expect(order.currentState).equals(Rejected);
+		order.submit();
+		await order.hsm.sync();
+		expect(order.hsm.currentState).equals(Rejected);
 		expect(order.ctx.phase).equals('rejected');
 		expect(order.ctx.validationNotes).includes('over-limit');
 	});

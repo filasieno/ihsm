@@ -7,9 +7,9 @@ export const interactive = singleSenderTutorial({
 	machineExports: machine,
 	initialCtx: { events: [] },
 	messages: [
-		{ id: 'start', label: 'start', kind: 'post' },
-		{ id: 'tick', label: 'tick', kind: 'post' },
-		{ id: 'done', label: 'done', kind: 'post' },
+		{ id: 'start', label: 'start', kind: 'notification' },
+		{ id: 'tick', label: 'tick', kind: 'notification' },
+		{ id: 'done', label: 'done', kind: 'notification' },
 	],
-	stateSummary: sm => `State: ${sm.currentStateName} · events: [${sm.ctx.events.join(', ')}]`,
+	stateSummary: sm => `State: ${sm.hsm.currentStateName} · events: [${sm.ctx.events.join(', ')}]`,
 });

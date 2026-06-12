@@ -7,7 +7,7 @@
 	"contributors": [
 		"Roberto Boati"
 	],
-	"description": "Class-based hierarchical state machines and run-to-completion actors for TypeScript, designed for Deterministic Simulation Testing (DST) — typed post/call, zero dependencies",
+	"description": "Class-based hierarchical state machines and run-to-completion actors for TypeScript, designed for Deterministic Simulation Testing (DST) — Config, generated handles, promise services, zero dependencies",
 	"files": [
 		"lib"
 	],
@@ -142,5 +142,5 @@
 		"pretypecheck": "npm run prepare:ide"
 	},
 	"types": "./lib/cjs/index.d.ts",
-	"version": "0.0.22"
+	"version": "0.1.0"
 }

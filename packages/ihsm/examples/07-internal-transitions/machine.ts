@@ -13,19 +13,32 @@ export interface LampCtx {
 	entryCount: number;
 }
 
-export interface LampProtocol {
-	dim(delta: number): void;
-	brighten(delta: number): void;
+export interface LampConfig extends ihsm.Config {
+	context: LampCtx;
+	notifications: {
+		dim(delta: number): void;
+		brighten(delta: number): void;
+	};
 }
 
-export class LampTop extends PlaygroundTopState<LampCtx, LampProtocol> {
+const lampManifest = ihsm.manifestFor<LampConfig>({
+	services: [],
+	notifications: ['dim', 'brighten'],
+	internalServices: [],
+	internalNotifications: [],
+});
+
+export class LampTop extends PlaygroundTopState<LampConfig> {
+	static readonly manifest = lampManifest;
+	declare readonly __ihsm: LampConfig;
+
 	onEntry(): void {
 		this.ctx.entryCount += 1;
 	}
 
 	dim(delta: number): void {
 		this.ctx.brightness = Math.max(0, this.ctx.brightness - delta);
-		// Internal transition: no this.transition() → stay in On, no onEntry.
+		// Internal transition: no hsm.transition() → stay in On, no onEntry.
 	}
 
 	brighten(delta: number): void {
@@ -39,5 +52,5 @@ export class On extends LampTop {}
 ihsm.registerStateNames(self);
 
 export function createLamp(brightness: number) {
-	return ihsm.makeHsm(LampTop, { brightness, entryCount: 0 });
+	return ihsm.makeOwnerActor(LampTop, { brightness, entryCount: 0 }, new ihsm.Port());
 }

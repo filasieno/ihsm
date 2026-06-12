@@ -10,14 +10,27 @@ export interface PaymentCtx {
 	paid: boolean;
 }
 
-export interface PaymentProtocol {
-	markPaid(): void;
+export interface PaymentConfig extends ihsm.Config {
+	context: PaymentCtx;
+	notifications: {
+		markPaid(): void;
+	};
 }
 
-export class PaymentTop extends PlaygroundTopState<PaymentCtx, PaymentProtocol> {
+const paymentManifest = ihsm.manifestFor<PaymentConfig>({
+	services: [],
+	notifications: ['markPaid'],
+	internalServices: [],
+	internalNotifications: [],
+});
+
+export class PaymentTop extends PlaygroundTopState<PaymentConfig> {
+	static readonly manifest = paymentManifest;
+	declare readonly __ihsm: PaymentConfig;
+
 	markPaid(): void {
 		this.ctx.paid = true;
-		this.transition(PaymentDone);
+		this.hsm.transition(PaymentDone);
 	}
 }
 
@@ -31,14 +44,27 @@ export interface ShippingCtx {
 	shipped: boolean;
 }
 
-export interface ShippingProtocol {
-	markShipped(): void;
+export interface ShippingConfig extends ihsm.Config {
+	context: ShippingCtx;
+	notifications: {
+		markShipped(): void;
+	};
 }
 
-export class ShippingTop extends PlaygroundTopState<ShippingCtx, ShippingProtocol> {
+const shippingManifest = ihsm.manifestFor<ShippingConfig>({
+	services: [],
+	notifications: ['markShipped'],
+	internalServices: [],
+	internalNotifications: [],
+});
+
+export class ShippingTop extends PlaygroundTopState<ShippingConfig> {
+	static readonly manifest = shippingManifest;
+	declare readonly __ihsm: ShippingConfig;
+
 	markShipped(): void {
 		this.ctx.shipped = true;
-		this.transition(ShippingDone);
+		this.hsm.transition(ShippingDone);
 	}
 }
 
@@ -47,27 +73,27 @@ export class ShippingWaiting extends ShippingTop {}
 
 export class ShippingDone extends ShippingTop {}
 
-/** Coordinator — not an Hsm; owns two actors and sequences post/sync between them. */
+/** Coordinator — not an Hsm; owns two actors and sequences notifications/sync between them. */
 export class OrderCoordinator {
-	readonly payment: ihsm.Hsm<PaymentCtx, PaymentProtocol>;
-	readonly shipping: ihsm.Hsm<ShippingCtx, ShippingProtocol>;
+	readonly payment: ihsm.OwnerActor<PaymentConfig>;
+	readonly shipping: ihsm.OwnerActor<ShippingConfig>;
 
 	constructor() {
-		this.payment = ihsm.makeHsm(PaymentTop, { paid: false });
-		this.shipping = ihsm.makeHsm(ShippingTop, { shipped: false });
+		this.payment = ihsm.makeOwnerActor(PaymentTop as ihsm.TopStateArg<PaymentConfig>, { paid: false }, new ihsm.Port()) as ihsm.OwnerActor<PaymentConfig>;
+		this.shipping = ihsm.makeOwnerActor(ShippingTop as ihsm.TopStateArg<ShippingConfig>, { shipped: false }, new ihsm.Port()) as ihsm.OwnerActor<ShippingConfig>;
 	}
 
 	async sync(): Promise<void> {
-		await this.payment.sync();
-		await this.shipping.sync();
+		await this.payment.hsm.sync();
+		await this.shipping.hsm.sync();
 	}
 
 	async fulfill(): Promise<void> {
-		this.payment.post('markPaid');
-		await this.payment.sync();
+		this.payment.markPaid();
+		await this.payment.hsm.sync();
 
-		this.shipping.post('markShipped');
-		await this.shipping.sync();
+		this.shipping.markShipped();
+		await this.shipping.hsm.sync();
 	}
 }
 
