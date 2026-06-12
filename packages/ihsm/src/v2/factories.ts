@@ -10,7 +10,9 @@ import {
 	TraceWriter,
 } from '../';
 
+import { isRequestingPort } from './port-utils';
 import { buildProtocolIndex, ProtocolBucketManifest } from './protocol-index';
+import type { HandleWidth } from './types';
 import { V2Machine } from './machine';
 import { RuntimeTransitionResolver, TransitionResolver } from './transition-resolver';
 import type { Actor, Config, ConfigContext, ConfigPort, DisjointConfig, InternalActor, OwnerActor, TopStateArg } from './types';
@@ -21,6 +23,13 @@ export interface ActorOptions<C extends Config> {
 	traceWriter?: TraceWriter;
 	dispatchErrorCallback?: DispatchErrorCallback<ConfigContext<C>>;
 	transitions?: TransitionResolver<ConfigContext<C>, Record<string, unknown>>;
+}
+
+function portActorWidth<C extends Config>(machineWidth: 'actor' | 'internal' | 'owner', port: PortHandle<C>): HandleWidth {
+	if (isRequestingPort(port)) {
+		return 'owner';
+	}
+	return machineWidth === 'actor' ? 'internal' : machineWidth;
 }
 
 function manifestOf<C extends Config>(topState: TopStateArg<C>): ProtocolBucketManifest<C> {
@@ -62,7 +71,7 @@ function instantiate<C extends Config>(
 		transitions ?? new RuntimeTransitionResolver(),
 	);
 	const boundPort = (port ?? new Port()) as PortHandle<C>;
-	boundPort.actor = machine.createActorHandleFor(width === 'actor' ? 'internal' : width) as InternalActor<C>;
+	boundPort.actor = machine.createActorHandleFor(portActorWidth(width, boundPort)) as InternalActor<C>;
 	instance.portRef = boundPort;
 	return machine;
 }

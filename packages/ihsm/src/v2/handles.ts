@@ -1,4 +1,5 @@
 import type { ProtocolIndex } from './protocol-index';
+import { serviceCallWithTimeout, splitServiceArgs } from './service-options';
 import type { Config, HandleWidth } from './types';
 
 export const kMachine = Symbol('ihsm.machine');
@@ -34,7 +35,12 @@ export function buildHandleProto(index: ProtocolIndex, width: HandleWidth): obje
 	for (const [name, slot] of index.entries(width)) {
 		if (slot.bucket === 'services' || slot.bucket === 'internalServices') {
 			proto[name] = function (this: HandleOwn, ...args: unknown[]): Promise<unknown> {
-				return this[kMachine].dispatchService(name, args);
+				const { callArgs, timeoutMs } = splitServiceArgs(args);
+				const promise = this[kMachine].dispatchService(name, callArgs);
+				if (timeoutMs === undefined) {
+					return promise;
+				}
+				return serviceCallWithTimeout(promise, name, timeoutMs);
 			};
 		} else {
 			proto[name] = function (this: HandleOwn, ...args: unknown[]): void {

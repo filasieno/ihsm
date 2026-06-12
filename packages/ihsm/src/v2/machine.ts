@@ -1,6 +1,7 @@
 import { DispatchErrorCallback, StateClass, TraceLevel, TraceWriter } from '../';
 import { HsmObject } from '../internal/hsm';
 
+import { assertNoSelfServiceDeadlock } from './dispatch-guard';
 import { createV2InitTask, createV2NotificationTask, createV2ServiceTask } from './dispatch';
 import { createActorHandle, createSelfNotifications, DispatchableMachine, HandleOwn, NotificationQueue } from './handles';
 import type { ProtocolIndex } from './protocol-index';
@@ -52,6 +53,7 @@ export class V2Machine<C extends Config> extends HsmObject<ConfigContext<C>, V2P
 	}
 
 	dispatchService(name: string, args: unknown[]): Promise<unknown> {
+		assertNoSelfServiceDeadlock(this, this.traceLevel);
 		this.recordObserverEvent(name, args);
 		return new Promise<unknown>((resolve, reject) => {
 			this.pushTask(createV2ServiceTask(this, this.transitionResolver, name, args, resolve, reject));

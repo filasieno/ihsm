@@ -1,5 +1,8 @@
 import type { Any, TraceLevel, TraceWriter } from '../';
 import type { ProtocolBucketManifest } from './protocol-index';
+import type { ServiceCallOptions } from './service-options';
+
+export type { ServiceCallOptions } from './service-options';
 
 /** State class constructor reference used by machinery facades. */
 export type StateClassRef<Context = Any, Protocol extends object = Record<string, unknown>> = Function & {
@@ -32,7 +35,9 @@ export type ConfigInternalNotifications<C extends Config> = C extends { internal
 export type ConfigPort<C extends Config> = C extends { port: infer P } ? P : undefined;
 
 export type ServiceClient<S extends object> = {
-	[K in keyof S]: S[K] extends (...args: infer A) => Promise<infer R> ? (...args: A) => Promise<R> : never;
+	[K in keyof S]: S[K] extends (...args: infer A) => Promise<infer R>
+		? (...args: [...A, ServiceCallOptions?]) => Promise<R>
+		: never;
 };
 
 export type NotificationClient<N extends object> = {

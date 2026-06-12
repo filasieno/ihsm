@@ -4,6 +4,7 @@ import 'mocha';
 import {
 	BasePort,
 	CallTimeoutError,
+	FatalError,
 	FatalErrorState,
 	InitialState,
 	Port,
@@ -11,6 +12,7 @@ import {
 	TopState,
 	TraceLevel,
 	TransitionError,
+	UnhandledEventError,
 	TransitionTableError,
 	buildProtocolIndex,
 	defaultDispatchErrorCallback,
@@ -25,9 +27,12 @@ import type { Config } from '../';
 import { HsmObject } from '../internal/hsm';
 import { kMachine } from '../v2/handles';
 import type { HandleOwn } from '../v2/handles';
+import { __testOnlyDisableDispatchStorage, __testOnlyResetDispatchStorage } from '../v2/dispatch-guard';
 import { cacheProtocolIndex, protocolIndexFor } from '../v2/machine';
+import { isRequestingPort } from '../v2/port-utils';
+import { isServiceCallOptions, serviceCallWithTimeout, splitServiceArgs } from '../v2/service-options';
 import { mock, makeTestPort, TestPort } from '../testing';
-import { createTestDispatchErrorCallback, registerSpecStateNames } from './spec.utils';
+import { clearLastError, createTestDispatchErrorCallback, getLastError, registerSpecStateNames } from './spec.utils';
 
 interface V2CoverageConfig extends Config {
 	context: { n: number };
@@ -290,6 +295,125 @@ describe('v2-coverage', function (): void {
 		}
 		await actor.hsm.sync();
 		expect(actor.hsm.currentState).equals(FatalErrorState);
+	});
+
+	it('covers service-options helpers and timeout rejection paths', async () => {
+		expect(isServiceCallOptions(null)).equals(false);
+		expect(isServiceCallOptions({ timeoutMs: 'bad' })).equals(false);
+		expect(isServiceCallOptions({ timeoutMs: undefined })).equals(true);
+		expect(splitServiceArgs(['a', { timeoutMs: undefined }])).deep.equals({ callArgs: ['a', { timeoutMs: undefined }], timeoutMs: undefined });
+		expect(splitServiceArgs(['a', { timeoutMs: 1 }])).deep.equals({ callArgs: ['a'], timeoutMs: 1 });
+		try {
+			await serviceCallWithTimeout(Promise.reject(new Error('nope')), 'x', 100);
+			expect.fail('expected rejection');
+		} catch (err) {
+			expect((err as Error).message).equals('nope');
+		}
+	});
+
+	it('covers port-utils and disabled dispatch storage', () => {
+		expect(isRequestingPort(null)).equals(false);
+		expect(isRequestingPort(Object.create(null))).equals(false);
+		__testOnlyDisableDispatchStorage();
+		expect(isRequestingPort(new Port())).equals(false);
+		__testOnlyResetDispatchStorage();
+	});
+
+	it('async onUnhandled and onUnhandled recovery errors', async () => {
+		const manifest = manifestFor<{ services: { go(): Promise<void> } }>({
+			services: ['go'],
+			notifications: [],
+			internalServices: [],
+			internalNotifications: [],
+		});
+		class AsyncUnhandledTop extends TopState {
+			static readonly manifest = manifest;
+			async go(): Promise<void> {
+				this.hsm.unhandled();
+			}
+			async onUnhandled(): Promise<void> {
+				await this.hsm.sleep(1);
+			}
+		}
+		@InitialState
+		class AsyncUnhandledLeaf extends AsyncUnhandledTop {}
+		const actor = makeOwnerActor(AsyncUnhandledTop as never, {}, new Port(), { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+		await actor.hsm.sync();
+		await actor.go();
+		expect(actor.hsm.currentState).equals(AsyncUnhandledLeaf);
+
+		class TransitionUnhandledTop extends TopState {
+			static readonly manifest = manifest;
+			go(): void {
+				this.hsm.unhandled();
+			}
+			onUnhandled(): void {
+				throw new TransitionError(this.hsm as never, new Error('boom'), 'T', 'onUnhandled', 'T', 'T');
+			}
+		}
+		@InitialState
+		class TransitionUnhandledLeaf extends TransitionUnhandledTop {}
+		const actor2 = makeOwnerActor(TransitionUnhandledTop as never, {}, new Port(), { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+		await actor2.hsm.sync();
+		try {
+			await actor2.go();
+		} catch (err) {
+			expect(err).instanceOf(TransitionError);
+		}
+		expect(actor2.hsm.currentState).equals(FatalErrorState);
+
+		class ErrorUnhandledTop extends TopState {
+			static readonly manifest = manifest;
+			go(): void {
+				throw new UnhandledEventError(this.hsm as never);
+			}
+			onUnhandled(): void {
+				throw new Error('onUnhandled failed');
+			}
+			onError(): void {
+				throw new Error('onError failed');
+			}
+		}
+		@InitialState
+		class ErrorUnhandledLeaf extends ErrorUnhandledTop {}
+		const actor3 = makeOwnerActor(ErrorUnhandledTop as never, {}, new Port(), { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+		await actor3.hsm.sync();
+		try {
+			await actor3.go();
+		} catch (err) {
+			expect(err).instanceOf(FatalError);
+		}
+		expect(actor3.hsm.currentState).equals(FatalErrorState);
+	});
+
+	it('init task reports executePendingTransition failures via dispatchErrorCallback', async () => {
+		const manifest = manifestFor<{ notifications: Record<string, never> }>({
+			services: [],
+			notifications: [],
+			internalServices: [],
+			internalNotifications: [],
+		});
+		class BrokenInitTop extends TopState {
+			static readonly manifest = manifest;
+		}
+		class BrokenTarget extends BrokenInitTop {
+			onEntry(): void {
+				throw new Error('broken target');
+			}
+		}
+		@InitialState
+		class BrokenInitLeaf extends BrokenInitTop {
+			onEntry(): void {
+				this.hsm.transition(BrokenTarget);
+			}
+		}
+		clearLastError();
+		const actor = makeOwnerActor(BrokenInitTop as never, {}, new Port(), {
+			traceLevel: TraceLevel.DEBUG,
+			dispatchErrorCallback: createTestDispatchErrorCallback(true),
+		});
+		await actor.hsm.sync();
+		expect(getLastError()).to.exist;
 	});
 
 	it('HsmObject works without a bound port', async function (): void {

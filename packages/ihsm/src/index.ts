@@ -1,4 +1,5 @@
 import { hasInitialState, quoteError, defineStateName as defineStateNameInternal, getStateName } from './internal/utils';
+import { markRequestingPort } from './v2/port-utils';
 import { registerStateInGraph } from './v2/state-graph';
 
 /**
@@ -819,6 +820,27 @@ export abstract class BasePort<T> implements PortHandle<import('./v2/types').Con
 }
 
 /**
+ * Opt-in port base that widens {@link PortHandle.actor} with `internalServices`.
+ *
+ * Use only from async I/O callbacks — never synchronously inside an outbound port method
+ * that a handler is awaiting (see deadlock rule in the reference docs).
+ *
+ * @typeParam T - The machine's root {@link TopState} subclass
+ *
+ * @category Port
+ */
+export abstract class RequestingPort<T> extends BasePort<T> {
+	/**
+	 * @inheritdoc PortHandle.actor
+	 *
+	 * Bound to an {@link OwnerActor} handle (includes `internalServices`).
+	 */
+	declare actor: import('./v2/types').OwnerActor<import('./v2/types').ConfigOf<T>> | undefined;
+}
+
+markRequestingPort(RequestingPort);
+
+/**
  * Production port base with standard JavaScript timer and random services.
  *
  * Extend this class for domain ports in production code. It inherits the lazily-bound
@@ -1463,6 +1485,7 @@ export type {
 	ServiceClient,
 	ServiceHandler,
 	ServiceReply,
+	ServiceCallOptions,
 	TestActorHsm,
 	TestOwnerActorHsm,
 	TopStateArg,

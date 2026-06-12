@@ -10,6 +10,8 @@ import { DoneCallback, HsmWithTracing, Task } from '../internal/defs.private';
 import { lookupEventHandler } from '../internal/lookup';
 import { asError } from '../internal/utils';
 
+import { runInsideDispatch } from './dispatch-guard';
+import type { DispatchableMachine } from './handles';
 import { executePendingTransition, TransitionResolver } from './transition-resolver';
 
 export type DispatchKind = 'notification' | 'service';
@@ -143,14 +145,20 @@ export function createV2ServiceTask<Context, Protocol extends object>(
 	resolve: (value: unknown) => void,
 	reject: (error: Error) => void,
 ): Task {
+	const machine = host as unknown as DispatchableMachine;
 	return (done: DoneCallback): void => {
-		invokeHandler(host, resolver, name, args)
-			.then(resolve)
-			.catch((err: unknown) => {
-				reject(asError(err));
-			})
-			.catch((err: unknown) => host.dispatchErrorCallback(host, asError(err)))
-			.finally(() => done());
+		const settled = runInsideDispatch(machine, host.traceLevel, () =>
+			invokeHandler(host, resolver, name, args)
+				.then(resolve)
+				.catch((err: unknown) => {
+					reject(asError(err));
+				})
+				.catch((err: unknown) => host.dispatchErrorCallback(host, asError(err)))
+				.finally(() => done()),
+		);
+		if (settled instanceof Promise) {
+			void settled;
+		}
 	};
 }
 
