@@ -1,11 +1,64 @@
 /** @internal Consolidated ihsm runtime (no pure types — see ./types.ts). */
 /// <reference types="node" />
-import type { ActorConfig, ActorContextOf, ActorConfigOf, ActorPortOf, ActorHsm, ActorOptions, Any, ChildActor, ChildHsm, DispatchableMachine, DoneCallback, EmbodimentKind, ErrorHost, ExternalActor, ExternalHsm, HandlerHsm, HsmWithTracing, InboundActor, InboundHsm, Instance, NotificationQueue, ParentActor, PlannedTransition, IPort, MachinePortInput, Properties, ProtocolBucket, ProtocolIndex, ProtocolSlot, RandomService, ReservedName, SelfNotifications, ServiceCallOptions, StateClass, StateEvents, Task, TopStateArg, TraceWriter, DispatchErrorCallback, Transition, TransitionResolver, TransitionRoutineExecuteOptions, TransitionRoutinePlan, TransitionRoutineStyle, TransitionTracer, Disposable, EventObserver, TransitionTraceHost, } from './types';
+import type {
+	ActorConfig,
+	ActorContextOf,
+	ActorConfigOf,
+	ActorPortOf,
+	ActorHsm,
+	ActorOptions,
+	Any,
+	ChildActor,
+	ChildHsm,
+	DispatchableMachine,
+	DoneCallback,
+	EmbodimentKind,
+	ErrorHost,
+	ExternalActor,
+	ExternalHsm,
+	HandlerHsm,
+	HsmWithTracing,
+	InboundActor,
+	InboundHsm,
+	Instance,
+	NotificationQueue,
+	ParentActor,
+	PlannedTransition,
+	IPort,
+	MachinePortInput,
+	Properties,
+	ProtocolBucket,
+	ProtocolIndex,
+	ProtocolSlot,
+	RandomService,
+	ReservedName,
+	SelfNotifications,
+	ServiceCallOptions,
+	StateClass,
+	StateEvents,
+	Task,
+	TopStateArg,
+	TraceWriter,
+	DispatchErrorCallback,
+	Transition,
+	TransitionResolver,
+	TransitionRoutineExecuteOptions,
+	TransitionRoutinePlan,
+	TransitionRoutineStyle,
+	TransitionTracer,
+	Disposable,
+	EventObserver,
+	TransitionTraceHost,
+} from './types';
 import { kHandlerMachine, kParentLink } from './types';
 
 //#region TraceLevel
 
-export enum TraceLevel { PRODUCTION, DEBUG, VERBOSE_DEBUG }
+export enum TraceLevel {
+	PRODUCTION,
+	DEBUG,
+	VERBOSE_DEBUG,
+}
 
 //#endregion
 
@@ -160,6 +213,8 @@ export abstract class RequestingPort<T> extends Port<T> {
 export abstract class TopState<C extends ActorConfig = ActorConfig> implements StateEvents<C> {
 	readonly ctx!: ActorContextOf<C>;
 	readonly hsm!: HandlerHsm<C>;
+	readonly notify!: SelfNotifications<C>;
+	readonly notifyNow!: SelfNotifications<C>;
 
 	constructor() {
 		throw new Error('Fatal error: States cannot be instantiated');
@@ -308,8 +363,6 @@ export function registerStateNames(exports: Record<string, unknown>): void {
 
 //#region protocol-index
 
-
-
 //#region Protocol collision errors
 
 /** Thrown at construction when `Config`, state handlers, and the protocol index disagree. */
@@ -321,7 +374,7 @@ export class ProtocolCollisionError extends Error {
 	}
 
 	static reservedOnState(stateClass: string, symbol: ReservedName): ProtocolCollisionError {
-		return new ProtocolCollisionError(`ihsm: state class "${stateClass}" defines reserved symbol "${symbol}" — rename the protocol method; reserved symbols are: ctx, hsm, onEntry, onExit, onError, onUnhandled`, stateClass, symbol);
+		return new ProtocolCollisionError(`ihsm: state class "${stateClass}" defines reserved symbol "${symbol}" — rename the protocol method; reserved symbols are: ${ReservedNames.join(', ')}`, stateClass, symbol);
 	}
 }
 
@@ -396,7 +449,6 @@ export class StateGraph {
 	}
 }
 
-
 //#endregion
 
 //#region Protocol index cache
@@ -416,8 +468,8 @@ export function protocolIndexFor(topState: object): ProtocolIndex | undefined {
 
 //#region Protocol index
 
-const reservedSet = new Set<string>(['ctx', 'hsm', 'onEntry', 'onExit', 'onError', 'onUnhandled']);
-export const ReservedNames = ['ctx', 'hsm', 'onEntry', 'onExit', 'onError', 'onUnhandled'] as const satisfies readonly ReservedName[];
+const reservedSet = new Set<string>(['ctx', 'hsm', 'notify', 'notifyNow', 'onEntry', 'onExit', 'onError', 'onUnhandled']);
+export const ReservedNames = ['ctx', 'hsm', 'notify', 'notifyNow', 'onEntry', 'onExit', 'onError', 'onUnhandled'] as const satisfies readonly ReservedName[];
 const lifecycleHooks = new Set<string>(['onEntry', 'onExit', 'onError', 'onUnhandled']);
 
 class ProtocolIndexImpl implements ProtocolIndex {
@@ -496,7 +548,6 @@ export interface HandleOwn extends Record<symbol | string, unknown> {
 	hsm: unknown;
 	parent?: ParentActor;
 }
-
 
 export function isServiceCallOptions(value: unknown): value is ServiceCallOptions {
 	if (value === null || typeof value !== 'object') {
@@ -579,6 +630,54 @@ export function getHandleProto(topState: object, index: ProtocolIndex, kind: Emb
 	return proto;
 }
 
+type FacetKind = 'notify' | 'notifyNow' | 'call';
+
+const facetProtoCache = new WeakMap<object, Map<string, object>>();
+
+/**
+ * Build (and cache) the frozen prototype for one facet of one embodiment.
+ * Delivery mode is fixed by the facet — `call` dispatches services, `notify`
+ * the default queue, `notifyNow` the priority queue — so the runtime no longer
+ * needs to infer it per handler at the call site.
+ */
+function getFacetProto(topState: object, index: ProtocolIndex, kind: EmbodimentKind, facet: FacetKind): object {
+	let map = facetProtoCache.get(topState);
+	if (map === undefined) {
+		map = new Map();
+		facetProtoCache.set(topState, map);
+	}
+	const cacheKey = `${kind}:${facet}`;
+	let proto = map.get(cacheKey);
+	if (proto === undefined) {
+		const built: Record<string, Function> = Object.create(null);
+		for (const [name, slot] of index.entries(kind)) {
+			if (facet === 'call') {
+				if (slot.bucket === 'services' || slot.bucket === 'internalServices') {
+					built[name] = function (this: HandleOwn, ...args: unknown[]): Promise<unknown> {
+						const { callArgs, timeoutMs } = splitServiceArgs(args);
+						const promise = this[kMachine].dispatchService(name, callArgs);
+						return timeoutMs === undefined ? promise : serviceCallWithTimeout(promise, name, timeoutMs);
+					};
+				}
+			} else if (slot.bucket === 'notifications' || slot.bucket === 'internalNotifications') {
+				const queue: NotificationQueue = facet === 'notifyNow' ? 'priority' : 'default';
+				built[name] = function (this: HandleOwn, ...args: unknown[]): void {
+					this[kMachine].dispatchNotification(name, args, queue);
+				};
+			}
+		}
+		proto = Object.freeze(built);
+		map.set(cacheKey, proto);
+	}
+	return proto;
+}
+
+function createFacet(machine: DispatchableMachine, topState: object, index: ProtocolIndex, kind: EmbodimentKind, facet: FacetKind): object {
+	const facetHandle = Object.create(getFacetProto(topState, index, kind, facet));
+	Object.defineProperty(facetHandle, kMachine, { value: machine, enumerable: false });
+	return facetHandle;
+}
+
 export function createActorHandle(machine: DispatchableMachine, topState: object, index: ProtocolIndex, kind: EmbodimentKind): HandleOwn {
 	const handle = Object.create(getHandleProto(topState, index, kind)) as HandleOwn;
 	Object.defineProperty(handle, kMachine, { value: machine, enumerable: false });
@@ -590,6 +689,9 @@ export function createActorHandle(machine: DispatchableMachine, topState: object
 			},
 		});
 	}
+	Object.defineProperty(handle, 'notify', { value: createFacet(machine, topState, index, kind, 'notify'), enumerable: true });
+	Object.defineProperty(handle, 'notifyNow', { value: createFacet(machine, topState, index, kind, 'notifyNow'), enumerable: true });
+	Object.defineProperty(handle, 'call', { value: createFacet(machine, topState, index, kind, 'call'), enumerable: true });
 	handle.hsm = machine.actorHsmFor(kind);
 	return handle;
 }
@@ -634,7 +736,6 @@ export function createSelfNotifications(machine: DispatchableMachine, topState: 
 //#region dispatch-guard
 
 /// <reference types="node" />
-
 
 /** Thrown in debug builds when a service targets the machine currently dispatching. */
 export class SelfCallDeadlockError extends Error {
@@ -694,8 +795,6 @@ export const dispatchContext = (() => {
 //#region transition-routines
 
 type TransitionHost<C extends ActorConfig> = HsmWithTracing<C>;
-
-
 
 /** Thrown when a generated transition table's graph hash does not match the scanned hierarchy. */
 export class TransitionTableError extends Error {
@@ -811,12 +910,7 @@ export async function executeTransitionRoutine<C extends ActorConfig>(hsm: Trans
 	};
 
 	if (style === 'verbose') {
-		const finalState =
-			plan.entry.length !== 0
-				? plan.entry[plan.entry.length - 1]
-				: plan.exit.length !== 0
-					? (Object.getPrototypeOf(plan.exit[plan.exit.length - 1]) as StateClass<C>)
-					: srcState;
+		const finalState = plan.entry.length !== 0 ? plan.entry[plan.entry.length - 1] : plan.exit.length !== 0 ? (Object.getPrototypeOf(plan.exit[plan.exit.length - 1]) as StateClass<C>) : srcState;
 		tracer?.traceTransitionDone(getStateName(finalState));
 		applyState(finalState);
 		return;
@@ -996,12 +1090,7 @@ async function invokeHandler<C extends ActorConfig>(host: HsmWithTracing<C>, res
 }
 
 export function createInitTask<C extends ActorConfig>(host: HsmWithTracing<C>, resolver: TransitionResolver<C>): Task {
-	const runInit =
-		host.traceLevel === TraceLevel.PRODUCTION
-			? executeInitProduction
-			: host.traceLevel === TraceLevel.DEBUG
-				? executeInitDebug
-				: executeInitVerbose;
+	const runInit = host.traceLevel === TraceLevel.PRODUCTION ? executeInitProduction : host.traceLevel === TraceLevel.DEBUG ? executeInitDebug : executeInitVerbose;
 	return (done: DoneCallback): void => {
 		runInit(host)
 			.then(() => executePendingTransition(host, resolver))
@@ -1046,7 +1135,6 @@ export function createNotificationTask<C extends ActorConfig>(host: HsmWithTraci
 //#endregion
 
 //#region hsm
-
 
 function mapEventDispatchTaskFactory(traceLevel: TraceLevel): <DispatchC extends ActorConfig>(hsm: HsmWithTracing<DispatchC>, eventName: string, ...eventPayload: unknown[]) => Task {
 	switch (traceLevel) {
@@ -1257,8 +1345,6 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 
 //#region machine
 
-
-
 export class Machine<C extends ActorConfig> extends HsmObject<C> implements DispatchableMachine {
 	readonly transitionResolver: TransitionResolver<C>;
 	private readonly protocolIndex: ProtocolIndex;
@@ -1277,6 +1363,8 @@ export class Machine<C extends ActorConfig> extends HsmObject<C> implements Disp
 		this.selfImmediate = createSelfNotifications(this, topState, protocolIndex, 'priority') as SelfNotifications<C>;
 		this.handlerFacade = this.buildHandlerFacade(instance);
 		instance.hsm = this.handlerFacade;
+		Object.defineProperty(instance, 'notify', { value: this.selfActor, enumerable: true, configurable: true });
+		Object.defineProperty(instance, 'notifyNow', { value: this.selfImmediate, enumerable: true, configurable: true });
 		this.bindPort(instance.portRef);
 		if (initialize) {
 			this.pushTask(createInitTask(this, this.transitionResolver));
@@ -1512,8 +1600,6 @@ export class Machine<C extends ActorConfig> extends HsmObject<C> implements Disp
 
 //#region factories
 
-
-
 export function isRequestingPort(port: unknown): boolean {
 	if (port === null || typeof port !== 'object') {
 		return false;
@@ -1548,20 +1634,10 @@ export function defaultDispatchErrorCallback<C extends ActorConfig>(hsm: Propert
 	throw err;
 }
 
-type ActorHandleFor<C extends ActorConfig, K extends EmbodimentKind> = K extends 'root'
-	? ExternalActor<C>
-	: K extends 'inbound'
-		? InboundActor<C>
-		: ChildActor<C>;
+type ActorHandleFor<C extends ActorConfig, K extends EmbodimentKind> = K extends 'root' ? ExternalActor<C> : K extends 'inbound' ? InboundActor<C> : ChildActor<C>;
 
 /** @internal Spawn with embodiment kind — used by factories and `ihsm/testing`. */
-export function spawnActor<C extends ActorConfig, K extends EmbodimentKind>(
-	kind: K,
-	topState: TopStateArg<C>,
-	ctx: ActorContextOf<C>,
-	port: MachinePortInput<C> | undefined,
-	options: ActorOptions<C>
-): ActorHandleFor<C, K> {
+export function spawnActor<C extends ActorConfig, K extends EmbodimentKind>(kind: K, topState: TopStateArg<C>, ctx: ActorContextOf<C>, port: MachinePortInput<C> | undefined, options: ActorOptions<C>): ActorHandleFor<C, K> {
 	const { initialize = defaultInitialize, traceLevel = TraceLevel.DEBUG, traceWriter = defaultTraceWriter, dispatchErrorCallback = defaultDispatchErrorCallback as DispatchErrorCallback<C>, transitions } = options;
 
 	const protocolIndex = buildProtocolIndex(topState);
@@ -1583,19 +1659,12 @@ export function spawnActor<C extends ActorConfig, K extends EmbodimentKind>(
 }
 
 /** Production black-box — public protocol only (generated handle). */
-export function makeActor<T extends TopStateArg<ActorConfig>>(
-	topState: T,
-	ctx: ActorContextOf<ActorConfigOf<T>>,
-	port?: MachinePortInput<ActorConfigOf<T>>,
-	options: ActorOptions<ActorConfigOf<T>> = {}
-): ExternalActor<ActorConfigOf<T>> {
+export function makeActor<T extends TopStateArg<ActorConfig>>(topState: T, ctx: ActorContextOf<ActorConfigOf<T>>, port?: MachinePortInput<ActorConfigOf<T>>, options: ActorOptions<ActorConfigOf<T>> = {}): ExternalActor<ActorConfigOf<T>> {
 	type C = ActorConfigOf<T>;
 	return spawnActor('root', topState as TopStateArg<C>, ctx, port, options);
 }
 
-export function asParentActor<T extends TopStateArg<ActorConfig>>(
-	handler: TopState<ActorConfigOf<T>>
-): ParentActor<T> {
+export function asParentActor<T extends TopStateArg<ActorConfig>>(handler: TopState<ActorConfigOf<T>>): ParentActor<T> {
 	const machine = (handler as { [kHandlerMachine]?: Machine<ActorConfigOf<T>> })[kHandlerMachine];
 	if (machine === undefined) {
 		throw new Error('ihsm: asParentActor requires an active handler machine');
@@ -1607,16 +1676,7 @@ export function asParentActor<T extends TopStateArg<ActorConfig>>(
 }
 
 /** Parent composes a child machine — returns full child protocol shell with `parent` set. */
-export function makeChildActor<
-	ParentT extends TopStateArg<ActorConfig>,
-	ChildT extends TopStateArg<ActorConfig>,
->(
-	parent: ParentActor<ParentT>,
-	childTop: ChildT,
-	childCtx: ActorContextOf<ActorConfigOf<ChildT>>,
-	port?: MachinePortInput<ActorConfigOf<ChildT>>,
-	options: ActorOptions<ActorConfigOf<ChildT>> = {}
-): ChildActor<ActorConfigOf<ChildT>> & { readonly parent: ParentActor<ParentT> } {
+export function makeChildActor<ParentT extends TopStateArg<ActorConfig>, ChildT extends TopStateArg<ActorConfig>>(parent: ParentActor<ParentT>, childTop: ChildT, childCtx: ActorContextOf<ActorConfigOf<ChildT>>, port?: MachinePortInput<ActorConfigOf<ChildT>>, options: ActorOptions<ActorConfigOf<ChildT>> = {}): ChildActor<ActorConfigOf<ChildT>> & { readonly parent: ParentActor<ParentT> } {
 	type ChildC = ActorConfigOf<ChildT>;
 	const child = spawnActor('child', childTop as TopStateArg<ChildC>, childCtx, port, options);
 	Object.defineProperty(child, 'parent', { value: parent, enumerable: true, writable: false, configurable: true });
@@ -2010,8 +2070,6 @@ export function createEventDispatchTaskDebug<DispatchC extends ActorConfig>(hsm:
 }
 
 //#region verbose
-
-
 
 function verbose_finishEventDispatch<C extends ActorConfig>(hsm: HsmWithTracing<C>): void {
 	hsm._traceWrite(`end event dispatch`);

@@ -17,7 +17,6 @@ interface ServicesConfig {
 }
 
 export class HsmTop extends TopState<ServicesConfig> {
-
 	async getResult(value: string): Promise<string> {
 		if (value.startsWith('ok:')) {
 			return value;
@@ -46,7 +45,7 @@ describe(`services`, function (): void {
 
 	it(`service runs ok`, async () => {
 		const value = 'ok: hello';
-		const result = await sm.getResult(value);
+		const result = await sm.call.getResult(value);
 		expect(result).equals(value);
 		// The TestPort observes service calls just like plain events.
 		expect(port.trace).eqls([`getResult:${value}`]);
@@ -55,7 +54,7 @@ describe(`services`, function (): void {
 	it(`service fails`, async () => {
 		const value = 'fail: error';
 		try {
-			await sm.getResult(value);
+			await sm.call.getResult(value);
 		} catch (error) {
 			expect((error as Error).message).equals(value);
 		}

@@ -61,7 +61,7 @@ export type MachinePublic<T> = ActorServicesOf<ActorConfigOf<T>> & ActorNotifica
 export type MachineInternal<T> = ActorInternalServicesOf<ActorConfigOf<T>> & ActorInternalNotificationsOf<ActorConfigOf<T>>;
 export type MachinePort<T> = ActorPortOf<ActorConfigOf<T>>;
 
-export type ReservedName = 'ctx' | 'hsm' | 'onEntry' | 'onExit' | 'onError' | 'onUnhandled';
+export type ReservedName = 'ctx' | 'hsm' | 'notify' | 'notifyNow' | 'onEntry' | 'onExit' | 'onError' | 'onUnhandled';
 export type IsReservedName<K extends PropertyKey> = K extends ReservedName ? true : false;
 export type FilterReservedKeys<O extends object> = {
 	[K in keyof O as IsReservedName<K> extends true ? never : K]: O[K];
@@ -183,6 +183,15 @@ export type NotificationClient<N extends object> = {
 	[K in keyof N]: N[K] extends (...args: infer A) => void | Promise<void> ? (...args: A) => void : never;
 };
 
+/**
+ * Faceted call surface — `actor.call.<service>(...)` returns `Promise<Reply>`.
+ * Delivery mode is chosen by the facet at the call site, not inferred.
+ */
+export type CallFacet<S extends object> = ServiceClient<S>;
+
+/** Faceted notification surface — `actor.notify.<event>(...)` / `actor.notifyNow.<event>(...)`. */
+export type NotifyFacet<N extends object> = NotificationClient<N>;
+
 /** @deprecated Handler-only; root shells use {@link ExternalActor}. */
 export type ActorCore<C extends ActorConfig = ActorConfig> = {
 	ctx: ActorContextOf<C>;
@@ -192,8 +201,12 @@ export type ActorCore<C extends ActorConfig = ActorConfig> = {
 export type ExternalHsm<C extends ActorConfig = ActorConfig> = ActorHsm<C>;
 
 export type ExternalActor<C extends ActorConfig = ActorConfig> = ActorParentField &
+	/** @deprecated flat protocol methods — use `actor.call.x()` / `actor.notify.x()`. */
 	ServiceClient<ActorServicesOf<C>> &
 	NotificationClient<ActorNotificationsOf<C>> & {
+		readonly notify: NotifyFacet<ActorNotificationsOf<C>>;
+		readonly notifyNow: NotifyFacet<ActorNotificationsOf<C>>;
+		readonly call: CallFacet<ActorServicesOf<C>>;
 		readonly hsm: ExternalHsm<C>;
 	};
 
@@ -206,6 +219,9 @@ export type InboundActor<C extends ActorConfig = ActorConfig> = ActorParentField
 	ServiceClient<ActorServicesOf<C>> &
 	NotificationClient<ActorNotificationsOf<C>> &
 	NotificationClient<ActorInternalNotificationsOf<C>> & {
+		readonly notify: NotifyFacet<ActorNotificationsOf<C> & ActorInternalNotificationsOf<C>>;
+		readonly notifyNow: NotifyFacet<ActorNotificationsOf<C> & ActorInternalNotificationsOf<C>>;
+		readonly call: CallFacet<ActorServicesOf<C>>;
 		readonly hsm: InboundHsm<C>;
 	};
 
@@ -219,6 +235,7 @@ export type ChildHsm<C extends ActorConfig = ActorConfig> = OwnerActorHsm<C>;
 
 export type ChildActor<C extends ActorConfig = ActorConfig> = InboundActor<C> &
 	ServiceClient<ActorInternalServicesOf<C>> & {
+		readonly call: CallFacet<ActorServicesOf<C> & ActorInternalServicesOf<C>>;
 		readonly hsm: ChildHsm<C>;
 	};
 
@@ -263,6 +280,10 @@ export type HandlerHsm<C extends ActorConfig = ActorConfig> = {
 
 export interface TopState<C extends ActorConfig = ActorConfig> {
 	readonly hsm: HandlerHsm<C>;
+	/** Self-directed default-queue notifications — `this.notify.x()`. */
+	readonly notify: SelfNotifications<C>;
+	/** Self-directed priority-queue notifications — `this.notifyNow.x()`. */
+	readonly notifyNow: SelfNotifications<C>;
 }
 
 export type ActorHsm<C extends ActorConfig = ActorConfig> = {

@@ -27,8 +27,7 @@ interface PromiseConfig {
 	};
 }
 
-export class PromiseTop extends TopState<PromiseConfig> {
-}
+export class PromiseTop extends TopState<PromiseConfig> {}
 
 export class Done extends PromiseTop {}
 
@@ -90,20 +89,20 @@ describe('services-promise', function (): void {
 	it('resolves with handler return value', async () => {
 		const actor = makeTestActor(PromiseTop, freshCtx(), new Port());
 		await actor.hsm.sync();
-		const result = await actor.getValue('hello');
+		const result = await actor.call.getValue('hello');
 		expect(result).equals('ok:hello');
 	});
 
 	it('resolves Promise<void> service', async () => {
 		const actor = makeTestActor(PromiseTop, freshCtx(), new Port());
 		await actor.hsm.sync();
-		await actor.getVoid();
+		await actor.call.getVoid();
 	});
 
 	it('resolves sync handler on async-typed service', async () => {
 		const actor = makeTestActor(PromiseTop, freshCtx(), new Port());
 		await actor.hsm.sync();
-		const result = await actor.getSync();
+		const result = await actor.call.getSync();
 		expect(result).equals(7);
 	});
 
@@ -111,7 +110,7 @@ describe('services-promise', function (): void {
 		const actor = makeTestActor(PromiseTop, freshCtx(), new Port());
 		await actor.hsm.sync();
 		try {
-			await actor.fail();
+			await actor.call.fail();
 			expect.fail('expected rejection');
 		} catch (err) {
 			expect((err as Error).message).equals('service failed');
@@ -122,7 +121,7 @@ describe('services-promise', function (): void {
 		const actor = makeTestActor(RecoveryTop, freshCtx(), new Port());
 		await actor.hsm.sync();
 		try {
-			await actor.fail();
+			await actor.call.fail();
 			expect.fail('expected rejection');
 		} catch (err) {
 			expect((err as Error).message).equals('recoverable');
@@ -132,7 +131,7 @@ describe('services-promise', function (): void {
 	it('transition completes before client promise resolves', async () => {
 		const actor = makeTestActor(PromiseTop, freshCtx(), new Port());
 		await actor.hsm.sync();
-		const result = await actor.transitionThenReply();
+		const result = await actor.call.transitionThenReply();
 		expect(result).equals('moved');
 		await actor.hsm.sync();
 		expect(actor.hsm.currentStateName).equals('Done');
@@ -142,8 +141,8 @@ describe('services-promise', function (): void {
 		const ctx = freshCtx();
 		const actor = makeTestActor(PromiseTop, ctx, new Port());
 		await actor.hsm.sync();
-		const servicePromise = actor.blocking();
-		actor.after();
+		const servicePromise = actor.call.blocking();
+		actor.notify.after();
 		await servicePromise;
 		await actor.hsm.sync();
 		expect(ctx.order).eqls(['blocking-start', 'blocking-end', 'after']);

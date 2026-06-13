@@ -27,8 +27,7 @@ interface HandlerDispatchConfig {
 	};
 }
 
-export class HandlerTop extends TopState<HandlerDispatchConfig> {
-}
+export class HandlerTop extends TopState<HandlerDispatchConfig> {}
 
 @InitialState
 export class Idle extends HandlerTop {
@@ -42,8 +41,8 @@ export class Idle extends HandlerTop {
 
 	enqueueBoth(): void {
 		this.ctx.order.push('enqueue-start');
-		this.hsm.actor.close();
-		this.hsm.immediate.abort();
+		this.notify.close();
+		this.notifyNow.abort();
 		this.ctx.order.push('enqueue-end');
 	}
 
@@ -71,30 +70,30 @@ type AssertTrue<T extends true> = T;
 type _ReservedCtxService = AssertTrue<DisjointActorConfig<ActorConfig & { services: { ctx(): Promise<void> } }>>;
 
 describe('handler-dispatch', function (): void {
-	it('this.hsm.actor.close() schedules on the default queue', async () => {
+	it('this.notify.close() schedules on the default queue', async () => {
 		const ctx = { order: [] as string[] };
 		const actor = makeTestActor(HandlerTop, ctx, new Port());
 		await actor.hsm.sync();
-		actor.close();
+		actor.notify.close();
 		await actor.hsm.sync();
 		expect(ctx.order).eqls(['close']);
 	});
 
-	it('this.hsm.immediate.abort() runs before pending default-queue jobs from the same handler', async () => {
+	it('this.notifyNow.abort() runs before pending default-queue jobs from the same handler', async () => {
 		const ctx = { order: [] as string[] };
 		const actor = makeTestActor(HandlerTop, ctx, new Port());
 		await actor.hsm.sync();
-		actor.enqueueBoth();
+		actor.notify.enqueueBoth();
 		await actor.hsm.sync();
 		await actor.hsm.sync();
 		expect(ctx.order).eqls(['enqueue-start', 'enqueue-end', 'abort', 'close']);
 	});
 
-	it('await actor.transition() works when services.transition is on Config', async () => {
+	it('await actor.call.transition() works when services.transition is on Config', async () => {
 		const ctx = { order: [] as string[] };
 		const actor = makeTestActor(HandlerTop, ctx, new Port());
 		await actor.hsm.sync();
-		await actor.transition('example.com');
+		await actor.call.transition('example.com');
 		expect(ctx.order).eqls(['transition:example.com']);
 	});
 

@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { CallTimeoutError, FatalError, FatalErrorState, InitialState, Port, SelfCallDeadlockError, TopState, TraceLevel, TransitionError, UnhandledEventError, TransitionTableError, buildProtocolIndex, defaultDispatchErrorCallback, defaultTraceWriter, makeActor, transitionTraceLines, } from '../';
+import { CallTimeoutError, FatalError, FatalErrorState, InitialState, Port, SelfCallDeadlockError, TopState, TraceLevel, TransitionError, UnhandledEventError, TransitionTableError, buildProtocolIndex, defaultDispatchErrorCallback, defaultTraceWriter, makeActor, transitionTraceLines } from '../';
 import type { InboundActor, HandlerHsm } from '../';
-import { Machine, kMachine, isRequestingPort, isServiceCallOptions, serviceCallWithTimeout, splitServiceArgs, } from '../internal/runtime';
+import { Machine, kMachine, isRequestingPort, isServiceCallOptions, serviceCallWithTimeout, splitServiceArgs } from '../internal/runtime';
 import type { HandleOwn } from '../internal/runtime';
 import { disableDispatchStorage, resetDispatchStorage, cacheProtocolIndex, protocolIndexFor } from '../test-only';
 import { mock, makeTestActor, makeTestPort, TestPort } from '../testing';
@@ -50,14 +50,14 @@ export class RuntimeCoverageLeaf extends RuntimeCoverageTop {}
 
 interface CallbackConfig {
 	context: Record<string, never>;
-	notifications: { notify(): void };
+	notifications: { signal(): void };
 	services: { answer(): Promise<number> };
 	internalServices: Record<string, never>;
 	internalNotifications: Record<string, never>;
 }
 
 export class CallbackTop extends TopState<CallbackConfig> {
-	notify(): void {}
+	signal(): void {}
 	async answer(): Promise<number> {
 		return 42;
 	}
@@ -293,9 +293,9 @@ describe('runtime-coverage', function (): void {
 		await machine.sync();
 		expect(machine.currentState).equals(CallbackLeaf);
 
-		machine.dispatchNotification('notify', [], 'default');
-		machine.dispatchNotification('notify', [], 'priority');
-		instance.hsm.port.defer(0).notify();
+		machine.dispatchNotification('signal', [], 'default');
+		machine.dispatchNotification('signal', [], 'priority');
+		instance.hsm.port.defer(0).signal();
 		await machine.sync();
 
 		const answer = await machine.dispatchService('answer', []);
