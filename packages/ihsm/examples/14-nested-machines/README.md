@@ -36,7 +36,7 @@ Payment region:
 export class PaymentTop extends TopState<PaymentCtx, PaymentProtocol> {
 	markPaid(): void {
 		this.ctx.paid = true;
-		this.transition(PaymentDone); // ← payment actor only
+		this.hsm.transition(PaymentDone); // ← payment actor only
 	}
 }
 ```
@@ -47,7 +47,7 @@ Shipping region — independent queue and cache:
 export class ShippingTop extends TopState<ShippingCtx, ShippingProtocol> {
 	markShipped(): void {
 		this.ctx.shipped = true;
-		this.transition(ShippingDone);
+		this.hsm.transition(ShippingDone);
 	}
 }
 ```
@@ -56,13 +56,13 @@ Coordinator composes both:
 
 ```typescript
 export class OrderCoordinator {
-	readonly payment = makeHsm(PaymentTop, { paid: false });
-	readonly shipping = makeHsm(ShippingTop, { shipped: false });
+	readonly payment = makeActor(PaymentTop, { paid: false });
+	readonly shipping = makeActor(ShippingTop, { shipped: false });
 
 	async fulfill(): Promise<void> {
-		this.payment.post('markPaid');
+		this.payment.markPaid();
 		await this.payment.sync();
-		this.shipping.post('markShipped');
+		this.shipping.markShipped();
 		await this.shipping.sync();
 	}
 }

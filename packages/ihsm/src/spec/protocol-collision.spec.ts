@@ -1,10 +1,15 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { InitialState, Port, ProtocolCollisionError, TopState, buildProtocolIndex, makeOwnerActor, manifestFor, registerStateNames } from '../';
-import type { Config } from '../';
+import { InitialState, Port, ProtocolCollisionError, TopState } from '../';
+import { makeTestActor } from '../testing';
+import { buildProtocolIndex } from '../internal/runtime';
+import * as self from './protocol-collision.spec';
+import { registerSpecStateNames } from './spec.utils';
 
-interface CollisionConfig extends Config {
+//#region ThisTestSpec
+
+interface CollisionConfig {
 	context: Record<string, never>;
 	services: { ping(): Promise<void> };
 	notifications: { tick(): void };
@@ -12,155 +17,65 @@ interface CollisionConfig extends Config {
 	internalNotifications: { onData(chunk: string): void };
 }
 
-const collisionManifest = manifestFor<CollisionConfig>({
-	services: ['ping'],
-	notifications: ['tick'],
-	internalServices: ['init'],
-	internalNotifications: ['onData'],
-});
-
-class CollisionTop extends TopState {
-	static readonly manifest = collisionManifest;
-	declare readonly __ihsm: CollisionConfig;
-	ping(): void {}
+export class CollisionTop extends TopState<CollisionConfig> {
+	async ping(): Promise<void> {}
 	tick(): void {}
-	init(): void {}
+	async init(): Promise<void> {}
 	onData(): void {}
 }
 
 @InitialState
-class CollisionLeaf extends CollisionTop {}
+export class CollisionLeaf extends CollisionTop {}
 
-interface DuplicateConfig extends Config {
-	services: { dup(): Promise<void> };
-	notifications: { dup(): void };
+export class BadTop extends TopState<CollisionConfig> {
+	// @ts-expect-error intentional reserved-symbol collision probe
+	ctx(): void {}
+	work(): void {}
 }
 
-const duplicateManifest = manifestFor<DuplicateConfig>({
-	services: ['dup'],
-	notifications: ['dup'],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class DuplicateTop extends TopState {
-	static readonly manifest = duplicateManifest;
-	dup(): void {}
-}
-
-interface ReservedConfigKeyConfig extends Config {
-	services: { ctx(): Promise<void> };
-}
-
-const reservedKeyManifest = manifestFor<ReservedConfigKeyConfig>({
-	services: ['ctx'],
-	notifications: [],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class ReservedKeyTop extends TopState {
-	static readonly manifest = reservedKeyManifest;
+export class ReservedStateTop extends TopState<CollisionConfig> {
+	// @ts-expect-error intentional reserved-symbol collision probe
 	ctx(): void {}
 }
 
-class ReservedStateTop extends TopState {
-	ctx(): void {}
-}
-
+// @ts-expect-error intentional reserved-symbol collision on subclass
 @InitialState
-class ReservedStateLeaf extends ReservedStateTop {}
+export class ReservedStateLeaf extends ReservedStateTop {}
 
-const hookManifest = manifestFor<{ services: { ping(): Promise<void> } }>({
-	services: ['ping'],
-	notifications: [],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class HookTop extends TopState {
-	static readonly manifest = hookManifest;
+export class HookTop extends TopState<CollisionConfig> {
 	onEntry(): void {}
 	ping(): void {}
 }
 
 @InitialState
-class HookLeaf extends HookTop {}
+export class HookLeaf extends HookTop {}
 
-class MissingHandlerTop extends TopState {
-	static readonly manifest = collisionManifest;
-	declare readonly __ihsm: CollisionConfig;
+export class ExtraTop extends TopState<CollisionConfig> {
+	extra(): void {}
+	async ping(): Promise<void> {}
 }
 
-registerStateNames({
-	CollisionTop,
-	CollisionLeaf,
-	DuplicateTop,
-	ReservedKeyTop,
-	ReservedStateTop,
-	ReservedStateLeaf,
-	HookTop,
-	HookLeaf,
-	MissingHandlerTop,
-});
+registerSpecStateNames(self);
+//#endregion
 
-describe('protocol-collision (v2)', function (): void {
-	it('throws on duplicate keys across buckets in manifest', () => {
-		expect(() => buildProtocolIndex(DuplicateTop, duplicateManifest)).to.throw(ProtocolCollisionError, /more than one Config bucket/);
-	});
-
-	it('throws on reserved symbol as Config key', () => {
-		expect(() => buildProtocolIndex(ReservedKeyTop, reservedKeyManifest)).to.throw(ProtocolCollisionError, /reserved symbol "ctx"/);
-	});
-
+describe('protocol-collision', function (): void {
 	it('throws when a state class defines a reserved symbol method', () => {
-		const manifest = manifestFor<{ services: { work(): Promise<void> } }>({
-			services: ['work'],
-			notifications: [],
-			internalServices: [],
-			internalNotifications: [],
-		});
-		class BadTop extends TopState {
-			static readonly manifest = manifest;
-			ctx(): void {}
-			work(): void {}
-		}
-		class ReservedStateWithManifest extends TopState {
-			static readonly manifest = manifest;
-			ctx(): void {}
-			work(): void {}
-		}
-		expect(() => buildProtocolIndex(BadTop, manifest)).to.throw(ProtocolCollisionError, /reserved symbol "ctx"/);
-		expect(() => makeOwnerActor(ReservedStateWithManifest as never, {}, new Port())).to.throw(ProtocolCollisionError, /ReservedStateWithManifest/);
+		expect(() => buildProtocolIndex(BadTop)).to.throw(ProtocolCollisionError, /reserved symbol "ctx"/);
+		expect(() => makeTestActor(ReservedStateTop, {}, new Port())).to.throw(ProtocolCollisionError, /ReservedStateTop/);
 	});
 
 	it('allows lifecycle hooks implemented as hooks', () => {
-		expect(() => buildProtocolIndex(HookTop, hookManifest)).not.to.throw();
-		const actor = makeOwnerActor(HookTop as never, {}, new Port());
+		expect(() => buildProtocolIndex(HookTop)).not.to.throw();
+		const actor = makeTestActor(HookTop, {}, new Port());
 		expect(actor).to.exist;
 	});
 
-	it('throws when Config key has no handler on the state graph', () => {
-		const manifest = manifestFor<{ services: { orphan(): Promise<void> } }>({
-			services: ['orphan'],
-			notifications: [],
-			internalServices: [],
-			internalNotifications: [],
-		});
-		expect(() => buildProtocolIndex(MissingHandlerTop, manifest)).to.throw(ProtocolCollisionError, /no handler on the state graph/);
+	it('allows helper methods discovered from the state graph', () => {
+		expect(() => buildProtocolIndex(ExtraTop)).not.to.throw();
 	});
 
-	it('allows private helper methods on states that are not listed on Config', () => {
-		class ExtraTop extends TopState {
-			static readonly manifest = hookManifest;
-			extra(): void {}
-			ping(): void {}
-		}
-		expect(() => buildProtocolIndex(ExtraTop, hookManifest)).not.to.throw();
-	});
-
-	it('constructs when manifest and handlers align', () => {
-		const actor = makeOwnerActor(CollisionTop as never, {}, new Port());
+	it('constructs when handlers align with Config', () => {
+		const actor = makeTestActor(CollisionTop, {}, new Port());
 		expect(actor).to.exist;
 	});
 });

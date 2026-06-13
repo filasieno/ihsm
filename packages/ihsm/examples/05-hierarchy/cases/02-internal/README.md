@@ -2,7 +2,7 @@
 
 ## Topology
 
-Handler runs; **no** `this.transition()`. State class unchanged — no `onExit` / `onEntry`.
+Handler runs; **no** `this.hsm.transition()`. State class unchanged — no `onExit` / `onEntry`.
 
 ```plantuml
 @startuml
@@ -36,8 +36,8 @@ See the **Trace** panel on the [interactive docs site](https://filasieno.github.
 ## Code
 
 ```typescript
-sm.post('tick');
-await sm.sync();
+sm.tick();
+await sm.hsm.sync();
 ```
 
 

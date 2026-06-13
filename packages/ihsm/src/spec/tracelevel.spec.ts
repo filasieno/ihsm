@@ -1,12 +1,15 @@
 import { expect } from 'chai';
 import 'mocha';
-import { InitialState, TopState, TraceLevel, TraceWriter, makeOwnerActor, manifestFor } from '../';
-import type { Config, OwnerActor } from '../';
-import { TestPort } from '../testing';
-import { traceActorOnPort } from './spec.utils';
+import { InitialState, TopState, TraceLevel, TraceWriter} from '../';
+import type { TestActor } from '../testing';
+import { makeTestActor, TestPort } from '../testing';
 import * as ihsm from '../index';
+import * as self from './tracelevel.spec';
+import { registerSpecStateNames, traceActorOnPort } from './spec.utils';
 
-interface TraceLevelConfig extends Config {
+//#region ThisTestSpec
+
+interface TraceLevelConfig {
 	context: Record<string, never>;
 	notifications: {
 		switchTraceWriter(tw: TraceWriter): Promise<void>;
@@ -15,16 +18,7 @@ interface TraceLevelConfig extends Config {
 	};
 }
 
-const traceLevelManifest = manifestFor<TraceLevelConfig>({
-	services: [],
-	notifications: ['switchTraceWriter', 'switchTraceLevel', 'hello'],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class HsmTop extends TopState {
-	static readonly manifest = traceLevelManifest;
-	declare readonly __ihsm: TraceLevelConfig;
+export class HsmTop extends TopState<TraceLevelConfig> {
 
 	async switchTraceWriter(tw: TraceWriter): Promise<void> {
 		this.hsm.traceWriter = tw;
@@ -48,25 +42,28 @@ class TestTraceWriter implements ihsm.TraceWriter {
 }
 
 @InitialState
-class A extends HsmTop {}
+export class A extends HsmTop {}
 @InitialState
-class B extends A {}
+export class B extends A {}
 @InitialState
-class C extends B {}
+export class C extends B {}
 @InitialState
-class D extends C {}
+export class D extends C {}
 @InitialState
-class E extends D {}
+export class E extends D {}
 @InitialState
-class F extends E {}
+export class F extends E {}
+
+registerSpecStateNames(self);
+//#endregion
 
 describe(`Switch TraceLevel`, function (): void {
-	let sm: OwnerActor<TraceLevelConfig>;
+	let sm: TestActor<TraceLevelConfig>;
 	let port: TestPort;
 
 	beforeEach(async () => {
 		port = new TestPort();
-		sm = makeOwnerActor(HsmTop as never, {}, port);
+		sm = makeTestActor(HsmTop, {}, port);
 		traceActorOnPort(sm, port);
 		await sm.hsm.sync();
 	});

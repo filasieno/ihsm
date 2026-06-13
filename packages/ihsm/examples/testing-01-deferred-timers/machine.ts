@@ -2,7 +2,7 @@
  * Deferred timers & simulated time — the foundational deterministic-testing example.
  *
  * A `Heartbeat` machine emits one tick **every hour**. It does not own a domain port: the hourly
- * follow-up is scheduled with {@link ihsm.HandlerHsm.defer | hsm.defer}, which is backed by
+ * follow-up is scheduled with {@link ihsm.Port.defer | hsm.port.defer}, which is backed by
  * the machine's **standard port timer service** ({@link ihsm.Port} in production, real
  * `setTimeout`). Because the timer is a port service, a test can substitute a controllable clock
  * ({@link ihsm.TestPort}) and simulate days of ticks in microseconds — no real waiting, no
@@ -28,9 +28,9 @@ export class HeartbeatCtx {
 	running = false;
 }
 
-export interface HeartbeatConfig extends ihsm.Config {
+export interface HeartbeatConfig {
 	context: HeartbeatCtx;
-	notifications: {
+notifications: {
 		start(): void;
 		stop(): void;
 	};
@@ -39,23 +39,13 @@ export interface HeartbeatConfig extends ihsm.Config {
 	};
 }
 
-/** @deprecated use HeartbeatConfig['notifications'] */
-export type HeartbeatPublic = HeartbeatConfig['notifications'];
+export type HeartbeatPublic = ihsm.ActorNotificationsOf<HeartbeatConfig>;
 
-/** @deprecated use HeartbeatConfig['internalNotifications'] */
-export type HeartbeatInternal = HeartbeatConfig['internalNotifications'];
+export type HeartbeatInternal = ihsm.ActorInternalNotificationsOf<HeartbeatConfig>;
 
-const heartbeatManifest = ihsm.manifestFor<HeartbeatConfig>({
-	services: [],
-	notifications: ['start', 'stop'],
-	internalServices: [],
-	internalNotifications: ['onTick'],
-});
 
 /** Root state. Stray events in the "wrong" state are safe no-ops. */
 export class HeartbeatTop extends ihsm.TopState<HeartbeatConfig> {
-	static readonly manifest = heartbeatManifest;
-	declare readonly __ihsm: HeartbeatConfig;
 
 	start(): void {} // ignored unless Stopped
 	stop(): void {} // ignored unless Running
@@ -73,12 +63,12 @@ export class Stopped extends HeartbeatTop {
 export class Running extends HeartbeatTop {
 	/** On entry, arm the first hourly tick through the port timer service. */
 	onEntry(): void {
-		this.hsm.defer(HOUR_MS).onTick();
+		this.hsm.port.defer(HOUR_MS).onTick();
 	}
 
 	onTick(): void {
 		this.ctx.ticks += 1;
-		this.hsm.defer(HOUR_MS).onTick(); // recur: arm the next hour
+		this.hsm.port.defer(HOUR_MS).onTick(); // recur: arm the next hour
 	}
 
 	stop(): void {

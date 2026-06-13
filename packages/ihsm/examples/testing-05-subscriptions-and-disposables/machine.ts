@@ -42,9 +42,9 @@ export class WatcherCtx {
 	subscription?: ihsm.Disposable;
 }
 
-export interface WatcherConfig extends ihsm.Config {
+export interface WatcherConfig {
 	context: WatcherCtx;
-	notifications: {
+notifications: {
 		start(path: string): void;
 		stop(): void;
 	};
@@ -57,26 +57,14 @@ export interface WatcherConfig extends ihsm.Config {
 	};
 }
 
-/** @deprecated use WatcherConfig['notifications'] */
-export type WatcherPublic = WatcherConfig['notifications'];
 
-/** @deprecated use WatcherConfig['internalNotifications'] */
-export type WatcherInternal = WatcherConfig['internalNotifications'];
 
 /** Outbound boundary to the (impure) watch source. */
-export type WatcherPort = WatcherConfig['port'];
+export type WatcherPort = ihsm.DomainPortOf<WatcherConfig>;
 
-const watcherManifest = ihsm.manifestFor<WatcherConfig>({
-	services: [],
-	notifications: ['start', 'stop'],
-	internalServices: [],
-	internalNotifications: ['onChange', 'onClosed'],
-});
 
 /** Root state. "Wrong state" events are safe no-ops so a late change can never corrupt Idle. */
 export class WatcherTop extends ihsm.TopState<WatcherConfig> {
-	static readonly manifest = watcherManifest;
-	declare readonly __ihsm: WatcherConfig;
 
 	start(_path: string): void {} // ignored unless Idle
 	stop(): void {} // ignored unless Watching

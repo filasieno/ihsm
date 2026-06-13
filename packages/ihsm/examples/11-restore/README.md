@@ -7,7 +7,7 @@ After restart or loading from a database, you must resume at a specific mode wit
 ## Solution
 
 1. **Suspend** — read `currentState` + `ctx`, serialize to JSON (DB row or file).
-2. **Resume** — `makeHsm(..., false)` on a **new** instance, then `restore(stateClass, ctx)`.
+2. **Resume** — `makeActor(..., false)` on a **new** instance, then `restore(stateClass, ctx)`.
 
 `restore` sets active state and context **without** running `onEntry` or `onExit`.
 
@@ -51,15 +51,15 @@ export interface PersistedSession {
 
 ```typescript
 const live = createSession('user-42');
-await live.sync(); // onEntry: Anonymous
+await live.hsm.sync(); // onEntry: Anonymous
 
 live.restore(Authenticated, {
 	userId: 'user-42',
 	lastPage: 'settings',
 	entryLog: live.ctx.entryLog,
 });
-live.post('navigate', 'billing');
-await live.sync();
+live.navigate('billing');
+await live.hsm.sync();
 ```
 
 ### 2. Suspend to disk / DB
@@ -94,15 +94,15 @@ export function resumeSession(json: string) {
 }
 
 const afterRestart = resumeSessionFromDb('sess-7');
-await afterRestart.sync();
+await afterRestart.hsm.sync();
 // Authenticated, lastPage === 'dashboard', no fresh onEntry
 ```
 
 ### 4. Continue from the snapshot
 
 ```typescript
-afterRestart.post('navigate', 'profile');
-await afterRestart.sync();
+afterRestart.navigate('profile');
+await afterRestart.hsm.sync();
 ```
 
 `entryLog` shows the difference: init recorded `Anonymous` once; restore did **not** append `Authenticated`.

@@ -4,6 +4,7 @@
  * Client: await wallet.getBalance() — no resolve/reject in handler signatures.
  */
 import * as ihsm from '../../src';
+import { makeTestActor } from '../../src/testing';
 import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
@@ -11,9 +12,9 @@ export interface WalletCtx {
 	balance: number;
 }
 
-export interface WalletConfig extends ihsm.Config {
+export interface WalletConfig {
 	context: WalletCtx;
-	notifications: {
+notifications: {
 		deposit(amount: number): void;
 	};
 	services: {
@@ -23,16 +24,8 @@ export interface WalletConfig extends ihsm.Config {
 	};
 }
 
-const walletManifest = ihsm.manifestFor<WalletConfig>({
-	services: ['getBalance', 'fetchBalanceDelayed', 'withdraw'],
-	notifications: ['deposit'],
-	internalServices: [],
-	internalNotifications: [],
-});
 
 export class WalletTop extends PlaygroundTopState<WalletConfig> {
-	static readonly manifest = walletManifest;
-	declare readonly __ihsm: WalletConfig;
 
 	deposit(amount: number): void {
 		this.ctx.balance += amount;
@@ -43,7 +36,7 @@ export class WalletTop extends PlaygroundTopState<WalletConfig> {
 	}
 
 	async fetchBalanceDelayed(delayMs: number): Promise<number> {
-		await this.hsm.sleep(delayMs);
+		await new Promise<void>(resolve => (this.hsm.port as unknown as ihsm.Port).setTimeout(resolve, delayMs));
 		return this.ctx.balance;
 	}
 
@@ -62,5 +55,5 @@ export class Open extends WalletTop {}
 ihsm.registerStateNames(self);
 
 export function createWallet(initialBalance: number) {
-	return ihsm.makeOwnerActor(WalletTop, { balance: initialBalance }, new ihsm.Port());
+	return makeTestActor(WalletTop, { balance: initialBalance }, new ihsm.Port());
 }

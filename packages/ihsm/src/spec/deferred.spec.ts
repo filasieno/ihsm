@@ -1,32 +1,25 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { Any, InitialState, TopState, makeOwnerActor, manifestFor } from '../';
-import type { Config, OwnerActor } from '../';
-import { TestPort } from '../testing';
+import { Any, InitialState, TopState } from '../';
+import type { TestActor } from '../testing';
+import { makeTestActor, TestPort } from '../testing';
+import * as self from './deferred.spec';
+import { TRACE_LEVELS, registerSpecStateNames, traceActorOnPort } from './spec.utils';
 
-import { TRACE_LEVELS, traceActorOnPort } from './spec.utils';
+//#region ThisTestSpec
 
-interface DeferredConfig extends Config {
+interface DeferredConfig {
+	context: Record<string, never>;
 	notifications: {
 		schedule(millis: number, value: string, object: Any): void;
 		setValue(value: string, object: Any): void;
 	};
 }
 
-const deferredManifest = manifestFor<DeferredConfig>({
-	services: [],
-	notifications: ['schedule', 'setValue'],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class HsmTop extends TopState {
-	static readonly manifest = deferredManifest;
-	declare readonly __ihsm: DeferredConfig;
-
+export class HsmTop extends TopState<DeferredConfig> {
 	schedule(millis: number, value: string, object: Any): void {
-		this.hsm.defer(millis).setValue(value, object);
+		this.hsm.port.defer(millis).setValue(value, object);
 	}
 
 	setValue(value: string, object: Any): void {
@@ -35,16 +28,19 @@ class HsmTop extends TopState {
 }
 
 @InitialState
-class A extends HsmTop {}
+export class A extends HsmTop {}
+
+registerSpecStateNames(self);
+//#endregion
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Deferred post (traceLevel = ${traceLevel})`, function (): void {
-		let sm: OwnerActor<DeferredConfig>;
+		let sm: TestActor<DeferredConfig>;
 		let clock: TestPort<HsmTop>;
 
 		beforeEach(async () => {
 			clock = new TestPort<HsmTop>();
-			sm = makeOwnerActor(HsmTop as never, {}, clock, { traceLevel });
+			sm = makeTestActor(HsmTop, {}, clock, { traceLevel });
 			traceActorOnPort(sm, clock);
 			await sm.hsm.sync();
 		});

@@ -1,5 +1,5 @@
 {
-	"typescript.tsdk": "node_modules/typescript/lib",
+	"typescript.tsdk": "packages/ihsm/node_modules/typescript/lib",
 	"typescript.enablePromptUseWorkspaceTsdk": true,
 	"eslint.workingDirectories": [{ "directory": "packages/ihsm", "changeProcessCWD": true }],
 	"eslint.useFlatConfig": true,

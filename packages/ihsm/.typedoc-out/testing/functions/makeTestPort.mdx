@@ -1,11 +1,4 @@
-> **makeTestPort**\<`P`\>(`PortClass`): [`Mock`](../type-aliases/Mock.mdx)\<`P`, `P` *extends* `object` ? `T` : `never`\>
-
-Instantiate an `@`[mock](mock.mdx)-decorated mock class — the canonical way to build a test port.
-
-Pass the mock **class**; you get back a typed instance whose abstract port methods (inferred from
-the machine's [TopState](../../index/classes/TopState.mdx)) are scriptable [Stubbed](../interfaces/Stubbed.mdx) methods, ready for
-`port.method.default(...)`. The port's `actor` is still bound lazily when you hand the instance to
-[makeActor](../../index/functions/makeActor.mdx) / [makeTestActor](makeTestActor.mdx).
+> **makeTestPort**\<`P`, `C`\>(`PortClass`, `_topState?`): [`Mock`](../type-aliases/Mock.mdx)\<`P`, `C`\>
 
 ## Type Parameters
 
@@ -13,7 +6,9 @@ the machine's [TopState](../../index/classes/TopState.mdx)) are scriptable [Stub
 
 `P` *extends* [`TestPort`](../classes/TestPort.mdx)\<[`Any`](../../index/type-aliases/Any.mdx)\>
 
-The mock class instance type (a [TestPort](../classes/TestPort.mdx) subclass)
+### C
+
+`C` *extends* [`ActorConfig`](../../index/interfaces/ActorConfig.mdx) = `ActorConfigFromPortClass`\<`P`\>
 
 ## Parameters
 
@@ -21,22 +16,10 @@ The mock class instance type (a [TestPort](../classes/TestPort.mdx) subclass)
 
 () => `P`
 
-The `@mock`-decorated mock class
+### \_topState?
+
+[`TopStateArg`](../../index/type-aliases/TopStateArg.mdx)\<`C`\>
 
 ## Returns
 
-[`Mock`](../type-aliases/Mock.mdx)\<`P`, `P` *extends* `object` ? `T` : `never`\>
-
-A scriptable [Mock](../type-aliases/Mock.mdx) instance
-
-## Throws
-
-If `PortClass` was not decorated with `@`[mock](mock.mdx)
-
-## Example
-
-```ts
-const port = ihsmTest.makeTestPort(WatcherMock);
-port.watch.default(() => ({ value: 1, subscription: { dispose: () => port.send('onClosed') } }));
-const sm = ihsmTest.makeTestActor(WatcherTop, new WatcherCtx(), port);
-```
+[`Mock`](../type-aliases/Mock.mdx)\<`P`, `C`\>

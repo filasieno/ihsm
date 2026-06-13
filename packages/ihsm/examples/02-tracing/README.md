@@ -26,7 +26,7 @@ Tracing is orthogonal to state structure — same chart with observability layer
 
 ## Tracing API reference
 
-Everything below is exported from `ihsm` (`src/index.ts`). Handlers see the same fields on **`this`** (via `TopState` getters) and on **`this.hsm`**; clients use the **`Hsm`** handle returned by `makeHsm`.
+Everything below is exported from `ihsm` (`src/index.ts`). Handlers see the same fields on **`this`** (via `TopState` getters) and on **`this.hsm`**; clients use the **`Hsm`** handle returned by `makeActor`.
 
 ### `TraceLevel` (enum)
 
@@ -38,19 +38,19 @@ Controls **which dispatch implementation** runs. Changing `traceLevel` on a live
 | `DEBUG` | `1` | `dispatch.debug` | Boundaries: init frame, event frame, transitions, error/unhandled recovery, `execute` — **no** prototype lookup walk, **no** per-state “skipped onEntry/onExit”, **no** transition cache hit/miss lines |
 | `VERBOSE_DEBUG` | `2` | `dispatch.trace` | Full detail: lookup domains, cache hit/miss, skipped default hooks, every `onEntry`/`onExit` step |
 
-**Defaults:** `makeHsm(...)` uses `TraceLevel.DEBUG` and `ConsoleTraceWriter` unless you pass overrides.
+**Defaults:** `makeActor(...)` uses `TraceLevel.DEBUG` and `ConsoleTraceWriter` unless you pass overrides.
 
 ```typescript
-import { makeHsm, TraceLevel, TraceWriter } from 'ihsm';
+import { makeActor, TraceLevel, TraceWriter } from 'ihsm';
 
-const sm = makeHsm(Top, ctx, true, TraceLevel.VERBOSE_DEBUG, myWriter);
+const sm = makeActor(Top, ctx, true, TraceLevel.VERBOSE_DEBUG, myWriter);
 sm.traceLevel = TraceLevel.DEBUG; // downgrade live instance
 ```
 
 Factory signature (tracing-related parameters only):
 
 ```typescript
-makeHsm(
+makeActor(
   topState,
   ctx,
   initialize?,           // default true — enqueue init task (traced when level ≠ PRODUCTION)
@@ -98,7 +98,7 @@ Replace the writer anytime: `sm.traceWriter = new CollectingTraceWriter()`.
 | ----- | ------ | ---- | -------------- | ------------- |
 | `currentState` | read-only | `StateClass<Context, Protocol>` | Always | Constructor of the **leaf** state executing now |
 | `currentStateName` | read-only | `string` | Always | Display name (from `registerStateNames` / `defineStateName`, else `Class.name`) — **suffix** of every formatted string line |
-| `topState` | read-only | `StateClass<Context, Protocol>` | Always | Root class passed to `makeHsm` |
+| `topState` | read-only | `StateClass<Context, Protocol>` | Always | Root class passed to `makeActor` |
 | `topStateName` | read-only | `string` | Always | Display name of `topState` |
 | `ctxTypeName` | read-only | `string` | Always | `ctx` constructor name at machine creation — metadata only; **not** prepended to `traceHeader` today |
 | `traceHeader` | read-only | `string` | During nested dispatch | Prefix built from the internal domain stack: `''` or `domain|subdomain|` (see [Trace domains](#trace-domains-nested-prefixes)) |
@@ -121,7 +121,7 @@ Replace the writer anytime: `sm.traceWriter = new CollectingTraceWriter()`.
 (hsm: Base<Context, Protocol>, err: Error) => void
 ```
 
-Default behavior: one string line (`An event dispatch has failed; …`), then `traceWriter.write(hsm, err)` (non-string), then **rethrow**. Override via `makeHsm`’s sixth argument or `hsm.dispatchErrorCallback = …` for tests that must catch failures without console noise.
+Default behavior: one string line (`An event dispatch has failed; …`), then `traceWriter.write(hsm, err)` (non-string), then **rethrow**. Override via `makeActor`’s sixth argument or `hsm.dispatchErrorCallback = …` for tests that must catch failures without console noise.
 
 ---
 
@@ -149,7 +149,7 @@ Factory for tutorial 02:
 
 ```typescript
 export function createTracedPing(writer: CollectingTraceWriter) {
-  return makeHsm(PingTop, { pings: 0 }, true, TraceLevel.VERBOSE_DEBUG, writer);
+  return makeActor(PingTop, { pings: 0 }, true, TraceLevel.VERBOSE_DEBUG, writer);
 }
 ```
 
@@ -229,7 +229,7 @@ Nested dispatch therefore produces headers like:
 
 ## Example trace (tutorial 02)
 
-After `await sm.sync()` then `sm.post('ping'); await sm.sync();` with `VERBOSE_DEBUG`, expect a nested sequence similar to:
+After `await sm.hsm.sync()` then `sm.ping(); await sm.hsm.sync();` with `VERBOSE_DEBUG`, expect a nested sequence similar to:
 
 ```text
 PingTop: begin event dispatch of #ping

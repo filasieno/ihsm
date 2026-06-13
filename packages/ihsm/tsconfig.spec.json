@@ -1,0 +1,14 @@
+{
+	"extends": "./tsconfig.base.json",
+	"compilerOptions": {
+		"composite": true,
+		"noEmit": true,
+		"outDir": "./.tsc/spec",
+		"tsBuildInfoFile": "./.tsc/spec.tsbuildinfo",
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"types": ["mocha", "node"]
+	},
+	"include": ["src/spec/**/*.ts", "src/test-only.ts.ts", "examples/shared/state-names.ts"],
+	"references": [{ "path": "./tsconfig.lib.json" }]
+}

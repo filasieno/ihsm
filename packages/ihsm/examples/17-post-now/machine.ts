@@ -4,6 +4,7 @@
  * confirm schedules cancel (normal) but lock/capture run via immediate first.
  */
 import * as ihsm from '../../src';
+import { makeTestActor } from '../../src/testing';
 import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
@@ -13,9 +14,9 @@ export interface CheckoutCtx {
 	cancelled: boolean;
 }
 
-export interface CheckoutConfig extends ihsm.Config {
+export interface CheckoutConfig {
 	context: CheckoutCtx;
-	notifications: {
+notifications: {
 		confirm(): void;
 		lockInventory(): void;
 		capturePayment(): void;
@@ -23,16 +24,8 @@ export interface CheckoutConfig extends ihsm.Config {
 	};
 }
 
-const checkoutManifest = ihsm.manifestFor<CheckoutConfig>({
-	services: [],
-	notifications: ['confirm', 'lockInventory', 'capturePayment', 'cancel'],
-	internalServices: [],
-	internalNotifications: [],
-});
 
 export class CheckoutTop extends PlaygroundTopState<CheckoutConfig> {
-	static readonly manifest = checkoutManifest;
-	declare readonly __ihsm: CheckoutConfig;
 
 	confirm(): void {
 		this.ctx.steps.push('confirm-start');
@@ -68,7 +61,7 @@ export class Draft extends CheckoutTop {}
 ihsm.registerStateNames(self);
 
 export function createCheckout() {
-	return ihsm.makeOwnerActor(
+	return makeTestActor(
 		CheckoutTop,
 		{
 			steps: [],

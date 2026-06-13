@@ -1,7 +1,8 @@
 /**
- * Tutorial 00 — `Config`, manifest, generated actor handles, and the `hsm` facade.
+ * Tutorial 00 — protocol type, generated actor handles, and the `hsm` facade.
  */
 import * as ihsm from '../../src';
+import { makeTestActor } from '../../src/testing';
 import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
@@ -10,9 +11,9 @@ export interface ConnCtx {
 	frameCount: number;
 }
 
-export interface ConnConfig extends ihsm.Config {
+export interface ConnConfig {
 	context: ConnCtx;
-	services: {
+services: {
 		fetchFrames(limit: number): Promise<number>;
 	};
 	notifications: {
@@ -24,16 +25,8 @@ export interface ConnConfig extends ihsm.Config {
 	};
 }
 
-const connManifest = ihsm.manifestFor<ConnConfig>({
-	services: ['fetchFrames'],
-	notifications: ['open', 'close'],
-	internalServices: [],
-	internalNotifications: ['onData'],
-});
 
 export class ConnTop extends PlaygroundTopState<ConnConfig> {
-	static readonly manifest = connManifest;
-	declare readonly __ihsm: ConnConfig;
 
 	open(host: string): void {
 		this.ctx.host = host;
@@ -61,5 +54,5 @@ export class Open extends ConnTop {}
 ihsm.registerStateNames(self);
 
 export function createConn() {
-	return ihsm.makeActor(ConnTop, { host: '', frameCount: 0 }, new ihsm.Port());
+	return makeTestActor(ConnTop, { host: '', frameCount: 0 }, new ihsm.Port());
 }

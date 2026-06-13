@@ -6,7 +6,7 @@ Production flows combine hierarchy, async validation, guards, services, and mult
 
 ## Solution
 
-Compose hierarchy, async validation, a **`postNow()`** decision pseudo state, and `call()` in one **checkout workflow**. See [postNow()](../17-post-now/README.md) for hi-priority internal orchestration.
+Compose hierarchy, async validation, a **`hsm.immediate``** decision pseudo state, and `call()` in one **checkout workflow**. See [`hsm.immediate`()](../17-post-now/README.md) for hi-priority internal orchestration.
 
 ## UML statechart
 
@@ -29,7 +29,7 @@ state CheckoutTop {
 @enduml
 ```
 
-`submit` runs async validation, then enters `Validating`. The guard runs via **`postNow('applyValidation')`** in `onEntry` — not inline in the handler.
+`submit` runs async validation, then enters `Validating`. The guard runs via **``hsm.immediate`('applyValidation')`** in `onEntry` — not inline in the handler.
 
 Context tracks phase and audit trail:
 
@@ -52,26 +52,26 @@ export class Draft extends CheckoutTop {
 		this.ctx.phase = 'validating';
 		await this.sleep(10);
 		this.ctx.validationNotes.push('fraud-check-ok');
-		this.transition(Validating);
+		this.hsm.transition(Validating);
 	}
 }
 ```
 
-Decision pseudo state — guard via `postNow`:
+Decision pseudo state — guard via `hsm.immediate`:
 
 ```typescript
 export class Validating extends CheckoutTop {
 	onEntry(): void {
-		this.postNow('applyValidation');
+		this.hsm.immediate.applyValidation();
 	}
 
 	applyValidation(): void {
 		if (this.ctx.amount <= this.ctx.limit) {
-			this.transition(Approved);
+			this.hsm.transition(Approved);
 		} else {
 			this.ctx.phase = 'rejected';
 			this.ctx.validationNotes.push('over-limit');
-			this.transition(Rejected);
+			this.hsm.transition(Rejected);
 		}
 	}
 }
@@ -83,7 +83,7 @@ Approve and complete:
 export class Approved extends CheckoutTop {
 	async approve(): Promise<void> {
 		this.ctx.phase = 'approved';
-		this.transition(Completing);
+		this.hsm.transition(Completing);
 	}
 }
 
@@ -98,10 +98,10 @@ export class Completing extends CheckoutTop {
 Typed status query:
 
 ```typescript
-const phase = await order.call('getStatus'); // Promise<OrderPhase>
+const phase = await order.getStatus(); // Promise<OrderPhase>
 ```
 
-For extended transitions that must run internal events before other queued work, see [postNow()](../17-post-now/README.md).
+For extended transitions that must run internal events before other queued work, see [`hsm.immediate`()](../17-post-now/README.md).
 
 ## Reading the trace
 
@@ -111,7 +111,7 @@ Each line is **`domain|…|StateName: message`**. Domains nest as the runtime de
 
 On the [documentation page](https://filasieno.github.io/ihsm/reference), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:examples` headlessly.
 
-**What to notice:** Async `#submit` finishes validation, enters `Validating`, then `#applyValidation` (via `postNow`) runs in the same dispatch before `end event dispatch`.
+**What to notice:** Async `#submit` finishes validation, enters `Validating`, then `#applyValidation` (via `hsm.immediate`) runs in the same dispatch before `end event dispatch`.
 
 ## Verify
 

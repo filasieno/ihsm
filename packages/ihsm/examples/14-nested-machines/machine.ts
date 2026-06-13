@@ -2,6 +2,7 @@
  * Orthogonal regions — two Hsm actors (payment + shipping) coordinated by OrderCoordinator.
  */
 import * as ihsm from '../../src';
+import { makeTestActor, type TestActor } from '../../src/testing';
 import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
@@ -10,23 +11,15 @@ export interface PaymentCtx {
 	paid: boolean;
 }
 
-export interface PaymentConfig extends ihsm.Config {
+export interface PaymentConfig {
 	context: PaymentCtx;
-	notifications: {
+notifications: {
 		markPaid(): void;
 	};
 }
 
-const paymentManifest = ihsm.manifestFor<PaymentConfig>({
-	services: [],
-	notifications: ['markPaid'],
-	internalServices: [],
-	internalNotifications: [],
-});
 
 export class PaymentTop extends PlaygroundTopState<PaymentConfig> {
-	static readonly manifest = paymentManifest;
-	declare readonly __ihsm: PaymentConfig;
 
 	markPaid(): void {
 		this.ctx.paid = true;
@@ -44,23 +37,15 @@ export interface ShippingCtx {
 	shipped: boolean;
 }
 
-export interface ShippingConfig extends ihsm.Config {
+export interface ShippingConfig {
 	context: ShippingCtx;
-	notifications: {
+notifications: {
 		markShipped(): void;
 	};
 }
 
-const shippingManifest = ihsm.manifestFor<ShippingConfig>({
-	services: [],
-	notifications: ['markShipped'],
-	internalServices: [],
-	internalNotifications: [],
-});
 
 export class ShippingTop extends PlaygroundTopState<ShippingConfig> {
-	static readonly manifest = shippingManifest;
-	declare readonly __ihsm: ShippingConfig;
 
 	markShipped(): void {
 		this.ctx.shipped = true;
@@ -75,12 +60,12 @@ export class ShippingDone extends ShippingTop {}
 
 /** Coordinator — not an Hsm; owns two actors and sequences notifications/sync between them. */
 export class OrderCoordinator {
-	readonly payment: ihsm.OwnerActor<PaymentConfig>;
-	readonly shipping: ihsm.OwnerActor<ShippingConfig>;
+	readonly payment: TestActor<PaymentConfig>;
+	readonly shipping: TestActor<ShippingConfig>;
 
 	constructor() {
-		this.payment = ihsm.makeOwnerActor(PaymentTop as ihsm.TopStateArg<PaymentConfig>, { paid: false }, new ihsm.Port()) as ihsm.OwnerActor<PaymentConfig>;
-		this.shipping = ihsm.makeOwnerActor(ShippingTop as ihsm.TopStateArg<ShippingConfig>, { shipped: false }, new ihsm.Port()) as ihsm.OwnerActor<ShippingConfig>;
+		this.payment = makeTestActor(PaymentTop as ihsm.TopStateArg<PaymentConfig>, { paid: false }, new ihsm.Port());
+		this.shipping = makeTestActor(ShippingTop as ihsm.TopStateArg<ShippingConfig>, { shipped: false }, new ihsm.Port());
 	}
 
 	async sync(): Promise<void> {

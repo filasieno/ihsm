@@ -5,31 +5,24 @@
  * LCA for A→B and B→C is TraceTop; root onExit/onEntry do not repeat.
  */
 import * as ihsm from '../../src';
+import { makeTestActor } from '../../src/testing';
 import { PlaygroundTopState } from '../shared/playground-top';
 
 export interface TraceCtx {
 	log: string[];
 }
 
-export interface TraceConfig extends ihsm.Config {
+export interface TraceConfig {
 	context: TraceCtx;
-	notifications: {
+notifications: {
 		goToB(): void;
 		goToC(): void;
 	};
 }
 
-const traceManifest = ihsm.manifestFor<TraceConfig>({
-	services: [],
-	notifications: ['goToB', 'goToC'],
-	internalServices: [],
-	internalNotifications: [],
-});
 
 /** Shallow sibling chain — entry/exit order without deep nesting. */
 export class TraceTop extends PlaygroundTopState<TraceConfig> {
-	static readonly manifest = traceManifest;
-	declare readonly __ihsm: TraceConfig;
 
 	onEntry(): void {
 		this.ctx.log.push('enter:Top');
@@ -71,5 +64,5 @@ export class C extends TraceTop {
 }
 
 export function createTracer() {
-	return ihsm.makeOwnerActor(TraceTop, { log: [] }, new ihsm.Port());
+	return makeTestActor(TraceTop, { log: [] }, new ihsm.Port());
 }

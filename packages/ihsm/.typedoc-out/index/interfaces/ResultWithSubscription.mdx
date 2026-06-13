@@ -1,26 +1,8 @@
-A port result paired with the [Disposable](Disposable.mdx) that tears down its subscription.
-
-Returned by port methods that both produce a value (e.g. a process id) **and** wire
-ongoing observations. The machine stores `value` and is responsible for calling
-`subscription.dispose()` during teardown.
-
-## Example
-
-```ts
-spawn(spec: SpawnSpec): ResultWithSubscription<number> {
-  const child = spawnProcess(spec);
-  const bag = wireListeners(child, this.hsm());
-  return { value: child.pid, subscription: bag };
-}
-```
-
 ## Type Parameters
 
 ### Result
 
 `Result`
-
-The immediate value produced by the port call
 
 ## Properties
 
@@ -28,12 +10,8 @@ The immediate value produced by the port call
 
 > `readonly` **value**: `Result`
 
-Immediate result of the port call.
-
 ***
 
 ### subscription
 
 > `readonly` **subscription**: [`Disposable`](Disposable.mdx)
-
-Teardown handle for the observations the call established.

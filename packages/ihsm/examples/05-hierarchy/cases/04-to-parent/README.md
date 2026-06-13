@@ -40,8 +40,8 @@ You requested the parent composite, but ihsm always ends on a **leaf**. Re-enter
 ## Code
 
 ```typescript
-sm.post('goParentWest');
-await sm.sync();
+sm.goParentWest();
+await sm.hsm.sync();
 ```
 
 

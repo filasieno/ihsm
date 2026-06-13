@@ -4,6 +4,7 @@
  * Teaches: ctx survives transitions; internal transitions skip onEntry/onExit.
  */
 import * as ihsm from '../../src';
+import { makeTestActor } from '../../src/testing';
 import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
@@ -13,25 +14,17 @@ export interface CounterCtx {
 	step: number;
 }
 
-export interface CounterConfig extends ihsm.Config {
+export interface CounterConfig {
 	context: CounterCtx;
-	notifications: {
+notifications: {
 		increment(): void;
 		decrement(): void;
 		reset(): void;
 	};
 }
 
-const counterManifest = ihsm.manifestFor<CounterConfig>({
-	services: [],
-	notifications: ['increment', 'decrement', 'reset'],
-	internalServices: [],
-	internalNotifications: [],
-});
 
 export class CounterTop extends PlaygroundTopState<CounterConfig> {
-	static readonly manifest = counterManifest;
-	declare readonly __ihsm: CounterConfig;
 
 	increment(): void {
 		this.ctx.value += this.ctx.step;
@@ -53,5 +46,5 @@ export class Running extends CounterTop {}
 ihsm.registerStateNames(self);
 
 export function createCounter(initial = 0, step = 1) {
-	return ihsm.makeOwnerActor(CounterTop, { value: initial, step }, new ihsm.Port());
+	return makeTestActor(CounterTop, { value: initial, step }, new ihsm.Port());
 }

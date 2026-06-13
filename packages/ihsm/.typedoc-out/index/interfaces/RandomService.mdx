@@ -1,18 +1,8 @@
-Standard JavaScript random-generation surface exposed by [Port](../classes/Port.mdx) and mocked by
-[testing!TestPort](../../testing/classes/TestPort.mdx).
-
-Route every nondeterministic draw through the machine's port — never `Math.random()` or
-`crypto.*` directly in handlers — so tests can script values with
-[feedRandom](../../testing/classes/TestPort.mdx#feedrandom) / [feedCryptoRandom](../../testing/classes/TestPort.mdx#feedcryptorandom) /
-[feedUUID](../../testing/classes/TestPort.mdx#feeduuid) / [feedRandomBytes](../../testing/classes/TestPort.mdx#feedrandombytes).
-
 ## Methods
 
 ### random()
 
 > **random**(): `number`
-
-Uniform in `[0, 1)` — `Math.random()`.
 
 #### Returns
 
@@ -24,8 +14,6 @@ Uniform in `[0, 1)` — `Math.random()`.
 
 > **cryptoRandom**(): `number`
 
-Uniform in `[0, 1)` — `crypto.random()` when available, otherwise `Math.random()`.
-
 #### Returns
 
 `number`
@@ -36,8 +24,6 @@ Uniform in `[0, 1)` — `crypto.random()` when available, otherwise `Math.random
 
 > **randomUUID**(): `string`
 
-RFC 4122 UUID — `crypto.randomUUID()`.
-
 #### Returns
 
 `string`
@@ -47,8 +33,6 @@ RFC 4122 UUID — `crypto.randomUUID()`.
 ### getRandomValues()
 
 > **getRandomValues**\<`T`\>(`array`): `T`
-
-In-place fill — `crypto.getRandomValues()`.
 
 #### Type Parameters
 

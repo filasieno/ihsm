@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { kMachine } from '../../src/v2/handles';
-import type { HandleOwn } from '../../src/v2/handles';
+import { kMachine } from '../../src/internal/runtime';
+import type { HandleOwn } from '../../src/internal/runtime';
 import { INIT_TRACE, LeafEastA, LeafEastB, LeafWestA, LeafWestB, createDeepMachine } from './machine';
 import { A, B, C, createTracer } from './trace-sibling';
 

@@ -4,6 +4,7 @@
  * Teaches: deferred posts until handler completes; sync marker drains the queue.
  */
 import * as ihsm from '../../src';
+import { makeTestActor } from '../../src/testing';
 import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
@@ -12,25 +13,17 @@ export interface QueueCtx {
 	events: string[];
 }
 
-export interface QueueConfig extends ihsm.Config {
+export interface QueueConfig {
 	context: QueueCtx;
-	notifications: {
+notifications: {
 		start(): void;
 		tick(): void;
 		done(): void;
 	};
 }
 
-const queueManifest = ihsm.manifestFor<QueueConfig>({
-	services: [],
-	notifications: ['start', 'tick', 'done'],
-	internalServices: [],
-	internalNotifications: [],
-});
 
 export class QueueTop extends PlaygroundTopState<QueueConfig> {
-	static readonly manifest = queueManifest;
-	declare readonly __ihsm: QueueConfig;
 
 	start(): void {
 		this.ctx.events.push('start');
@@ -55,5 +48,5 @@ export class Idle extends QueueTop {}
 ihsm.registerStateNames(self);
 
 export function createQueueMachine() {
-	return ihsm.makeOwnerActor(QueueTop, { events: [] }, new ihsm.Port());
+	return makeTestActor(QueueTop, { events: [] }, new ihsm.Port());
 }

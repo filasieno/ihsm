@@ -6,7 +6,7 @@ Not every event should change mode. Self-transitions or dummy states add noise a
 
 ## Solution
 
-Handle the event **without** calling `this.transition()`. The active state stays the same; only `ctx` (or side effects) change.
+Handle the event **without** calling `this.hsm.transition()`. The active state stays the same; only `ctx` (or side effects) change.
 
 ## UML statechart
 
@@ -37,7 +37,7 @@ Handlers clamp brightness and **do not transition**:
 ```typescript
 	dim(delta: number): void {
 		this.ctx.brightness = Math.max(0, this.ctx.brightness - delta);
-		// ← no this.transition() → internal transition
+		// ← no this.hsm.transition() → internal transition
 	}
 
 	brighten(delta: number): void {
@@ -49,8 +49,8 @@ Handlers clamp brightness and **do not transition**:
 Guards are plain TypeScript (`Math.max` / `Math.min`) — no separate guard table.
 
 ```typescript
-lamp.post('dim', 10);
-await lamp.sync();
+lamp.dim(10);
+await lamp.hsm.sync();
 // brightness changed, entryCount unchanged, state still On
 ```
 

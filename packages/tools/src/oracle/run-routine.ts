@@ -1,6 +1,6 @@
 import { FatalErrorState, StateClass, TraceLevel, TransitionError, getStateName, type State } from '@ihsm/core';
 import { makeTestActor, TestPort } from '@ihsm/core/testing';
-import { createHsmTransitionTrace, executeTransitionRoutine, transitionTraceLines } from 'ihsm/transition-routines';
+import { createTransitionTracer, executeTransitionRoutine, transitionTraceLines } from 'ihsm/transition-routines';
 
 import { OracleCtx, type Protocol } from '../fixtures/transition-oracle.machine';
 import * as oracle from '../fixtures/transition-oracle.machine';
@@ -52,7 +52,7 @@ export async function runRoutineTransition(options: RoutineTransitionRunOptions)
 	try {
 		await executeTransitionRoutine(hsm, hsm._instance, options.routine.plan, options.routine.from, options.routine.to, {
 			style: 'verbose',
-			trace: createHsmTransitionTrace(hsm),
+			tracer: createTransitionTracer(hsm),
 			setCurrentState: state => {
 				hsm.currentState = state;
 			},

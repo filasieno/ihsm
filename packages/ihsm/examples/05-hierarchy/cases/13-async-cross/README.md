@@ -40,13 +40,13 @@ See the **Trace** panel on the [interactive docs site](https://filasieno.github.
 | 2 | `await sleep(10)` — state stays **`LeafWestA`**; the actor still queues other posts |
 | 3 | After await — `handler:goAsyncCrossEast:after-await` |
 | 4 | `transition(LeafEastA)` — LCA = **`DeepTop`**, same exit/entry as case 07 but target is **`LeafEastA`** |
-| 5 | `await sm.sync()` waits for **handler + transition** |
+| 5 | `await sm.hsm.sync()` waits for **handler + transition** |
 
 ## Code
 
 ```typescript
-sm.post('goAsyncCrossEast');
-await sm.sync();
+sm.goAsyncCrossEast();
+await sm.hsm.sync();
 ```
 
 

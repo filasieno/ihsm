@@ -1,34 +1,14 @@
-Read-only snapshot of runtime metadata shared by client handles and active handlers.
-
-Exposed on [State](State.mdx) (inside handlers as `this.hsm` properties and forwarded
-getters on [TopState](../classes/TopState.mdx)) and on [Hsm](Hsm.mdx) (external client code). Values
-reflect the **current dispatch** when read from within an event handler; outside
-handlers, [eventName](#eventname) and [eventPayload](#eventpayload) are empty.
-
-## Extended by
-
-- [`Base`](Base.mdx)
-
 ## Type Parameters
 
-### Context
+### C
 
-`Context`
-
-### Protocol
-
-`Protocol` *extends* \{ \} \| `undefined`
+`C` *extends* [`ActorConfig`](ActorConfig.mdx) = [`ActorConfig`](ActorConfig.mdx)
 
 ## Properties
 
 ### currentState
 
-> `readonly` **currentState**: [`StateClass`](../type-aliases/StateClass.mdx)\<`Context`, `Protocol`\>
-
-Constructor (`Function`) of the **leaf** state class currently executing.
-
-Compare with [topState](#topstate), which is always the root composite passed to
-[makeHsm](../functions/makeHsm.mdx). After a transition, this updates to the new leaf's constructor.
+> **currentState**: [`StateClass`](../type-aliases/StateClass.mdx)\<`C`\>
 
 ***
 
@@ -36,20 +16,11 @@ Compare with [topState](#topstate), which is always the root composite passed to
 
 > `readonly` **currentStateName**: `string`
 
-Human-readable name of [currentState](#currentstate).
-
-Sourced from [defineStateName](../functions/defineStateName.mdx) / [registerStateNames](../functions/registerStateNames.mdx) when registered;
-otherwise `Class.name` (unreliable under minification — register names in browser builds).
-
 ***
 
 ### topState
 
-> `readonly` **topState**: [`StateClass`](../type-aliases/StateClass.mdx)\<`Context`, `Protocol`\>
-
-Constructor of the root state class supplied to [makeHsm](../functions/makeHsm.mdx).
-
-Constant for the lifetime of the instance unless you replace the entire machine.
+> `readonly` **topState**: [`StateClass`](../type-aliases/StateClass.mdx)\<`C`\>
 
 ***
 
@@ -57,16 +28,11 @@ Constant for the lifetime of the instance unless you replace the entire machine.
 
 > `readonly` **topStateName**: `string`
 
-Display name of [topState](#topstate) (same naming rules as [currentStateName](#currentstatename)).
-
 ***
 
 ### ctxTypeName
 
 > `readonly` **ctxTypeName**: `string`
-
-Runtime label derived from `ctx` constructor name, used as the first segment of
-[traceHeader](#traceheader) in verbose traces.
 
 ***
 
@@ -74,34 +40,17 @@ Runtime label derived from `ctx` constructor name, used as the first segment of
 
 > `readonly` **traceHeader**: `string`
 
-Prefix for nested trace domains, built from internal dispatch stack frames.
-
-Empty at the top level; grows like `domain|subdomain|` during nested operations.
-Handlers rarely need to read this directly — it is prepended automatically by
-the default [TraceWriter](TraceWriter.mdx).
-
 ***
 
 ### eventName
 
 > `readonly` **eventName**: `string`
 
-Name of the event or service currently being dispatched.
-
-Matches the string passed to [Base.post](Base.mdx#post), [Hsm.call](Hsm.mdx#call), or
-[State.postNow](State.mdx#postnow). Empty string when no handler is running.
-
 ***
 
 ### eventPayload
 
-> `readonly` **eventPayload**: `any`[]
-
-Arguments passed with the current dispatch, excluding injected `resolve` / `reject`
-for [Hsm.call](Hsm.mdx#call) services.
-
-Empty array when idle. Typed as `any[]` at runtime; correlate with
-[EventPayload](../type-aliases/EventPayload.mdx) / [ServiceRequest](../type-aliases/ServiceRequest.mdx) at compile time on the client.
+> `readonly` **eventPayload**: `unknown`[]
 
 ***
 
@@ -109,31 +58,14 @@ Empty array when idle. Typed as `any[]` at runtime; correlate with
 
 > **traceLevel**: [`TraceLevel`](../enumerations/TraceLevel.mdx)
 
-Active trace verbosity; changing this swaps dispatch tracing behavior immediately.
-
-#### See
-
-TraceLevel
-
 ***
 
 ### traceWriter
 
 > **traceWriter**: [`TraceWriter`](TraceWriter.mdx)
 
-Destination for runtime and handler-initiated trace lines.
-
-Replaceable at any time (e.g. swap in a test double before `post`/`call`).
-
 ***
 
 ### dispatchErrorCallback
 
-> **dispatchErrorCallback**: [`DispatchErrorCallback`](DispatchErrorCallback.mdx)\<`Context`, `Protocol`\>
-
-Last-resort error hook when [StateEvents.onError](StateEvents.mdx#onerror) / [StateEvents.onUnhandled](StateEvents.mdx#onunhandled)
-do not recover.
-
-#### See
-
-DispatchErrorCallback
+> **dispatchErrorCallback**: [`DispatchErrorCallback`](DispatchErrorCallback.mdx)\<`C`\>

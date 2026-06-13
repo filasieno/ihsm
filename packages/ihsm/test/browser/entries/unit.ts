@@ -4,6 +4,7 @@ import * as chai from 'chai';
 
 (globalThis as typeof globalThis & { expect: typeof chai.expect }).expect = chai.expect;
 
+import '../../../src/spec/actor-config.spec.ts';
 import '../../../src/spec/cache.spec.ts';
 import '../../../src/spec/coverage.spec.ts';
 import '../../../src/spec/deadlock-guard.spec.ts';
@@ -25,11 +26,10 @@ import '../../../src/spec/protocol-collision.spec.ts';
 import '../../../src/spec/quote.spec.ts';
 import '../../../src/spec/reserved-names.spec.ts';
 import '../../../src/spec/restore.spec.ts';
+import '../../../src/spec/runtime-coverage.spec.ts';
 import '../../../src/spec/services-promise.spec.ts';
 import '../../../src/spec/services.spec.ts';
 import '../../../src/spec/state-names.spec.ts';
 import '../../../src/spec/testing.spec.ts';
 import '../../../src/spec/tracelevel.spec.ts';
 import '../../../src/spec/transition.spec.ts';
-import '../../../src/spec/types-v2.spec.ts';
-import '../../../src/spec/v2-coverage.spec.ts';

@@ -1,59 +1,56 @@
 import { expect } from 'chai';
 import 'mocha';
-import { FatalErrorState, InitialState, StateClass, TopState, TraceLevel, makeOwnerActor, manifestFor } from '../';
-import type { Config, OwnerActor } from '../';
-import { TestPort } from '../testing';
-import { clearLastError, createTestDispatchErrorCallback, TRACE_LEVELS, traceActorOnPort } from './spec.utils';
+import { FatalErrorState, InitialState, StateClass, TopState, TraceLevel} from '../';
+import type { TestActor } from '../testing';
+import { makeTestActor, TestPort } from '../testing';
+import * as self from './error.transition.spec';
+import { clearLastError, createTestDispatchErrorCallback, TRACE_LEVELS, registerSpecStateNames, traceActorOnPort } from './spec.utils';
 
-type Cons = StateClass<Record<string, never>, Record<string, unknown>>;
+type Cons = StateClass;
 
-interface ErrorTransitionConfig extends Config {
+interface ErrorTransitionConfig {
 	context: Record<string, never>;
 	notifications: {
 		transitionTo(s: Cons): void;
 	};
 }
 
-const errorTransitionManifest = manifestFor<ErrorTransitionConfig>({
-	services: [],
-	notifications: ['transitionTo'],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class HsmTop extends TopState {
-	static readonly manifest = errorTransitionManifest;
-	declare readonly __ihsm: ErrorTransitionConfig;
+//#region ThisTestSpec
+export class HsmTop extends TopState<ErrorTransitionConfig> {
 
 	transitionTo(s: Cons): void {
 		this.hsm.transition(s);
 	}
 }
 
-class A extends HsmTop {
+export class A extends HsmTop {
 	onEntry(): void {
 		throw new Error('A fatal error');
 	}
 }
 
 @InitialState
-class B extends HsmTop {}
+export class B extends HsmTop {}
 
-class C extends HsmTop {
+export class C extends HsmTop {
+
 	onExit(): void {
 		throw new Error('A fatal error');
 	}
 }
 
+registerSpecStateNames(self);
+//#endregion
+
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`A transition that throws an error (traceLevel = ${traceLevel})`, function (): void {
-		let sm: OwnerActor<ErrorTransitionConfig>;
+		let sm: TestActor<ErrorTransitionConfig>;
 		let port: TestPort;
 
 		beforeEach(async () => {
 			clearLastError();
 			port = new TestPort();
-			sm = makeOwnerActor(HsmTop as never, {}, port, { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+			sm = makeTestActor(HsmTop, {}, port, { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			traceActorOnPort(sm, port);
 			await sm.hsm.sync();
 		});

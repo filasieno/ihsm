@@ -1,21 +1,17 @@
-/**
- * Shared transition planning and execution for the runtime and generated routine tables.
- *
- * @packageDocumentation
- */
-
+/** Public subpath — transition planning and execution helpers. */
 export {
-	createHsmTransitionTrace,
+	TransitionTableError,
+	createTransitionTracer,
 	executeTransitionRoutine,
 	planTransitionClasses,
 	transitionTraceLines,
-} from './internal/transition-routines';
+} from './internal/runtime';
 
 export type {
 	PlannedTransition,
 	TransitionRoutineExecuteOptions,
 	TransitionRoutinePlan,
 	TransitionRoutineStyle,
-	TransitionRoutineTrace,
+	TransitionTracer,
 	TransitionTraceHost,
-} from './internal/transition-routines';
+} from './internal/types';

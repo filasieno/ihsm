@@ -1,100 +1,51 @@
-# Deferred Post
+# Deferred notifications (`hsm.defer`)
 
 ## Problem
 
-You need to fire an event after a delay without blocking the handler or inventing a “timer” state for every timeout.
+Handlers sometimes need to schedule follow-up work after a delay without blocking the current handler.
 
 ## Solution
 
-`deferredPost(millis, event, ...args)` schedules through the machine's **port timer service** — for a port-less machine that is the `Port` (a `setTimeout`-backed timer the runtime always instantiates) — then enqueues the event like any `post`. It is **handler-only**: it is not on the external actor surface.
+`this.hsm.port.defer(millis).eventName(…)` arms a timer through the machine's **port timer service** (`Port.setTimeout`), then enqueues the notification like any other. **Handler-only** — not on the external actor surface.
 
-## UML statechart
-
-```plantuml
-@startuml
-left to right direction
-state ReminderTop {
-  [*] --> Waiting
-  Waiting : scheduleReminder / after 50ms → deliver
-  Waiting : deliver / ctx.message := text
-}
-@enduml
-```
-
-## Protocol
+## Handler
 
 ```typescript
-export interface ReminderProtocol {
-	scheduleReminder(text: string): void;
-	deliver(text: string): void;
+export class ReminderTop extends TopState {
+  scheduleReminder(text: string): void {
+    this.hsm.port.defer(50).deliver(text); // returns immediately; timer armed
+  }
+
+  deliver(text: string): void {
+    this.ctx.message = text;
+  }
 }
 ```
 
----
-
-## Example · Schedule from handler, wait from client
-
-### Handler (state machine)
-
-`scheduleReminder` returns immediately; the timer enqueues `deliver` later:
-
-```typescript
-export class ReminderTop extends TopState<ReminderCtx, ReminderProtocol> {
-	scheduleReminder(text: string): void {
-		this.deferredPost(50, 'deliver', text); // arms timer → post('deliver', text)
-	}
-
-	deliver(text: string): void {
-		this.ctx.message = text;
-	}
-}
-
-@InitialState
-export class Waiting extends ReminderTop {}
-```
-
-Inside a handler you can also chain: `this.deferredPost(ms, 'event', …)` — same run-to-completion rules as `this.post`.
-
-### Client (caller)
-
-Wait for **real time** (timer must fire) **and** event drain:
+## Client
 
 ```typescript
 const sm = createReminder();
-await sm.sync(); // init
+await sm.hsm.sync();
 
-sm.post('scheduleReminder', 'hello later'); // handler returns immediately
-await sleep(100);                           // timer fires → deliver enqueued
-await sm.sync();                            // deliver handler completes
+sm.scheduleReminder('hello later');
+await sleep(100); // real time in production; TestPort.advance in tests
+await sm.hsm.sync();
 
-expect(sm.ctx.message).equals('hello later');
+// sm.ctx.message === 'hello later'
 ```
 
-| Step | Who | What happens |
-| ---- | --- | ------------ |
-| 1 | Client | `post('scheduleReminder', …)` enqueues handler |
-| 2 | Handler | `deferredPost(50, 'deliver', …)` — returns; timer armed |
-| 3 | Client | `await sync()` — `scheduleReminder` done |
-| 4 | Timer | After 50ms, `deliver` is enqueued for dispatch |
-| 5 | Client | `await sync()` — `deliver` handler runs |
+| Step | Who | What |
+| ---- | --- | ---- |
+| 1 | Client | `sm.scheduleReminder('…')` |
+| 2 | Handler | `hsm.defer(50).deliver(…)` — returns; timer armed |
+| 3 | Port timer | fires → `deliver` enqueued |
+| 4 | Client | `await sm.hsm.sync()` — `deliver` runs |
 
-`deferredPost` is only available **inside** handlers (`this.deferredPost`). The client uses ordinary `post` to trigger the scheduling handler.
-
----
-
-## Reading the trace
-
-With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
-
-Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
-
-On the [documentation page](https://filasieno.github.io/ihsm/reference), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:examples` headlessly.
-
-**What to notice:** `#scheduleReminder` returns immediately; `#deliver` appears later as its own dispatch after the timer fires.
+In tests use `TestPort.advance(ms)` instead of wall-clock sleep. See [testing-01](../testing-01-deferred-timers/README.md).
 
 ## Verify
 
 ```shell
 npm run test:examples -- --grep 'Tutorial 09'
 ```
-

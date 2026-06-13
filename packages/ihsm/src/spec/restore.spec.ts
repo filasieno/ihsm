@@ -1,42 +1,39 @@
 import { expect } from 'chai';
 import 'mocha';
-import { TopState, InitialState, Any, makeOwnerActor, manifestFor } from '../';
-import type { Config } from '../';
-import { TestPort } from '../testing';
-import { clearLastError, TRACE_LEVELS, createTestDispatchErrorCallback, traceActorOnPort } from './spec.utils';
+import { TopState, InitialState } from '../';
+import { makeTestActor, TestPort } from '../testing';
+import * as self from './restore.spec';
+import { clearLastError, TRACE_LEVELS, createTestDispatchErrorCallback, registerSpecStateNames, traceActorOnPort } from './spec.utils';
+
+//#region ThisTestSpec
 
 interface RestoreCtx {
 	value: string;
 }
 
-interface RestoreConfig extends Config {
+interface RestoreConfig {
 	context: RestoreCtx;
 	notifications: {
 		getValue(obj: { value: string }): void;
 	};
 }
 
-const restoreManifest = manifestFor<RestoreConfig>({
-	services: [],
-	notifications: ['getValue'],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class HsmTop extends TopState {
-	static readonly manifest = restoreManifest;
-	declare readonly __ihsm: RestoreConfig;
-
+export class HsmTop extends TopState<RestoreConfig> {
 	getValue(obj: { value: string }): void {
 		obj.value = this.ctx.value;
 	}
 }
-@InitialState
-class A extends HsmTop {}
-@InitialState
-class B extends A {}
 
-class C extends HsmTop {}
+@InitialState
+export class A extends HsmTop {}
+
+@InitialState
+export class B extends A {}
+
+export class C extends HsmTop {}
+
+registerSpecStateNames(self);
+//#endregion
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Restore (traceLevel = ${traceLevel})`, () => {
@@ -52,13 +49,13 @@ for (const traceLevel of TRACE_LEVELS) {
 			const second = { value: 'second' };
 
 			const port = new TestPort();
-			const hsm = makeOwnerActor(HsmTop as never, initial, port, {
+			const hsm = makeTestActor(HsmTop, initial, port, {
 				initialize: false,
 				traceLevel,
 				dispatchErrorCallback,
 			});
 			traceActorOnPort(hsm, port);
-			const query: Any = { value: undefined };
+			const query = { value: '' };
 			hsm.getValue(query);
 			await hsm.hsm.sync();
 			expect(query.value).equals(initial.value);

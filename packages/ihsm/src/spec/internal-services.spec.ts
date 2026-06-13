@@ -1,24 +1,18 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import {
-	InitialState,
-	Port,
-	RequestingPort,
-	TopState,
-	makeActor,
-	makeInternalActor,
-	makeOwnerActor,
-	manifestFor,
-	registerStateNames,
-} from '../';
-import type { Config, OwnerActor } from '../';
+import { InitialState, Port, RequestingPort, TopState, asParentActor, makeActor, makeChildActor } from '../';
+import type { ChildActor, InboundActor } from '../';
+import * as self from './internal-services.spec';
+import { registerSpecStateNames } from './spec.utils';
+
+//#region ThisTestSpec
 
 interface ChildCtx {
 	value: number;
 }
 
-interface ChildConfig extends Config {
+interface ChildConfig {
 	context: ChildCtx;
 	services: {
 		ping(): Promise<string>;
@@ -34,20 +28,11 @@ interface ChildConfig extends Config {
 	};
 }
 
-const childManifest = manifestFor<ChildConfig>({
-	services: ['ping'],
-	notifications: ['open'],
-	internalServices: ['initialize'],
-	internalNotifications: ['onReady'],
-});
-
-class ChildTop extends TopState {
-	static readonly manifest = childManifest;
-	declare readonly __ihsm: ChildConfig;
+export class ChildTop extends TopState<ChildConfig> {
 
 	open(): void {}
 
-	initialize(seed: number): number {
+	async initialize(seed: number): Promise<number> {
 		this.ctx.value = seed;
 		return seed * 2;
 	}
@@ -56,37 +41,25 @@ class ChildTop extends TopState {
 }
 
 @InitialState
-class ChildIdle extends ChildTop {
-	ping(): string {
+export class ChildIdle extends ChildTop {
+	async ping(): Promise<string> {
 		return `v${this.ctx.value}`;
 	}
 }
 
 interface ParentCtx {
-	child?: OwnerActor<ChildConfig>;
+	child?: ChildActor<ChildConfig>;
 	sum: number;
 }
 
-interface ParentConfig extends Config {
+interface ParentConfig {
 	context: ParentCtx;
 	services: {
 		boot(seed: number): Promise<number>;
 	};
-	notifications: Record<string, never>;
-	internalServices: Record<string, never>;
-	internalNotifications: Record<string, never>;
 }
 
-const parentManifest = manifestFor<ParentConfig>({
-	services: ['boot'],
-	notifications: [],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class ParentTop extends TopState {
-	static readonly manifest = parentManifest;
-	declare readonly __ihsm: ParentConfig;
+export class ParentTop extends TopState<ParentConfig> {
 
 	async boot(seed: number): Promise<number> {
 		const doubled = await this.ctx.child!.initialize(seed);
@@ -96,50 +69,61 @@ class ParentTop extends TopState {
 }
 
 @InitialState
-class ParentIdle extends ParentTop {}
+export class ParentIdle extends ParentTop {
+	onEntry(): void {
+		if (this.ctx.child === undefined) {
+			this.ctx.child = makeChildActor(asParentActor(this), ChildTop, { value: 0 }, new Port<typeof ChildTop>());
+		}
+	}
+}
 
-class ChildRequestPort extends RequestingPort<ChildTop> {}
+class ChildRequestPort extends RequestingPort<typeof ChildTop> {}
 
-registerStateNames({ ChildTop, ChildIdle, ParentTop, ParentIdle });
+registerSpecStateNames(self);
+//#endregion
 
-describe('internal-services (v2)', function (): void {
-	it('parent OwnerActor awaits child internalServices', async () => {
-		const childPort = new Port<ChildTop>();
-		const child = makeOwnerActor(ChildTop as never, { value: 0 }, childPort);
+describe('internal-services', function (): void {
+	it('parent ChildActor awaits child internalServices', async () => {
 		const parentPort = new Port<ParentTop>();
-		const parent = makeOwnerActor(ParentTop as never, { sum: 0, child }, parentPort);
+		const parentCtx: ParentCtx = { sum: 0 };
+		const parent = makeActor(ParentTop, parentCtx, parentPort);
 		await parent.hsm.sync();
 		const doubled = await parent.boot(3);
 		expect(doubled).equals(6);
-		expect(parent.ctx.sum).equals(6);
-		expect(child.ctx.value).equals(3);
+		expect(parentCtx.sum).equals(6);
+		expect(parentCtx.child).to.exist;
+		expect(await parentCtx.child!.ping()).equals('v3');
 	});
 
-	it('makeActor port.actor is InternalActor without internalServices', async () => {
-		const port = new Port<ChildTop>();
-		const child = makeActor(ChildTop as never, { value: 0 }, port);
-		await child.hsm.sync();
+	it('makeActor port.actor exposes discovered services on the internal port handle', async () => {
+		const port = new Port<typeof ChildTop>();
+		const childCtx = { value: 0 };
+		makeActor(ChildTop, childCtx, port);
+		await port.actor!.hsm.sync();
 		expect(port.actor).to.exist;
-		expect((port.actor as { initialize?: unknown }).initialize).equals(undefined);
-		port.actor!.onReady();
-		await child.hsm.sync();
+		expect(typeof (port.actor as { initialize?: unknown }).initialize).equals('function');
+		(port.actor as InboundActor<ChildConfig>).onReady();
+		await port.actor!.hsm.sync();
 	});
 
 	it('RequestingPort widens port.actor with internalServices', async () => {
 		const port = new ChildRequestPort();
-		const child = makeActor(ChildTop as never, { value: 0 }, port);
-		await child.hsm.sync();
+		const childCtx = { value: 0 };
+		makeActor(ChildTop, childCtx, port);
+		await port.actor.hsm.sync();
 		expect(port.actor).to.exist;
-		const doubled = await port.actor!.initialize(4);
+		const doubled = await port.actor.initialize(4);
 		expect(doubled).equals(8);
-		expect(child.ctx.value).equals(4);
+		expect(childCtx.value).equals(4);
 	});
 
-	it('makeInternalActor exposes internalNotifications on the handle', async () => {
-		const actor = makeInternalActor(ChildTop as never, { value: 1 }, new Port());
-		await actor.hsm.sync();
-		actor.onReady();
-		await actor.hsm.sync();
-		expect(await actor.ping()).equals('v1');
+	it('port.actor exposes internalNotifications after makeActor', async () => {
+		const port = new Port<typeof ChildTop>();
+		const childCtx = { value: 1 };
+		makeActor(ChildTop, childCtx, port);
+		await port.actor!.hsm.sync();
+		port.actor!.onReady();
+		await port.actor!.hsm.sync();
+		expect(await port.actor!.ping()).equals('v1');
 	});
 });

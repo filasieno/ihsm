@@ -1,9 +1,10 @@
 /**
  * Tracing example — ping handler with CollectingTraceWriter.
  *
- * Teaches: makeOwnerActor(..., { traceLevel, traceWriter }), trace lines from handlers.
+ * Teaches: makeActor(..., { traceLevel, traceWriter }), trace lines from handlers.
  */
 import * as ihsm from '../../src';
+import { makeTestActor } from '../../src/testing';
 import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 import { CollectingTraceWriter } from '../shared/trace';
@@ -13,23 +14,15 @@ export interface PingCtx {
 	pings: number;
 }
 
-export interface PingConfig extends ihsm.Config {
+export interface PingConfig {
 	context: PingCtx;
-	notifications: {
+notifications: {
 		ping(): void;
 	};
 }
 
-const pingManifest = ihsm.manifestFor<PingConfig>({
-	services: [],
-	notifications: ['ping'],
-	internalServices: [],
-	internalNotifications: [],
-});
 
 export class PingTop extends PlaygroundTopState<PingConfig> {
-	static readonly manifest = pingManifest;
-	declare readonly __ihsm: PingConfig;
 
 	ping(): void {
 		this.ctx.pings += 1;
@@ -45,7 +38,7 @@ ihsm.registerStateNames(self);
 
 /** Verbose trace into a collector — used by the reference trace panel and tests. */
 export function createTracedPing(writer: CollectingTraceWriter) {
-	return ihsm.makeOwnerActor(PingTop, { pings: 0 }, new ihsm.Port(), {
+	return makeTestActor(PingTop, { pings: 0 }, new ihsm.Port(), {
 		traceLevel: ihsm.TraceLevel.VERBOSE_DEBUG,
 		traceWriter: writer,
 	});

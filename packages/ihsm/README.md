@@ -10,7 +10,7 @@
 
 ihsm is state management and orchestration for backends, session actors, protocol handlers, and embedded tooling: states are **classes**, events are **methods**, hierarchy is **inheritance**, and each machine is an **actor** with serialized, run-to-completion dispatch.
 
-> **Built for Deterministic Simulation Testing.** Determinism is not an add-on here — it is the design center. Every source of nondeterminism is pushed behind one seam: **serialized run-to-completion dispatch** (each handler runs to completion and never interleaves; `await sync()` drains to a barrier), a single **`Port`** boundary for *all* I/O (sockets, clocks, the filesystem), and a compiler-enforced **public/internal protocol split**. Swap the port for a mock, replace the clock with one you advance by hand, and the same inputs always produce the same outputs — so a failure **replays exactly**. The dedicated [`ihsm/testing`](#entry-points) entry point ships `makeTestActor`, `@mock`/`makeTestPort`, and a `TestPort` virtual clock for this, and never bloats your production bundle. See the [Deterministic Testing chapter](https://filasieno.github.io/ihsm/testing).
+> **Built for Deterministic Simulation Testing.** Determinism is not an add-on here — it is the design center. Every source of nondeterminism is pushed behind one seam: **serialized run-to-completion dispatch** (each handler runs to completion and never interleaves; `await actor.hsm.sync()` drains to a barrier), a single **`Port`** boundary for *all* I/O (sockets, clocks, the filesystem), and a compiler-enforced **public/internal protocol split**. Swap the port for a mock, replace the clock with one you advance by hand, and the same inputs always produce the same outputs — so a failure **replays exactly**. The dedicated [`ihsm/testing`](#entry-points) entry point ships `makeTestActor`, `@mock`/`makeTestPort`, and a `TestPort` virtual clock for this, and never bloats your production bundle. See the [Deterministic Testing chapter](https://filasieno.github.io/ihsm/testing).
 
 Requires **Node.js 22+** (or a modern browser). Class names in traces and errors come from `Class.name` — no extra registration step in a typical npm/Node project.
 
@@ -53,14 +53,13 @@ npm install ihsm
 ```
 
 ```ts
-import { InitialState, makeActor, manifestFor, Port, TopState } from 'ihsm';
-import type { Config } from 'ihsm';
+import { InitialState, makeActor, Port, TopState } from 'ihsm';
 
 interface DoorCtx {
   openCount: number;
 }
 
-interface DoorConfig extends Config {
+interface DoorConfig {
   context: DoorCtx;
   notifications: {
     open(): void;
@@ -68,16 +67,8 @@ interface DoorConfig extends Config {
   };
 }
 
-const doorManifest = manifestFor<DoorConfig>({
-  services: [],
-  notifications: ['open', 'close'],
-  internalServices: [],
-  internalNotifications: [],
-});
 
-class DoorTop extends TopState {
-  static readonly manifest = doorManifest;
-  declare readonly __ihsm: DoorConfig;
+class DoorTop extends TopState<DoorConfig> {
 }
 
 @InitialState
@@ -104,41 +95,32 @@ console.log(door.hsm.currentStateName); // 'Open'
 console.log(door.ctx.openCount);        // 1
 ```
 
-See **[examples/00-config/](examples/00-config/README.md)** for the full `Config` tour.
+See **[examples/00-config/](examples/00-config/README.md)** for the full protocol tour.
 
 ---
 
 ## Typed services (promise-returning)
 
-Services are declared on `Config.services`. The generated client method **always** returns `Promise<Reply>` — callers must `await`, so RTC ordering is explicit.
+Services are declared on the protocol's `services` bucket. The generated client method **always** returns `Promise<Reply>` — callers must `await`, so RTC ordering is explicit.
 
 ```ts
-import { InitialState, makeOwnerActor, manifestFor, Port, TopState } from 'ihsm';
-import type { Config } from 'ihsm';
+import { InitialState, makeOwnerActor, Port, TopState } from 'ihsm';
 
 interface WalletCtx {
   balance: number;
 }
 
-interface WalletConfig extends Config {
-  context: WalletCtx;
+interface WalletConfig {
   notifications: { deposit(amount: number): void };
   services: {
     getBalance(): Promise<number>;
     withdraw(amount: number): Promise<number>;
   };
+  context: WalletCtx;
 }
 
-const walletManifest = manifestFor<WalletConfig>({
-  services: ['getBalance', 'withdraw'],
-  notifications: ['deposit'],
-  internalServices: [],
-  internalNotifications: [],
-});
 
-class WalletTop extends TopState {
-  static readonly manifest = walletManifest;
-  declare readonly __ihsm: WalletConfig;
+class WalletTop extends TopState<WalletConfig> {
 
   deposit(amount: number): void {
     this.ctx.balance += amount;
@@ -190,36 +172,37 @@ Also not that all states are stateless classes.
 All state is stored in the actor context available at `this.ctx`.
 
 ```ts
-import { InitialState, makeHsm, TopState } from 'ihsm';
+import { InitialState, makeOwnerActor, Port, TopState } from 'ihsm';
 
 interface PlayerCtx {
   track: string;
 }
 
-interface PlayerProtocol {
-  play(): void;
-  pause(): void;
-  stop(): void;
+interface PlayerConfig {
+  context: PlayerCtx;
+  notifications: { play(): void; pause(): void; stop(): void };
 }
 
-class PlayerTop extends TopState<PlayerCtx, PlayerProtocol> {}
+
+class PlayerTop extends TopState<PlayerConfig> {
+}
 
 class Active extends PlayerTop {
   stop(): void {
-    this.transition(Stopped);
+    this.hsm.transition(Stopped);
   }
 }
 
 @InitialState
 class Playing extends Active {
   pause(): void {
-    this.transition(Paused);
+    this.hsm.transition(Paused);
   }
 }
 
 class Paused extends Active {
   play(): void {
-    this.transition(Playing);
+    this.hsm.transition(Playing);
   }
 }
 
@@ -227,15 +210,15 @@ class Paused extends Active {
 class Stopped extends PlayerTop {
   play(): void {
     this.ctx.track = 'demo.mp3';
-    this.transition(Playing);
+    this.hsm.transition(Playing);
   }
 }
 
-const player = makeHsm(PlayerTop, { track: '' });
-await player.sync();
+const player = makeOwnerActor(PlayerTop, { track: '' }, new Port());
+await player.hsm.sync();
 
-player.post('play');
-await player.sync();
+player.play();
+await player.hsm.sync();
 // active leaf: Playing — inherits stop() from Active
 ```
 
@@ -243,27 +226,27 @@ See [Hierarchy & transitions](https://filasieno.github.io/ihsm/reference#_5-tran
 
 ---
 
-## Messaging: `post`, `sync`, and `call`
+## Messaging: notifications, services, and sync
 
 Every machine is an actor with **single-threaded, run-to-completion dispatch**. While a handler runs to completion, new messages queue — no re-entrancy.
 
 | API | Role | Returns |
 | --- | ---- | ------- |
-| `post(event, …args)` | Fire-and-forget event | `void` (use `sync()` to wait) |
-| `call(service, …args)` | Typed request/response | `Promise<T>` |
-| `deferredPost(ms, event, …args)` | Timer then `post` | `void` |
-| `sync()` | Drain queue up to marker | `Promise<void>` |
+| `actor.event(…)` | Fire-and-forget notification | `void` (use `hsm.sync()` to wait) |
+| `await actor.service(…)` | Typed request/response | `Promise<T>` |
+| `this.hsm.defer(ms).event(…)` | Timer then notification | handler-only |
+| `await actor.hsm.sync()` | Drain queue up to marker | `Promise<void>` |
 
 ```ts
-door.post('open');
-await door.sync(); // handler + transition finished
+door.open();
+await door.hsm.sync();
 
-const id = await account.call('lookup', 'user-42'); // await the service directly
+const id = await account.lookup('user-42');
 ```
 
-Inside handlers you also get `transition()`, `sleep()`, and `postNow()` for hi-priority follow-up steps within the same dispatch turn.
+Inside handlers use `this.hsm.transition()`, `this.hsm.sleep()`, `this.hsm.actor`, and `this.hsm.immediate`.
 
-See [Post & sync](https://filasieno.github.io/ihsm/reference#_4-messaging-post-call-sync) in the reference.
+See [Messaging](https://filasieno.github.io/ihsm/reference#_4-messaging-notifications-services-sync) in the reference.
 
 ---
 
@@ -278,7 +261,7 @@ class Idle extends FileTop {
   async transfer(from: string, to: string): Promise<void> {
     const data = await readFile(from);
     await writeFile(to, data);
-    this.transition(Done);
+    this.hsm.transition(Done);
   }
 }
 ```
@@ -291,11 +274,11 @@ See [Async handlers](https://filasieno.github.io/ihsm/reference#_9-async-handler
 
 Production code imports `ihsm`; tests import `ihsm/testing`. Every source of nondeterminism lives behind a **`Port`** — sockets, clocks, randomness, the filesystem. Tests swap in a **`TestPort`** (virtual clock, scripted random, recorded message log) or an **`@mock`** port stub, then drive the machine with **`makeTestActor`** (merged public + internal protocol, `subscribe()` for golden traces).
 
-Two rules: **never perform I/O outside a port**, and **never `sleep()` on wall-clock time in a test** — advance virtual time and `await sync()` instead.
+Two rules: **never perform I/O outside a port**, and **never `sleep()` on wall-clock time in a test** — advance virtual time and `await actor.hsm.sync()` instead.
 
 ### Virtual clock — simulate days of timers in microseconds
 
-`deferredPost` arms timers through the port. Replace the real clock with `TestPort` and call `advance(ms)` by hand:
+`this.hsm.defer(ms).onTick()` arms timers through the port. Replace the real clock with `TestPort` and call `advance(ms)` by hand:
 
 ```ts
 import { InitialState, TopState } from 'ihsm';
@@ -303,41 +286,36 @@ import { makeTestActor, TestPort } from 'ihsm/testing';
 
 const HOUR_MS = 60 * 60 * 1000;
 
-class HeartbeatCtx {
-  ticks = 0;
+interface HeartbeatConfig {
+  context: { ticks: number };
+  notifications: { start(): void };
+  internalNotifications: { onTick(): void };
 }
 
-interface HeartbeatPublic {
-  start(): void;
+class HeartbeatTop extends TopState<HeartbeatConfig> {
 }
-
-interface HeartbeatInternal {
-  onTick(): void;
-}
-
-class HeartbeatTop extends TopState<HeartbeatCtx, HeartbeatPublic, HeartbeatInternal> {}
 
 @InitialState
 class Running extends HeartbeatTop {
   start(): void {
-    this.deferredPost(HOUR_MS, 'onTick');
+    this.hsm.defer(HOUR_MS).onTick();
   }
   onTick(): void {
     this.ctx.ticks += 1;
-    this.deferredPost(HOUR_MS, 'onTick');
+    this.hsm.defer(HOUR_MS).onTick();
   }
 }
 
 const clock = new TestPort<HeartbeatTop>();
 const test = makeTestActor(HeartbeatTop, new HeartbeatCtx(), clock);
-await test.sync();
+await test.hsm.sync();
 
-test.post('start');
-await test.sync();
+test.start();
+await test.hsm.sync();
 
 for (let hour = 0; hour < 48; hour++) {
   clock.advance(HOUR_MS); // fire the due tick — no real waiting
-  await test.sync();
+  await test.hsm.sync();
 }
 
 // test.ctx.ticks === 48
@@ -364,14 +342,14 @@ port.request.default(() => ({
 }));
 
 const fetcher = makeTestActor(FetchTop, freshCtx(), port);
-await fetcher.sync();
+await fetcher.hsm.sync();
 
-fetcher.post('fetch', 'https://example.com');
-await fetcher.sync();
+fetcher.fetch('https://example.com');
+await fetcher.hsm.sync();
 // fetcher.currentState === Fetching — in-flight, still timer-free
 
 port.send('onResponse', 200, 'ok'); // you decide when the "network" replies
-await fetcher.sync();
+await fetcher.hsm.sync();
 // fetcher.currentState === Done
 // port.trace === ['request:https://example.com', 'onResponse:200,ok']
 ```
@@ -385,8 +363,8 @@ const port = new TestPort<HeartbeatTop>();
 const test = makeTestActor(HeartbeatTop, new HeartbeatCtx(), port);
 const sub = test.subscribe(m => port.record(m.event, ...m.payload));
 
-test.post('start');
-await test.sync();
+test.start();
+await test.hsm.sync();
 // port.events === ['start']
 
 sub.dispose();
@@ -411,11 +389,11 @@ version:
 
 | Import | Contents | Ships in production? |
 | ------ | -------- | -------------------- |
-| `ihsm` | The runtime: `makeHsm` / `makeActor`, `TopState`, ports, tracing | **yes** |
+| `ihsm` | The runtime: `makeOwnerActor` / `makeActor`, `TopState`, ports, tracing | **yes** |
 | `ihsm/testing` or `@ihsm/core/testing` | Deterministic-testing utilities: `makeTestActor`, `@mock` / `makeTestPort`, `TestPort` (re-exports the core API too) | **no** — test-only |
 
 ```ts
-import { makeHsm, TopState } from 'ihsm';                 // production code
+import { makeOwnerActor, TopState } from 'ihsm';                 // production code
 import { makeTestActor, mock, TestPort } from 'ihsm/testing'; // tests only
 ```
 
@@ -437,7 +415,7 @@ ihsm ships modern **ES2022** ESM and CommonJS. Supported runtimes:
 
 ### Size and dependencies
 
-Measured with `esbuild` bundling `lib/esm/index.js` for the browser (full runtime — run-to-completion dispatch, transitions, tracing, typed `call`):
+Measured with `esbuild` bundling `lib/esm/index.js` for the browser (full runtime — run-to-completion dispatch, transitions, tracing, promise services):
 
 | | |
 | --- | --- |
@@ -445,7 +423,7 @@ Measured with `esbuild` bundling `lib/esm/index.js` for the browser (full runtim
 | **Published package** | `lib/` only (~46 KB npm tarball) |
 | **Minified bundle** | **~22 KB** (21.7 KiB; single-file ESM/IIFE) |
 | **Gzip** | **~4.6 KB** (typical CDN / HTTP transfer size) |
-| **Tree-shaking** | `"sideEffects": false` — runtime is one cohesive module (~22 KB even when importing only `makeHsm`) |
+| **Tree-shaking** | `"sideEffects": false` — runtime is one cohesive module (~22 KB even when importing only `makeOwnerActor`) |
 
 Node loads the unminified `lib/` files directly (~18 KB entry, ~62 KB total); minify numbers apply to browser bundles.
 

@@ -173,7 +173,7 @@ describe('Testing 05: subscriptions & disposables', () => {
 				start(path: string): void;
 			}
 			// @ts-expect-error public and internal protocols must not share keys ('start').
-			ihsm.makeActor<WatcherCtx, { start(p: string): void }, CollidingInternal>(WatcherTop, new WatcherCtx(), port);
+			makeTestActor<WatcherCtx, { start(p: string): void }, CollidingInternal>(WatcherTop, new WatcherCtx(), port);
 		};
 
 		expect(typeof _typeChecks).to.equal('function');

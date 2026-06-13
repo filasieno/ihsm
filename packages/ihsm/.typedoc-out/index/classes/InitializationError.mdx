@@ -1,48 +1,36 @@
-Thrown when [StateEvents.onEntry](../interfaces/StateEvents.mdx#onentry) fails during the initial `@InitialState` walk at startup.
-
 ## Extends
 
-- [`HsmError`](HsmError.mdx)\<`Context`, `Protocol`\>
+- [`HsmError`](HsmError.mdx)\<`C`\>
 
 ## Type Parameters
 
-### Context
+### C
 
-`Context`
-
-### Protocol
-
-`Protocol` *extends* \{ \} \| `undefined`
+`C` *extends* [`ActorConfig`](../interfaces/ActorConfig.mdx) = [`ActorConfig`](../interfaces/ActorConfig.mdx)
 
 ## Constructors
 
 ### Constructor
 
-> **new InitializationError**\<`Context`, `Protocol`\>(`hsm`, `failedState`, `cause`): `InitializationError`\<`Context`, `Protocol`\>
+> **new InitializationError**\<`C`\>(`hsm`, `failedState`, `cause`): `InitializationError`\<`C`\>
 
 #### Parameters
 
 ##### hsm
 
-[`State`](../interfaces/State.mdx)\<`Context`, `Protocol`\>
-
-Partially initialized machine
+`ErrorHost`\<`C`\>
 
 ##### failedState
 
-[`StateClass`](../type-aliases/StateClass.mdx)\<`Context`, `Protocol`\>
-
-State class whose `onEntry` threw
+[`StateClass`](../type-aliases/StateClass.mdx)\<`C`\>
 
 ##### cause
 
 `Error`
 
-Original error from `onEntry`
-
 #### Returns
 
-`InitializationError`\<`Context`, `Protocol`\>
+`InitializationError`\<`C`\>
 
 #### Overrides
 
@@ -54,8 +42,6 @@ Original error from `onEntry`
 
 > **name**: `string`
 
-Discriminator matching the class name (`EventHandlerError`, etc.).
-
 #### Inherited from
 
 [`HsmError`](HsmError.mdx).[`name`](HsmError.mdx#name)
@@ -65,8 +51,6 @@ Discriminator matching the class name (`EventHandlerError`, etc.).
 ### topStateName
 
 > **topStateName**: `string`
-
-[Properties.topStateName](../interfaces/Properties.mdx#topstatename) when the error was constructed.
 
 #### Inherited from
 
@@ -78,8 +62,6 @@ Discriminator matching the class name (`EventHandlerError`, etc.).
 
 > **stateName**: `string`
 
-[Properties.currentStateName](../interfaces/Properties.mdx#currentstatename) when the error was constructed.
-
 #### Inherited from
 
 [`HsmError`](HsmError.mdx).[`stateName`](HsmError.mdx#statename)
@@ -88,21 +70,17 @@ Discriminator matching the class name (`EventHandlerError`, etc.).
 
 ### context
 
-> **context**: `Context`
-
-Snapshot of [State.ctx](../interfaces/State.mdx#ctx) when the error was constructed.
+> **context**: [`ActorContextOf`](../type-aliases/ActorContextOf.mdx)\<`C`\>
 
 #### Inherited from
 
-[`HsmError`](HsmError.mdx).[`context`](HsmError.mdx#context-1)
+[`HsmError`](HsmError.mdx).[`context`](HsmError.mdx#context)
 
 ***
 
 ### cause?
 
 > `optional` **cause?**: `Error`
-
-Original thrown value when this error wraps a handler or lifecycle failure.
 
 #### Inherited from
 
@@ -112,6 +90,4 @@ Original thrown value when this error wraps a handler or lifecycle failure.
 
 ### failedState
 
-> **failedState**: [`StateClass`](../type-aliases/StateClass.mdx)\<`Context`, `Protocol`\>
-
-State class whose `onEntry` threw
+> **failedState**: [`StateClass`](../type-aliases/StateClass.mdx)\<`C`\>

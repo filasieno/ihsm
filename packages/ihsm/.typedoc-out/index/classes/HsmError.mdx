@@ -1,5 +1,3 @@
-Base class for all ihsm runtime errors carrying machine context.
-
 ## Extends
 
 - `Error`
@@ -11,23 +9,15 @@ Base class for all ihsm runtime errors carrying machine context.
 
 ## Type Parameters
 
-### Context
+### C
 
-`Context`
-
-Domain context at failure time
-
-### Protocol
-
-`Protocol` *extends* \{ \} \| `undefined`
-
-Vocabulary type (for typed subclasses)
+`C` *extends* [`ActorConfig`](../interfaces/ActorConfig.mdx) = [`ActorConfig`](../interfaces/ActorConfig.mdx)
 
 ## Constructors
 
 ### Constructor
 
-> `protected` **new HsmError**\<`Context`, `Protocol`\>(`name`, `hsm`, `message`, `cause?`): `HsmError`\<`Context`, `Protocol`\>
+> `protected` **new HsmError**\<`C`\>(`name`, `hsm`, `message`, `cause?`): `HsmError`\<`C`\>
 
 #### Parameters
 
@@ -37,7 +27,7 @@ Vocabulary type (for typed subclasses)
 
 ##### hsm
 
-[`State`](../interfaces/State.mdx)\<`Context`, `Protocol`\>
+`ErrorHost`\<`C`\>
 
 ##### message
 
@@ -49,7 +39,7 @@ Vocabulary type (for typed subclasses)
 
 #### Returns
 
-`HsmError`\<`Context`, `Protocol`\>
+`HsmError`\<`C`\>
 
 #### Overrides
 
@@ -61,8 +51,6 @@ Vocabulary type (for typed subclasses)
 
 > **name**: `string`
 
-Discriminator matching the class name (`EventHandlerError`, etc.).
-
 #### Overrides
 
 `Error.name`
@@ -73,31 +61,23 @@ Discriminator matching the class name (`EventHandlerError`, etc.).
 
 > **topStateName**: `string`
 
-[Properties.topStateName](../interfaces/Properties.mdx#topstatename) when the error was constructed.
-
 ***
 
 ### stateName
 
 > **stateName**: `string`
 
-[Properties.currentStateName](../interfaces/Properties.mdx#currentstatename) when the error was constructed.
-
 ***
 
 ### context
 
-> **context**: `Context`
-
-Snapshot of [State.ctx](../interfaces/State.mdx#ctx) when the error was constructed.
+> **context**: [`ActorContextOf`](../type-aliases/ActorContextOf.mdx)\<`C`\>
 
 ***
 
 ### cause?
 
 > `optional` **cause?**: `Error`
-
-Original thrown value when this error wraps a handler or lifecycle failure.
 
 #### Overrides
 

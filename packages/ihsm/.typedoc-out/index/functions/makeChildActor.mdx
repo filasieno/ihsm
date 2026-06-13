@@ -1,0 +1,39 @@
+> **makeChildActor**\<`ParentT`, `ChildT`\>(`parent`, `childTop`, `childCtx`, `port?`, `options?`): `ActorParentField`\<[`TopStateArg`](../type-aliases/TopStateArg.mdx)\<[`ActorConfig`](../interfaces/ActorConfig.mdx)\>\> & [`ServiceClient`](../type-aliases/ServiceClient.mdx)\<[`ActorServicesOf`](../type-aliases/ActorServicesOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>\> & [`NotificationClient`](../type-aliases/NotificationClient.mdx)\<[`ActorNotificationsOf`](../type-aliases/ActorNotificationsOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>\> & [`NotificationClient`](../type-aliases/NotificationClient.mdx)\<[`ActorInternalNotificationsOf`](../type-aliases/ActorInternalNotificationsOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>\> & `object` & [`ServiceClient`](../type-aliases/ServiceClient.mdx)\<[`ActorInternalServicesOf`](../type-aliases/ActorInternalServicesOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>\> & `object` & `object`
+
+Parent composes a child machine — returns full child protocol shell with `parent` set.
+
+## Type Parameters
+
+### ParentT
+
+`ParentT` *extends* [`TopStateArg`](../type-aliases/TopStateArg.mdx)\<[`ActorConfig`](../interfaces/ActorConfig.mdx)\>
+
+### ChildT
+
+`ChildT` *extends* [`TopStateArg`](../type-aliases/TopStateArg.mdx)\<[`ActorConfig`](../interfaces/ActorConfig.mdx)\>
+
+## Parameters
+
+### parent
+
+[`ParentActor`](../type-aliases/ParentActor.mdx)\<`ParentT`\>
+
+### childTop
+
+`ChildT`
+
+### childCtx
+
+[`ActorContextOf`](../type-aliases/ActorContextOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>
+
+### port?
+
+[`MachinePortInput`](../type-aliases/MachinePortInput.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>
+
+### options?
+
+[`ActorOptions`](../interfaces/ActorOptions.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\> = `{}`
+
+## Returns
+
+`ActorParentField`\<[`TopStateArg`](../type-aliases/TopStateArg.mdx)\<[`ActorConfig`](../interfaces/ActorConfig.mdx)\>\> & [`ServiceClient`](../type-aliases/ServiceClient.mdx)\<[`ActorServicesOf`](../type-aliases/ActorServicesOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>\> & [`NotificationClient`](../type-aliases/NotificationClient.mdx)\<[`ActorNotificationsOf`](../type-aliases/ActorNotificationsOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>\> & [`NotificationClient`](../type-aliases/NotificationClient.mdx)\<[`ActorInternalNotificationsOf`](../type-aliases/ActorInternalNotificationsOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>\> & `object` & [`ServiceClient`](../type-aliases/ServiceClient.mdx)\<[`ActorInternalServicesOf`](../type-aliases/ActorInternalServicesOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>\> & `object` & `object`

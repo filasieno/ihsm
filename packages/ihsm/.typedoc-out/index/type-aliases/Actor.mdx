@@ -1,20 +1,17 @@
-> **Actor**\<`Context`, `Protocol`\> = [`Hsm`](../interfaces/Hsm.mdx)\<`Context`, `Protocol`\>
+> **Actor**\<`C`\> = [`ExternalActor`](ExternalActor.mdx)\<`C`\> & `object`
 
-External, public-only view of a machine returned by [makeActor](../functions/makeActor.mdx).
+## Type Declaration
 
-Identical to [Hsm](../interfaces/Hsm.mdx) over the **public** protocol: clients can `post` / `call` only
-public events — internal (port-driven) events are not in the callable surface.
+### ~~ctx?~~
+
+> `optional` **ctx?**: `never`
 
 ## Type Parameters
 
-### Context
+### C
 
-`Context` = [`Any`](Any.mdx)
+`C` *extends* [`ActorConfig`](../interfaces/ActorConfig.mdx) = [`ActorConfig`](../interfaces/ActorConfig.mdx)
 
-Domain context
+## Deprecated
 
-### Protocol
-
-`Protocol` *extends* \{ \} \| `undefined` = `undefined`
-
-Public protocol
+Use [ExternalActor](ExternalActor.mdx) — root shells have no `ctx`.

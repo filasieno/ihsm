@@ -1,12 +1,12 @@
-> **MachineInternal**\<`T`\> = `T` *extends* `object` ? `Internal` *extends* \{ \} \| `undefined` ? `Internal` : `never` : `never`
+> **MachineInternal**\<`T`\> = [`ActorInternalServicesOf`](ActorInternalServicesOf.mdx)\<[`ActorConfigOf`](ActorConfigOf.mdx)\<`T`\>\> & [`ActorInternalNotificationsOf`](ActorInternalNotificationsOf.mdx)\<[`ActorConfigOf`](ActorConfigOf.mdx)\<`T`\>\>
 
-Extracts the **internal** protocol from a [TopState](../classes/TopState.mdx) subclass. The result is always
-within `{} | undefined`, so it can drive [PostedEvent](PostedEvent.mdx) / [EventPayload](EventPayload.mdx) directly.
+Type-only public surface — erased at compile time; no runtime JS from this module.
+
+Import protocol and actor types from here:
+`import type { ActorConfig, ChildActor } from 'ihsm/types'`
 
 ## Type Parameters
 
 ### T
 
 `T`
-
-A [TopState](../classes/TopState.mdx) subclass (instance type)

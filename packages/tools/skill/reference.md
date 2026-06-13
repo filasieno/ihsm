@@ -31,7 +31,7 @@ and the leaf's own `onEntry`.
 
 ### Transitions
 
-`this.transition(Next)` is scheduled, not immediate. After the handler returns the runtime
+`this.hsm.transition(Next)` is scheduled, not immediate. After the handler returns the runtime
 computes the lowest-common-ancestor path, runs `onExit` up to (not including) the LCA, then
 `onEntry` down to the target (descending `@InitialState` chains for composites). Paths are
 cached per `From=>To`.
@@ -39,23 +39,24 @@ cached per `From=>To`.
 Gotchas:
 
 - A `transition()` requested inside `onEntry`/`onExit` is **cleared** when that lifecycle
-  dispatch ends. Never finish an async `onEntry` with `transition()`. Instead, `post` an
-  `on*` event (reflecting a real external observation) and transition from its handler.
+  dispatch ends. Never finish an async `onEntry` with `transition()`. Instead, enqueue an
+  `on*` notification (reflecting a real external observation) and transition from its handler.
 - Only the **last** `transition()` in a handler wins.
 - Self-transition with unchanged initial descent skips exit/entry.
 
 ### Mailbox and messaging
 
-One job runs at a time; `post`/`call` enqueue. While an async handler `await`s, new
-messages queue (no re-entrancy).
+One job runs at a time; generated notification/service methods enqueue. While an async
+handler `await`s, new messages queue (no re-entrancy).
 
 | API | Where | Use |
 |-----|-------|-----|
-| `post(event, ...)` | client + handler (`this.post`) | fire-and-forget; handler posts run after current handler + its transition |
-| `call(service, ...)` | client | `await`ed typed request/response; settles on `resolve`/`reject` |
-| `deferredPost(ms, event, ...)` | handler + client | `setTimeout` then enqueue (e.g. kill-grace timers) |
-| `this.postNow(event, ...)` | handler only | hi-priority; drains before normal posts of the same turn (extended transitions) |
-| `sync()` | client / tests | resolve when queue drains to a marker |
+| `actor.event(...)` | client | fire-and-forget notification |
+| `await actor.service(...)` | client | typed `Promise` reply |
+| `this.hsm.actor.event(...)` | handler | normal follow-up after handler + transition |
+| `this.hsm.immediate.event(...)` | handler | hi-priority; drains before normal `actor` queue |
+| `this.hsm.defer(ms).event(...)` | handler | port timer then enqueue |
+| `await actor.hsm.sync()` | client / tests | drain queue to marker |
 
 ### Errors
 

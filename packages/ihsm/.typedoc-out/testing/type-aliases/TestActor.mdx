@@ -1,64 +1,24 @@
-> **TestActor**\<`Context`, `Protocol`, `InternalProtocol`, `P`\> = [`Hsm`](../../index/interfaces/Hsm.mdx)\<`Context`, [`Dispatch`](../../index/type-aliases/Dispatch.mdx)\<`Protocol`, `InternalProtocol`\>\> & `object`
+> **TestActor**\<`C`\> = [`ChildActor`](../../index/type-aliases/ChildActor.mdx)\<`C`\> & `object`
 
-Full-access view returned by [makeTestActor](../functions/makeTestActor.mdx) for **deterministic testing**.
+Full-access owner actor returned by [makeTestActor](../functions/makeTestActor.mdx) for **deterministic testing**.
 
-Exposes the merged [Dispatch](../../index/type-aliases/Dispatch.mdx) protocol — so a test can drive internal events
-(`onSpawn`, `onExit`, …) directly without a live port — **plus** typed access to the
-machine's `port` for asserting outbound calls or pushing observations.
+Exposes the full [ActorConfig](../../index/interfaces/ActorConfig.mdx) protocol (services, notifications, internal buckets) as flat
+methods, with `hsm.port` and `hsm.subscribe` for test instrumentation.
 
 ## Type Declaration
 
-### port
+### ctx
 
-> `readonly` **port**: `P`
+> **ctx**: [`ActorContextOf`](../../index/type-aliases/ActorContextOf.mdx)\<`C`\>
 
-### subscribe()
+### hsm
 
-> **subscribe**(`observer`): [`Disposable`](../../index/interfaces/Disposable.mdx)
-
-Observe **every** event as it is posted through this machine — a capability unique to the
-test surface (it is intentionally absent from [Actor](../../index/type-aliases/Actor.mdx) / [Hsm](../../index/interfaces/Hsm.mdx)).
-
-The observer fires synchronously at post time with the event name and payload, capturing
-client posts, handler self-posts, and port-driven internal events alike. Wire it to
-[TestPort.record](../classes/TestPort.mdx#record) when you want a golden trace on the port under test.
-
-#### Parameters
-
-##### observer
-
-[`EventObserver`](../../index/type-aliases/EventObserver.mdx)
-
-Callback receiving each [TracedMessage](../../index/interfaces/TracedMessage.mdx)
-
-#### Returns
-
-[`Disposable`](../../index/interfaces/Disposable.mdx)
-
-A [Disposable](../../index/interfaces/Disposable.mdx) that stops the observation
+> **hsm**: [`TestHsm`](../../index/type-aliases/TestHsm.mdx)\<`C`\>
 
 ## Type Parameters
 
-### Context
+### C
 
-`Context` = [`Any`](../../index/type-aliases/Any.mdx)
+`C` *extends* [`ActorConfig`](../../index/interfaces/ActorConfig.mdx) = [`ActorConfig`](../../index/interfaces/ActorConfig.mdx)
 
-Domain context
-
-### Protocol
-
-`Protocol` *extends* \{ \} \| `undefined` = `undefined`
-
-Public protocol
-
-### InternalProtocol
-
-`InternalProtocol` *extends* `object` = \{ \}
-
-Internal (port-driven) protocol
-
-### P
-
-`P` = `undefined`
-
-Port type
+Machine config bag (plain interface satisfying [ActorConfig](../../index/interfaces/ActorConfig.mdx))

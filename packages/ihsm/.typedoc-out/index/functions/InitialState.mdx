@@ -1,50 +1,17 @@
-> **InitialState**\<`Context`, `Protocol`\>(`TargetState`): `void`
-
-Declares `TargetState` as the **initial substate** of its direct parent composite.
-
-Apply as a TypeScript decorator or call as a function at class definition time. Exactly **one**
-initial child is allowed per parent; a second mark throws [InitialStateError](../classes/InitialStateError.mdx).
+> **InitialState**\<`C`\>(`TargetState`): `void`
 
 ## Type Parameters
 
-### Context
+### C
 
-`Context`
-
-Domain context type
-
-### Protocol
-
-`Protocol` *extends* \{ \} \| `undefined`
-
-Vocabulary interface
+`C` *extends* [`ActorConfig`](../interfaces/ActorConfig.mdx)
 
 ## Parameters
 
 ### TargetState
 
-[`StateClass`](../type-aliases/StateClass.mdx)\<`Context`, `Protocol`\>
-
-Child state class whose **parent** is `Object.getPrototypeOf(TargetState.prototype).constructor`
+[`StateClass`](../type-aliases/StateClass.mdx)\<`C`\>
 
 ## Returns
 
 `void`
-
-## Throws
-
-[InitialStateError](../classes/InitialStateError.mdx) when the parent already has an initial substate
-
-## Remarks
-
-During [makeHsm](makeHsm.mdx) initialization, the runtime descends `@InitialState` chains from the
-root until the deepest initial leaf is active, running [StateEvents.onEntry](../interfaces/StateEvents.mdx#onentry) along the path.
-
-## Example
-
-```ts
-class Composite extends TopState {}
-
-@InitialState
-class Idle extends Composite {}
-```

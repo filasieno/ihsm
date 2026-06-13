@@ -16,5 +16,5 @@
 		"allowJs": false
 	},
 	"include": ["src/**/*"],
-	"exclude": ["src/spec"]
+	"exclude": ["src/spec", "src/test-only"]
 }

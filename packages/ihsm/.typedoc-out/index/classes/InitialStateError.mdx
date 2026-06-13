@@ -1,36 +1,28 @@
-Thrown at **class definition** time when [InitialState](../functions/InitialState.mdx) is applied twice to one parent.
-
 ## Extends
 
 - `Error`
 
 ## Type Parameters
 
-### Context
+### C
 
-`Context`
-
-### Protocol
-
-`Protocol` *extends* \{ \} \| `undefined`
+`C` *extends* [`ActorConfig`](../interfaces/ActorConfig.mdx) = [`ActorConfig`](../interfaces/ActorConfig.mdx)
 
 ## Constructors
 
 ### Constructor
 
-> **new InitialStateError**\<`Context`, `Protocol`\>(`targetState`): `InitialStateError`\<`Context`, `Protocol`\>
+> **new InitialStateError**\<`C`\>(`targetState`): `InitialStateError`\<`C`\>
 
 #### Parameters
 
 ##### targetState
 
-[`StateClass`](../type-aliases/StateClass.mdx)\<`Context`, `Protocol`\>
-
-The state class whose parent already has an initial substate
+[`StateClass`](../type-aliases/StateClass.mdx)\<`C`\>
 
 #### Returns
 
-`InitialStateError`\<`Context`, `Protocol`\>
+`InitialStateError`\<`C`\>
 
 #### Overrides
 
@@ -41,5 +33,3 @@ The state class whose parent already has an initial substate
 ### targetStateName
 
 > **targetStateName**: `string`
-
-Display name of the state passed to the duplicate [InitialState](../functions/InitialState.mdx) call.

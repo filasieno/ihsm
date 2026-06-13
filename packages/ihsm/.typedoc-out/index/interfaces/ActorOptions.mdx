@@ -1,26 +1,13 @@
-Optional tuning passed as the **last** argument to [makeActor](../functions/makeActor.mdx) / [testing!makeTestActor](../../testing/functions/makeTestActor.mdx),
-after the three mandatory positional arguments (`topState`, `ctx`, `port`). Every field has a
-sensible default; omit the whole object to take them all.
+Type-only public surface — erased at compile time; no runtime JS from this module.
+
+Import protocol and actor types from here:
+`import type { ActorConfig, ChildActor } from 'ihsm/types'`
 
 ## Type Parameters
 
-### Context
+### C
 
-`Context`
-
-Domain context type
-
-### Public
-
-`Public` *extends* `undefined` \| \{ \}
-
-Public protocol
-
-### Internal
-
-`Internal` *extends* `object` = \{ \}
-
-Internal protocol
+`C` *extends* [`ActorConfig`](ActorConfig.mdx) = [`ActorConfig`](ActorConfig.mdx)
 
 ## Properties
 
@@ -28,15 +15,11 @@ Internal protocol
 
 > `optional` **initialize?**: `boolean`
 
-Run the initial `@InitialState` walk (default `true`).
-
 ***
 
 ### traceLevel?
 
 > `optional` **traceLevel?**: [`TraceLevel`](../enumerations/TraceLevel.mdx)
-
-Initial [TraceLevel](../enumerations/TraceLevel.mdx) (default [TraceLevel.DEBUG](../enumerations/TraceLevel.mdx#debug)).
 
 ***
 
@@ -44,12 +27,14 @@ Initial [TraceLevel](../enumerations/TraceLevel.mdx) (default [TraceLevel.DEBUG]
 
 > `optional` **traceWriter?**: [`TraceWriter`](TraceWriter.mdx)
 
-[TraceWriter](TraceWriter.mdx) implementation (default: prefixes with state name, logs to `console`).
-
 ***
 
 ### dispatchErrorCallback?
 
-> `optional` **dispatchErrorCallback?**: [`DispatchErrorCallback`](DispatchErrorCallback.mdx)\<`Context`, [`Dispatch`](../type-aliases/Dispatch.mdx)\<`Public`, `Internal`\>\>
+> `optional` **dispatchErrorCallback?**: [`DispatchErrorCallback`](DispatchErrorCallback.mdx)\<`C`\>
 
-Last-resort error hook (default: trace + rethrow).
+***
+
+### transitions?
+
+> `optional` **transitions?**: [`TransitionResolver`](TransitionResolver.mdx)\<`C`\>

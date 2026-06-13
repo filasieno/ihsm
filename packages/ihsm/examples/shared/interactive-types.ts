@@ -1,4 +1,5 @@
-import type { Config, ConfigContext, OwnerActor, TopStateArg } from '../../src';
+import type { ActorConfig, ActorContextOf, TopStateArg } from '../../src';
+import type { TestActor } from '../../src/testing';
 import type { CollectingTraceWriter } from './trace';
 
 export type TutorialFieldType = 'number' | 'string';
@@ -22,17 +23,17 @@ export interface TutorialSender {
 	label: string;
 }
 
-export interface SingleHsmRuntime<C extends Config = Config> {
+export interface SingleHsmRuntime<C extends ActorConfig = ActorConfig> {
 	kind: 'single';
-	sm: OwnerActor<C>;
+	sm: TestActor<C>;
 	writer: CollectingTraceWriter;
 }
 
 export interface CoordinatorRuntime {
 	kind: 'coordinator';
 	coordinator: {
-		payment: OwnerActor<Config>;
-		shipping: OwnerActor<Config>;
+		payment: TestActor<ActorConfig>;
+		shipping: TestActor<ActorConfig>;
 		fulfill(): Promise<void>;
 		sync(): Promise<void>;
 	};
@@ -68,13 +69,13 @@ export interface TutorialInteractiveMeta {
 	mousePad?: TutorialMousePad;
 }
 
-export interface SingleSenderTutorialOptions<C extends Config> {
+export interface SingleSenderTutorialOptions<C extends ActorConfig> {
 	title: string;
 	topState: TopStateArg<C>;
-	initialCtx: ConfigContext<C>;
+	initialCtx: ActorContextOf<C>;
 	initialize?: boolean;
 	messages: TutorialMessage[];
-	stateSummary: (sm: OwnerActor<C>) => string;
+	stateSummary: (sm: TestActor<C>) => string;
 	extraActions?: TutorialExtraAction[];
 	/** Pass `import * as machine from './machine'` so state names survive production minification. */
 	machineExports?: Record<string, unknown>;

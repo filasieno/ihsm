@@ -37,8 +37,8 @@ Useful as a no-op external transition; rare in production.
 ## Code
 
 ```typescript
-sm.post('goSelfWest');
-await sm.sync();
+sm.goSelfWest();
+await sm.hsm.sync();
 ```
 
 

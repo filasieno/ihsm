@@ -4,7 +4,7 @@ import { registerStateNamesFromExports } from '../shared/state-names';
 import { getSenderHsm } from '../shared/interactive-helpers';
 import type { InteractiveRuntime, TutorialInteractiveMeta } from '../shared/interactive-types';
 import * as machine from './machine';
-import { FetchTop, FetchCtx, FetchPort, freshCtx } from './machine';
+import { FetchTop, FetchCtx, FetchConfig, FetchPort, freshCtx } from './machine';
 
 /**
  * Local playground port (a class on {@link TestPort}). It records the request and returns an abort
@@ -33,8 +33,12 @@ function summarize(sm: { hsm: { currentStateName: string }; ctx: FetchCtx }): st
 }
 
 async function settle(runtime: InteractiveRuntime, event: 'onResponse' | 'onFailure', ...args: (number | string)[]): Promise<void> {
-	const sm = getSenderHsm(runtime, 'machine');
-	sm[event](...args);
+	const sm = getSenderHsm<FetchConfig>(runtime, 'machine');
+	if (event === 'onResponse') {
+		sm.onResponse(args[0] as number, args[1] as string);
+	} else {
+		sm.onFailure(args[0] as string);
+	}
 	await sm.hsm.sync();
 }
 
@@ -65,13 +69,13 @@ export const interactive: TutorialInteractiveMeta = {
 				traceWriter: writer, // collect lines for the trace panel
 			}
 		);
-		return { kind: 'single', sm, writer };
+		return { kind: 'single', sm, writer } as unknown as InteractiveRuntime;
 	},
 	stateSummary: (runtime): string => {
 		if (runtime.kind !== 'single') {
 			return '';
 		}
-		return summarize(runtime.sm);
+		return summarize(runtime.sm as unknown as { hsm: { currentStateName: string }; ctx: FetchCtx });
 	},
 	extraActions: [
 		{

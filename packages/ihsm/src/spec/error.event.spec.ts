@@ -1,14 +1,17 @@
 import { expect } from 'chai';
 import 'mocha';
-import { EventHandlerError, FatalErrorState, InitialState, StateClass, TopState, makeOwnerActor, manifestFor } from '../';
-import type { Config, OwnerActor } from '../';
-import { TestPort } from '../testing';
+import { EventHandlerError, FatalErrorState, InitialState, StateClass, TopState} from '../';
+import type { ActorNotificationsOf } from '../';
+import type { TestActor } from '../testing';
+import { makeTestActor, TestPort } from '../testing';
+import * as self from './error.event.spec';
+import { clearLastError, createTestDispatchErrorCallback, TRACE_LEVELS, registerSpecStateNames, traceActorOnPort } from './spec.utils';
 
-import { clearLastError, createTestDispatchErrorCallback, TRACE_LEVELS, traceActorOnPort } from './spec.utils';
+//#region ThisTestSpec
 
-type State = StateClass<Record<string, never>, Record<string, unknown>>;
+type State = StateClass;
 
-interface ErrorEventConfig extends Config {
+interface ErrorEventConfig {
 	context: Record<string, never>;
 	notifications: {
 		executeWithError01(): void;
@@ -20,16 +23,7 @@ interface ErrorEventConfig extends Config {
 	};
 }
 
-const errorEventManifest = manifestFor<ErrorEventConfig>({
-	services: [],
-	notifications: ['executeWithError01', 'executeWithError02', 'executeWithError03', 'executeWithError04', 'executeWithError05', 'transitionTo'],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class HsmTop extends TopState {
-	static readonly manifest = errorEventManifest;
-	declare readonly __ihsm: ErrorEventConfig;
+export class HsmTop extends TopState<ErrorEventConfig> {
 
 	transitionTo(s: State): void {
 		this.hsm.transition(s);
@@ -56,11 +50,11 @@ class HsmTop extends TopState {
 	}
 }
 
-class NoRecovery extends HsmTop {}
+export class NoRecovery extends HsmTop {}
 
 @InitialState
-class Recovery extends HsmTop {
-	async onError<EventName extends keyof ErrorEventConfig['notifications']>(err: EventHandlerError<Record<string, never>, ErrorEventConfig['notifications'], EventName>): Promise<void> {
+export class Recovery extends HsmTop {
+	async onError<EventName extends keyof ActorNotificationsOf<ErrorEventConfig>>(err: EventHandlerError<ErrorEventConfig, EventName>): Promise<void> {
 		switch (err.eventName) {
 			case 'executeWithError01':
 				return;
@@ -75,33 +69,36 @@ class Recovery extends HsmTop {
 			case 'executeWithError05':
 				throw new Error('Error in onError()');
 		}
-		await this.hsm.sleep(1000);
+		await new Promise<void>(resolve => setTimeout(resolve, 1000));
 	}
 }
 
-class B extends Recovery {}
+export class B extends Recovery {}
 
-class C extends Recovery {
+export class C extends Recovery {
 	onEntry(): Promise<void> | void {
 		throw new Error('Create a transition error during error recovery');
 	}
 }
 
-class D extends Recovery {
+export class D extends Recovery {
 	onExit(): Promise<void> | void {
 		throw new Error('Transition failed while going to fatal error state');
 	}
 }
 
+registerSpecStateNames(self);
+//#endregion
+
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Error event (traceLevel = ${traceLevel})`, function (): void {
-		let sm: OwnerActor<ErrorEventConfig>;
+		let sm: TestActor<ErrorEventConfig>;
 		let port: TestPort;
 
 		beforeEach(async () => {
 			clearLastError();
 			port = new TestPort();
-			sm = makeOwnerActor(HsmTop as never, {}, port, { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+			sm = makeTestActor(HsmTop, {}, port, { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			traceActorOnPort(sm, port);
 			await sm.hsm.sync();
 		});

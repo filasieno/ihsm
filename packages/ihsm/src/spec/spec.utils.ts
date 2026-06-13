@@ -1,6 +1,6 @@
-import { Base, Disposable, EventObserver, TraceLevel, TracedMessage } from '../';
-import { kMachine } from '../v2/handles';
-import type { HandleOwn } from '../v2/handles';
+import { Disposable, EventObserver, Properties, TraceLevel, TracedMessage, type ActorConfig } from '../';
+import { kMachine } from '../internal/runtime';
+import type { HandleOwn } from '../internal/runtime';
 import { registerStateNamesFromExports } from '../../examples/shared/state-names';
 
 export const TRACE_LEVELS: TraceLevel[] = [TraceLevel.VERBOSE_DEBUG, TraceLevel.DEBUG, TraceLevel.PRODUCTION];
@@ -19,37 +19,38 @@ export function registerSpecStateNames(exports: Record<string, unknown>): void {
 	registerStateNamesFromExports(exports);
 }
 
-let lastError: Error | undefined = undefined;
+const lastErrorBox: { value: Error | undefined } = { value: undefined };
 
 export function createTestDispatchErrorCallback(eatError = false) {
-	return <Context, Protocol extends {} | undefined>(hsm: Base<Context, Protocol>, err: Error): void => {
+	return <C extends ActorConfig>(hsm: Properties<C>, err: Error): void => {
 		console.log(`
 // -------------------------------------------------------------------------------------------------------
 // The following error has escaped the dispatch (eat error = ${eatError})
 // -------------------------------------------------------------------------------------------------------
 `);
 		hsm.traceWriter.write(hsm, err);
-		lastError = err;
+		lastErrorBox.value = err;
 		if (!eatError) throw err;
 	};
 }
 
 export function getLastError(): Error | undefined {
-	return lastError;
+	return lastErrorBox.value;
 }
 
 export function clearLastError(): void {
-	lastError = undefined;
+	lastErrorBox.value = undefined;
 }
 
 /** Subscribe to a test actor and forward every event into a {@link TestPort} message log. */
 export function traceActorOnPort(
-	actor: { subscribe(observer: EventObserver): Disposable } | HandleOwn,
+	/** Generated actor handle (`TestActor`, …) — carries `kMachine` at runtime. */
+	actor: object,
 	port: { record(event: string, ...payload: unknown[]): void },
 ): Disposable {
 	const subscribable =
-		'subscribe' in actor && typeof actor.subscribe === 'function'
-			? actor
-			: (actor[kMachine] as { subscribe(observer: EventObserver): Disposable });
+		'subscribe' in actor && typeof (actor as { subscribe?: unknown }).subscribe === 'function'
+			? (actor as { subscribe(observer: EventObserver): Disposable })
+			: ((actor as unknown as HandleOwn)[kMachine] as unknown as { subscribe(observer: EventObserver): Disposable });
 	return subscribable.subscribe(message => port.record(message.event, ...message.payload));
 }

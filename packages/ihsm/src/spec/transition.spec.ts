@@ -1,35 +1,29 @@
 import { expect } from 'chai';
 import 'mocha';
-import { InitialState, StateClass, TopState, TraceLevel, makeOwnerActor, manifestFor } from '../';
-import type { Config, OwnerActor } from '../';
-import { TestPort } from '../testing';
+import { InitialState, StateClass, TopState, TraceLevel} from '../';
+import type { TestActor } from '../testing';
+import { makeTestActor, TestPort } from '../testing';
+import * as self from './transition.spec';
 import { TRACE_LEVELS, clearLastError, registerSpecStateNames, traceActorOnPort } from './spec.utils';
 
-type Cons = StateClass<TransitionTrace, Record<string, unknown>>;
+//#region ThisTestSpec
+
+type Cons = StateClass;
 
 class TransitionTrace {
 	public exitList: Cons[] = [];
 	public entryList: Cons[] = [];
 }
 
-interface TransitionConfig extends Config {
+interface TransitionConfig {
 	context: TransitionTrace;
-	notifications: {
+notifications: {
 		transitionTo(s: Cons): void;
 		clear(): void;
 	};
 }
 
-const transitionManifest = manifestFor<TransitionConfig>({
-	services: [],
-	notifications: ['transitionTo', 'clear'],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class HsmTop extends TopState {
-	static readonly manifest = transitionManifest;
-	declare readonly __ihsm: TransitionConfig;
+export class HsmTop extends TopState<TransitionConfig> {
 
 	transitionTo(s: Cons): void {
 		this.clear();
@@ -47,7 +41,7 @@ class HsmTop extends TopState {
 	}
 }
 
-class A extends HsmTop {
+export class A extends HsmTop {
 	onEntry(): void {
 		this.ctx.entryList.push(A);
 	}
@@ -56,7 +50,7 @@ class A extends HsmTop {
 	}
 }
 
-class A1 extends A {
+export class A1 extends A {
 	onEntry(): void {
 		this.ctx.entryList.push(A1);
 	}
@@ -65,7 +59,7 @@ class A1 extends A {
 	}
 }
 
-class A11 extends A1 {
+export class A11 extends A1 {
 	onEntry(): void {
 		this.ctx.entryList.push(A11);
 	}
@@ -74,7 +68,7 @@ class A11 extends A1 {
 	}
 }
 
-class A111 extends A11 {
+export class A111 extends A11 {
 	onEntry(): void {
 		this.ctx.entryList.push(A111);
 	}
@@ -83,7 +77,7 @@ class A111 extends A11 {
 	}
 }
 
-class A2 extends A {
+export class A2 extends A {
 	onEntry(): void {
 		this.ctx.entryList.push(A2);
 	}
@@ -92,7 +86,7 @@ class A2 extends A {
 	}
 }
 
-class A21 extends A2 {
+export class A21 extends A2 {
 	onEntry(): void {
 		this.ctx.entryList.push(A21);
 	}
@@ -101,7 +95,7 @@ class A21 extends A2 {
 	}
 }
 
-class A211 extends A21 {
+export class A211 extends A21 {
 	onEntry(): void {
 		this.ctx.entryList.push(A211);
 	}
@@ -110,7 +104,7 @@ class A211 extends A21 {
 	}
 }
 
-class A2111 extends A211 {
+export class A2111 extends A211 {
 	onEntry(): void {
 		this.ctx.entryList.push(A2111);
 	}
@@ -119,7 +113,7 @@ class A2111 extends A211 {
 	}
 }
 
-class B extends HsmTop {
+export class B extends HsmTop {
 	onEntry(): void {
 		this.ctx.entryList.push(B);
 	}
@@ -128,7 +122,7 @@ class B extends HsmTop {
 	}
 }
 
-class B1 extends B {
+export class B1 extends B {
 	onEntry(): void {
 		this.ctx.entryList.push(B1);
 	}
@@ -138,7 +132,7 @@ class B1 extends B {
 }
 
 @InitialState
-class C extends HsmTop {
+export class C extends HsmTop {
 	onEntry(): void {
 		this.ctx.entryList.push(C);
 	}
@@ -148,7 +142,7 @@ class C extends HsmTop {
 }
 
 @InitialState
-class C1 extends C {
+export class C1 extends C {
 	onEntry(): void {
 		this.ctx.entryList.push(C1);
 	}
@@ -158,7 +152,7 @@ class C1 extends C {
 }
 
 @InitialState
-class C11 extends C1 {
+export class C11 extends C1 {
 	onEntry(): void {
 		this.ctx.entryList.push(C11);
 	}
@@ -168,7 +162,7 @@ class C11 extends C1 {
 }
 
 @InitialState
-class C111 extends C11 {
+export class C111 extends C11 {
 	onEntry(): void {
 		this.ctx.entryList.push(C111);
 	}
@@ -178,7 +172,7 @@ class C111 extends C11 {
 }
 
 @InitialState
-class C1111 extends C111 {
+export class C1111 extends C111 {
 	async onEntry(): Promise<void> {
 		this.ctx.entryList.push(C1111);
 	}
@@ -187,35 +181,19 @@ class C1111 extends C111 {
 	}
 }
 
-registerSpecStateNames({
-	HsmTop,
-	A,
-	A1,
-	A11,
-	A111,
-	A2,
-	A21,
-	A211,
-	A2111,
-	B,
-	B1,
-	C,
-	C1,
-	C11,
-	C111,
-	C1111,
-});
+registerSpecStateNames(self);
+//#endregion
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Transition (traceLevel = ${traceLevel})`, function () {
 		let ctx: TransitionTrace;
-		let sm: OwnerActor<TransitionConfig>;
+		let sm: TestActor<TransitionConfig>;
 		let port: TestPort;
 		beforeEach(async () => {
 			clearLastError();
 			ctx = new TransitionTrace();
 			port = new TestPort();
-			sm = makeOwnerActor(HsmTop as never, ctx, port, { traceLevel });
+			sm = makeTestActor(HsmTop, ctx, port, { traceLevel });
 			traceActorOnPort(sm, port);
 			await sm.hsm.sync();
 		});

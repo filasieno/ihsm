@@ -1,11 +1,14 @@
 import { expect } from 'chai';
 import 'mocha';
-import { InitialState, StateClass, TopState, TraceLevel, TraceWriter, makeOwnerActor, manifestFor } from '../';
-import type { Config, OwnerActor } from '../';
-import { TestPort } from '../testing';
+import { InitialState, StateClass, TopState, TraceLevel, TraceWriter} from '../';
+import type { TestActor } from '../testing';
+import { makeTestActor, TestPort } from '../testing';
+import * as self from './fields.spec';
 import { clearLastError, TRACE_LEVELS, registerSpecStateNames, traceActorOnPort } from './spec.utils';
 
-type State = StateClass<Report, Record<string, unknown>>;
+//#region ThisTestSpec
+
+type State = StateClass;
 
 class Report {
 	eventName?: string;
@@ -14,29 +17,19 @@ class Report {
 	topState?: State;
 	currentStateName?: string;
 	currentState?: State;
-	ctxTypeName?: string;
 	traceLevel?: TraceLevel;
 	topStateName?: string;
 	traceWriter?: TraceWriter;
 }
 
-interface FieldsConfig extends Config {
+interface FieldsConfig {
 	context: Report;
 	notifications: {
 		report(msg: string): void;
 	};
 }
 
-const fieldsManifest = manifestFor<FieldsConfig>({
-	services: [],
-	notifications: ['report'],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class HsmTop extends TopState {
-	static readonly manifest = fieldsManifest;
-	declare readonly __ihsm: FieldsConfig;
+export class HsmTop extends TopState<FieldsConfig> {
 
 	report(msg: string): void {
 		console.log(`received message: ${msg}`);
@@ -45,8 +38,8 @@ class HsmTop extends TopState {
 		this.ctx.currentState = this.hsm.currentState;
 		this.ctx.currentStateName = this.hsm.currentStateName;
 		this.ctx.traceHeader = this.hsm.traceHeader;
+		expect(this.hsm.ctx).eq(this.ctx);
 		this.ctx.topState = this.hsm.topState;
-		this.ctx.ctxTypeName = this.hsm.ctxTypeName;
 		this.ctx.traceLevel = this.hsm.traceLevel;
 		this.ctx.topStateName = this.hsm.topStateName;
 		this.ctx.traceWriter = this.hsm.traceWriter;
@@ -54,16 +47,17 @@ class HsmTop extends TopState {
 }
 
 @InitialState
-class A extends HsmTop {}
+export class A extends HsmTop {}
 
 @InitialState
-class B extends A {}
+export class B extends A {}
 
-registerSpecStateNames({ HsmTop, A, B });
+registerSpecStateNames(self);
+//#endregion
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Fields (traceLevel = ${traceLevel})`, () => {
-		let sm: OwnerActor<FieldsConfig>;
+		let sm: TestActor<FieldsConfig>;
 		beforeEach(async () => {
 			clearLastError();
 		});
@@ -71,7 +65,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		it(`are available`, async () => {
 			const ctx = new Report();
 			const port = new TestPort();
-			sm = makeOwnerActor(HsmTop as never, ctx, port, { traceLevel });
+			sm = makeTestActor(HsmTop, ctx, port, { traceLevel });
 			traceActorOnPort(sm, port);
 			sm.report('hello world');
 			await sm.hsm.sync();
@@ -82,7 +76,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			expect(ctx.currentState).eq(B);
 			expect(ctx.currentStateName).eq('B');
 			expect(ctx.topState).eq(HsmTop);
-			expect(ctx.ctxTypeName).eq('Report');
+			expect(sm.ctx).eq(ctx);
 			expect(ctx.traceLevel).eq(traceLevel);
 			expect(ctx.topStateName).eq('HsmTop');
 			expect(ctx.traceWriter).eq(sm.hsm.traceWriter);

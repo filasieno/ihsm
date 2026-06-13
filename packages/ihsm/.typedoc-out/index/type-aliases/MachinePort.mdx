@@ -1,11 +1,12 @@
-> **MachinePort**\<`T`\> = `T` *extends* `object` ? `Port` : `never`
+> **MachinePort**\<`T`\> = [`ActorPortOf`](ActorPortOf.mdx)\<[`ActorConfigOf`](ActorConfigOf.mdx)\<`T`\>\>
 
-Extracts the **port** type from a [TopState](../classes/TopState.mdx) subclass.
+Type-only public surface — erased at compile time; no runtime JS from this module.
+
+Import protocol and actor types from here:
+`import type { ActorConfig, ChildActor } from 'ihsm/types'`
 
 ## Type Parameters
 
 ### T
 
 `T`
-
-A [TopState](../classes/TopState.mdx) subclass (instance type)

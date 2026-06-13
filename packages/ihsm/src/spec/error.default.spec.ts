@@ -1,13 +1,16 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { FatalErrorState, InitialState, TopState, makeOwnerActor, manifestFor } from '../';
-import type { Config, OwnerActor } from '../';
-import { TestPort } from '../testing';
+import type { DispatchErrorCallback } from '../';
+import { FatalErrorState, InitialState, TopState } from '../';
+import type { TestActor } from '../testing';
+import { makeTestActor, TestPort } from '../testing';
+import * as self from './error.default.spec';
+import { clearLastError, TRACE_LEVELS, registerSpecStateNames, traceActorOnPort } from './spec.utils';
 
-import { clearLastError, TRACE_LEVELS, traceActorOnPort } from './spec.utils';
+//#region ThisTestSpec
 
-interface ErrorDefaultConfig extends Config {
+interface ErrorDefaultConfig {
 	context: Record<string, never>;
 	notifications: {
 		executeWithError01(): void;
@@ -15,24 +18,14 @@ interface ErrorDefaultConfig extends Config {
 	};
 }
 
-const errorDefaultManifest = manifestFor<ErrorDefaultConfig>({
-	services: [],
-	notifications: ['executeWithError01', 'switchCallback'],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class HsmTop extends TopState {
-	static readonly manifest = errorDefaultManifest;
-	declare readonly __ihsm: ErrorDefaultConfig;
-
+export class HsmTop extends TopState<ErrorDefaultConfig> {
 	executeWithError01(): void {
 		throw new Error('This will result in a fatal error');
 	}
 
 	async switchCallback(): Promise<void> {
 		const defaultCallback = this.hsm.dispatchErrorCallback;
-		this.hsm.dispatchErrorCallback = (hsm: unknown, msg: Error): void => {
+		this.hsm.dispatchErrorCallback = (hsm, msg): void => {
 			try {
 				defaultCallback(hsm, msg);
 			} catch (error) {
@@ -43,19 +36,22 @@ class HsmTop extends TopState {
 }
 
 @InitialState
-class A extends HsmTop {}
+export class A extends HsmTop {}
+
+registerSpecStateNames(self);
+//#endregion
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Error dispatch (traceLevel = ${traceLevel})`, function (): void {
-		let sm: OwnerActor<ErrorDefaultConfig>;
+		let sm: TestActor<ErrorDefaultConfig>;
 		let port: TestPort;
 		let flag = false;
-		let defaultCallback: (hsm: unknown, msg: Error) => void;
-		let dispatchErrorCallback: (hsm: unknown, msg: Error) => void;
+		let defaultCallback: DispatchErrorCallback<ErrorDefaultConfig>;
+		let dispatchErrorCallback: DispatchErrorCallback<ErrorDefaultConfig>;
 
 		beforeEach(async () => {
-			defaultCallback = makeOwnerActor(HsmTop as never, {}, new TestPort(), { traceLevel }).hsm.dispatchErrorCallback;
-			dispatchErrorCallback = (hsm: unknown, msg: Error): void => {
+			defaultCallback = makeTestActor(HsmTop, {}, new TestPort(), { traceLevel }).hsm.dispatchErrorCallback;
+			dispatchErrorCallback = (hsm, msg): void => {
 				try {
 					defaultCallback(hsm, msg);
 				} catch (error) {
@@ -66,7 +62,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			clearLastError();
 			flag = false;
 			port = new TestPort();
-			sm = makeOwnerActor(HsmTop as never, {}, port, { traceLevel, dispatchErrorCallback });
+			sm = makeTestActor(HsmTop, {}, port, { traceLevel, dispatchErrorCallback });
 			traceActorOnPort(sm, port);
 			await sm.hsm.sync();
 		});

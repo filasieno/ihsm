@@ -1,0 +1,37 @@
+Thrown at construction when `Config`, state handlers, and the protocol index disagree.
+
+## Extends
+
+- `Error`
+
+## Properties
+
+### stateClass?
+
+> `readonly` `optional` **stateClass?**: `string`
+
+***
+
+### symbol?
+
+> `readonly` `optional` **symbol?**: `string`
+
+## Methods
+
+### reservedOnState()
+
+> `static` **reservedOnState**(`stateClass`, `symbol`): `ProtocolCollisionError`
+
+#### Parameters
+
+##### stateClass
+
+`string`
+
+##### symbol
+
+[`ReservedName`](../type-aliases/ReservedName.mdx)
+
+#### Returns
+
+`ProtocolCollisionError`

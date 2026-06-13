@@ -2,7 +2,7 @@
 
 ## Topology
 
-No external transition — ihsm walks the **initial chain** after `makeHsm()`.
+No external transition — ihsm walks the **initial chain** after `makeActor()`.
 
 ```plantuml
 @startuml
@@ -28,7 +28,7 @@ See the **Trace** panel on the [interactive docs site](https://filasieno.github.
 
 ```typescript
 const sm = createDeepMachine();
-await sm.sync();
+await sm.hsm.sync();
 ```
 
 ## What happens

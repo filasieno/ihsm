@@ -50,11 +50,11 @@ export class ThermostatTop extends TopState<ThermostatCtx, ThermostatProtocol> {
 The factory is typed end-to-end:
 
 ```typescript
-const t = makeHsm(ThermostatTop, { celsius: 18 });
+const t = makeActor(ThermostatTop, { celsius: 18 });
 
-t.post('setTarget', 22);   // ✓
-// t.post('setTargt', 22); // ✗ compile error: unknown event
-// t.post('setTarget', 'hot'); // ✗ compile error: string ≠ number
+t.setTarget(22);   // ✓
+// t.setTargt(22); // ✗ compile error: unknown event
+// t.setTarget('hot'); // ✗ compile error: string ≠ number
 ```
 
 ## Reading the trace

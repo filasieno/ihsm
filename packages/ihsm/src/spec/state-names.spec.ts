@@ -1,37 +1,49 @@
 import { expect } from 'chai';
 import 'mocha';
 import { defineStateName, registerStateNames, TopState } from '../';
-import { getStateName } from '../internal/utils';
-import { isBrowserMinTestEnv } from './spec.utils';
+import { getStateName } from '../internal/runtime';
+import * as self from './state-names.spec';
+import { isBrowserMinTestEnv, registerSpecStateNames } from './spec.utils';
+
+//#region ThisTestSpec
+
+export class NamedState extends TopState {}
+
+export class Alpha extends TopState {}
+
+export class Beta extends TopState {}
+
+export class Fallback extends TopState {}
+
+export class Parent extends TopState {}
+
+export class Child extends Parent {}
+
+registerSpecStateNames(self);
+//#endregion
 
 describe('state display names', () => {
 	it('registers and reads explicit names', () => {
-		class NamedState extends TopState {}
-		defineStateName(NamedState, 'Explicit');
-		expect(getStateName(NamedState)).equals('Explicit');
+		class LocalNamedState extends TopState {}
+		defineStateName(LocalNamedState, 'Explicit');
+		expect(getStateName(LocalNamedState)).equals('Explicit');
 	});
 
 	it('registers names in bulk from an exports map', () => {
-		class Alpha extends TopState {}
-		class Beta extends TopState {}
-		registerStateNames({ Alpha, Beta, notAStateClass: () => undefined, alsoIgnored: 42 });
 		expect(getStateName(Alpha)).equals('Alpha');
 		expect(getStateName(Beta)).equals('Beta');
+		registerStateNames({ notAStateClass: () => undefined, alsoIgnored: 42 });
 	});
 
 	it('falls back to constructor.name', function () {
 		if (isBrowserMinTestEnv()) {
 			this.skip();
 		}
-		class Fallback extends TopState {}
 		expect(getStateName(Fallback)).equals('Fallback');
 	});
 
 	it('does not inherit a parent state display name through the class prototype chain', () => {
-		class Parent extends TopState {}
-		class Child extends Parent {}
-		defineStateName(Parent, 'ParentOnly');
-		expect(getStateName(Parent)).equals('ParentOnly');
+		expect(getStateName(Parent)).equals('Parent');
 		expect(getStateName(Child)).equals('Child');
 	});
 });

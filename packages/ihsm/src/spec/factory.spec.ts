@@ -3,11 +3,18 @@ import 'mocha';
 import { TopState } from '../';
 import * as ihsm from '../';
 
-import { clearLastError } from './spec.utils';
+import { clearLastError, registerSpecStateNames } from './spec.utils';
+import * as self from './factory.spec';
+
+//#region ThisTestSpec
+
+registerSpecStateNames(self);
+
+//#endregion
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 class TestTraceWriter implements ihsm.TraceWriter {
-	write<Context, Protocol extends {} | undefined>(hsm: ihsm.Properties<Context, Protocol>, msg: any): void {
+	write<C extends ihsm.ActorConfig>(hsm: ihsm.Properties<C>, msg: any): void {
 		console.log(msg);
 	}
 }

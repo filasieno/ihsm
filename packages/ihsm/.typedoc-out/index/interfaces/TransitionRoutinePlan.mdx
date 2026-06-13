@@ -1,0 +1,56 @@
+Type-only public surface — erased at compile time; no runtime JS from this module.
+
+Import protocol and actor types from here:
+`import type { ActorConfig, ChildActor } from 'ihsm/types'`
+
+## Extends
+
+- [`PlannedTransition`](PlannedTransition.mdx)\<`C`\>
+
+## Type Parameters
+
+### C
+
+`C` *extends* [`ActorConfig`](ActorConfig.mdx) = [`ActorConfig`](ActorConfig.mdx)
+
+## Properties
+
+### exit
+
+> `readonly` **exit**: readonly [`StateClassOf`](../type-aliases/StateClassOf.mdx)\<`C`\>[]
+
+#### Inherited from
+
+[`PlannedTransition`](PlannedTransition.mdx).[`exit`](PlannedTransition.mdx#exit)
+
+***
+
+### entry
+
+> `readonly` **entry**: readonly [`StateClassOf`](../type-aliases/StateClassOf.mdx)\<`C`\>[]
+
+#### Inherited from
+
+[`PlannedTransition`](PlannedTransition.mdx).[`entry`](PlannedTransition.mdx#entry)
+
+***
+
+### finalState?
+
+> `readonly` `optional` **finalState?**: [`StateClassOf`](../type-aliases/StateClassOf.mdx)\<`C`\>
+
+#### Inherited from
+
+[`PlannedTransition`](PlannedTransition.mdx).[`finalState`](PlannedTransition.mdx#finalstate)
+
+***
+
+### from
+
+> `readonly` **from**: [`StateClassOf`](../type-aliases/StateClassOf.mdx)\<`C`\>
+
+***
+
+### to
+
+> `readonly` **to**: [`StateClassOf`](../type-aliases/StateClassOf.mdx)\<`C`\>

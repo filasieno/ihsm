@@ -4,7 +4,7 @@ import { registerStateNamesFromExports } from '../shared/state-names';
 import { getSenderHsm } from '../shared/interactive-helpers';
 import type { InteractiveRuntime, TutorialInteractiveMeta } from '../shared/interactive-types';
 import * as machine from './machine';
-import { WorkerTop, WorkerCtx, FaultPort, freshCtx } from './machine';
+import { WorkerTop, WorkerCtx, WorkerConfig, FaultPort, freshCtx } from './machine';
 
 /** Stub port (a class on {@link TestPort}, typed by the root {@link WorkerTop}): records retries
  * but never auto-reports — the buttons inject faults by hand. */
@@ -21,7 +21,7 @@ function summarize(sm: { hsm: { currentStateName: string }; ctx: WorkerCtx }): s
 }
 
 async function inject(runtime: InteractiveRuntime, ok: boolean): Promise<void> {
-	const sm = getSenderHsm(runtime, 'machine');
+	const sm = getSenderHsm<WorkerConfig>(runtime, 'machine');
 	sm.onResult(ok);
 	await sm.hsm.sync();
 }
@@ -44,13 +44,13 @@ export const interactive: TutorialInteractiveMeta = {
 				traceWriter: writer, // collect lines for the trace panel
 			}
 		);
-		return { kind: 'single', sm, writer };
+		return { kind: 'single', sm, writer } as unknown as InteractiveRuntime;
 	},
 	stateSummary: (runtime): string => {
 		if (runtime.kind !== 'single') {
 			return '';
 		}
-		return summarize(runtime.sm);
+		return summarize(runtime.sm as unknown as { hsm: { currentStateName: string }; ctx: WorkerCtx });
 	},
 	extraActions: [
 		{

@@ -1,14 +1,18 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { Any, EventHandlerError, InitialState, Port, TopState, makeOwnerActor, manifestFor, registerStateNames } from '../';
-import type { Config } from '../';
+import { EventHandlerError, InitialState, Port, TopState } from '../';
+import { makeTestActor } from '../testing';
+import * as self from './services-promise.spec';
+import { registerSpecStateNames } from './spec.utils';
+
+//#region ThisTestSpec
 
 interface PromiseCtx {
 	order: string[];
 }
 
-interface PromiseConfig extends Config {
+interface PromiseConfig {
 	context: PromiseCtx;
 	services: {
 		getValue(value: string): Promise<string>;
@@ -23,44 +27,35 @@ interface PromiseConfig extends Config {
 	};
 }
 
-const promiseManifest = manifestFor<PromiseConfig>({
-	services: ['getValue', 'getVoid', 'getSync', 'fail', 'transitionThenReply', 'blocking'],
-	notifications: ['after'],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class PromiseTop extends TopState {
-	static readonly manifest = promiseManifest;
-	declare readonly __ihsm: PromiseConfig;
+export class PromiseTop extends TopState<PromiseConfig> {
 }
 
-class Done extends PromiseTop {}
+export class Done extends PromiseTop {}
 
 @InitialState
-class Active extends PromiseTop {
-	getValue(value: string): string {
+export class Active extends PromiseTop {
+	async getValue(value: string): Promise<string> {
 		return `ok:${value}`;
 	}
 
 	async getVoid(): Promise<void> {}
 
-	getSync(): number {
+	async getSync(): Promise<number> {
 		return 7;
 	}
 
-	fail(): void {
+	async fail(): Promise<void> {
 		throw new Error('service failed');
 	}
 
-	transitionThenReply(): string {
+	async transitionThenReply(): Promise<string> {
 		this.hsm.transition(Done);
 		return 'moved';
 	}
 
 	async blocking(): Promise<string> {
 		this.ctx.order.push('blocking-start');
-		await this.hsm.sleep(10);
+		await new Promise<void>(resolve => setTimeout(resolve, 10));
 		this.ctx.order.push('blocking-end');
 		return 'done';
 	}
@@ -70,61 +65,50 @@ class Active extends PromiseTop {
 	}
 }
 
-registerStateNames({ PromiseTop, Active, Done });
-
-const recoveryManifest = manifestFor<{ services: { fail(): Promise<void> } }>({
-	services: ['fail'],
-	notifications: [],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class RecoveryTop extends TopState {
-	static readonly manifest = recoveryManifest;
-	declare readonly __ihsm: { services: { fail(): Promise<void> } };
-
-	onError(err: EventHandlerError<Any, Record<string, unknown>, string>): void {
+export class RecoveryTop extends TopState<PromiseConfig> {
+	onError(err: EventHandlerError<PromiseConfig, string>): void {
 		if (err.eventName === 'fail') return;
 		throw err;
 	}
 }
 
 @InitialState
-class Recovery extends RecoveryTop {
-	fail(): void {
+export class Recovery extends RecoveryTop {
+	async fail(): Promise<void> {
 		throw new Error('recoverable');
 	}
 }
 
-registerStateNames({ RecoveryTop, Recovery });
+registerSpecStateNames(self);
+//#endregion
 
 function freshCtx(): PromiseCtx {
 	return { order: [] };
 }
 
-describe('services-promise (v2)', function (): void {
+describe('services-promise', function (): void {
 	it('resolves with handler return value', async () => {
-		const actor = makeOwnerActor(PromiseTop as never, freshCtx(), new Port());
+		const actor = makeTestActor(PromiseTop, freshCtx(), new Port());
 		await actor.hsm.sync();
 		const result = await actor.getValue('hello');
 		expect(result).equals('ok:hello');
 	});
 
 	it('resolves Promise<void> service', async () => {
-		const actor = makeOwnerActor(PromiseTop as never, freshCtx(), new Port());
+		const actor = makeTestActor(PromiseTop, freshCtx(), new Port());
 		await actor.hsm.sync();
 		await actor.getVoid();
 	});
 
 	it('resolves sync handler on async-typed service', async () => {
-		const actor = makeOwnerActor(PromiseTop as never, freshCtx(), new Port());
+		const actor = makeTestActor(PromiseTop, freshCtx(), new Port());
 		await actor.hsm.sync();
 		const result = await actor.getSync();
 		expect(result).equals(7);
 	});
 
 	it('rejects when handler throws', async () => {
-		const actor = makeOwnerActor(PromiseTop as never, freshCtx(), new Port());
+		const actor = makeTestActor(PromiseTop, freshCtx(), new Port());
 		await actor.hsm.sync();
 		try {
 			await actor.fail();
@@ -135,7 +119,7 @@ describe('services-promise (v2)', function (): void {
 	});
 
 	it('onError recovery still rejects the client promise', async () => {
-		const actor = makeOwnerActor(RecoveryTop as never, freshCtx(), new Port());
+		const actor = makeTestActor(RecoveryTop, freshCtx(), new Port());
 		await actor.hsm.sync();
 		try {
 			await actor.fail();
@@ -146,7 +130,7 @@ describe('services-promise (v2)', function (): void {
 	});
 
 	it('transition completes before client promise resolves', async () => {
-		const actor = makeOwnerActor(PromiseTop as never, freshCtx(), new Port());
+		const actor = makeTestActor(PromiseTop, freshCtx(), new Port());
 		await actor.hsm.sync();
 		const result = await actor.transitionThenReply();
 		expect(result).equals('moved');
@@ -156,7 +140,7 @@ describe('services-promise (v2)', function (): void {
 
 	it('RTC — awaiting inside a service blocks subsequent notifications', async () => {
 		const ctx = freshCtx();
-		const actor = makeOwnerActor(PromiseTop as never, ctx, new Port());
+		const actor = makeTestActor(PromiseTop, ctx, new Port());
 		await actor.hsm.sync();
 		const servicePromise = actor.blocking();
 		actor.after();

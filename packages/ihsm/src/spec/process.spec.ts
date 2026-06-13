@@ -1,15 +1,18 @@
 import { expect } from 'chai';
 import 'mocha';
-import { InitialState, TopState, makeOwnerActor, manifestFor, registerStateNames } from '../';
-import type { Config, OwnerActor } from '../';
-import { TestPort } from '../testing';
-import { clearLastError, TRACE_LEVELS, traceActorOnPort } from './spec.utils';
+import { InitialState, TopState } from '../';
+import type { TestActor } from '../testing';
+import { makeTestActor, TestPort } from '../testing';
+import * as self from './process.spec';
+import { clearLastError, TRACE_LEVELS, registerSpecStateNames, traceActorOnPort } from './spec.utils';
+
+//#region ThisTestSpec
 
 class Report {
 	steps: string[] = [];
 }
 
-interface ProcessConfig extends Config {
+interface ProcessConfig {
 	context: Report;
 	notifications: {
 		start(): void;
@@ -17,24 +20,14 @@ interface ProcessConfig extends Config {
 	};
 }
 
-const processManifest = manifestFor<ProcessConfig>({
-	services: [],
-	notifications: ['start', 'next'],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class HsmTop extends TopState {
-	static readonly manifest = processManifest;
-	declare readonly __ihsm: ProcessConfig;
-
+export class HsmTop extends TopState<ProcessConfig> {
 	next(): void {}
 }
 
 @InitialState
-class A extends HsmTop {
+export class A extends HsmTop {
 	start(): void {
-		this.hsm.defer(500).next();
+		this.hsm.port.defer(500).next();
 	}
 
 	next(): void {
@@ -43,7 +36,8 @@ class A extends HsmTop {
 		this.hsm.transition(B);
 	}
 }
-class B extends HsmTop {
+
+export class B extends HsmTop {
 	onEntry(): void {
 		this.hsm.actor.next();
 	}
@@ -52,17 +46,19 @@ class B extends HsmTop {
 		this.hsm.transition(End);
 	}
 }
-class End extends HsmTop {
+
+export class End extends HsmTop {
 	onEntry(): void {
 		this.ctx.steps.push('Done');
 	}
 }
 
-registerStateNames({ HsmTop, A, B, End });
+registerSpecStateNames(self);
+//#endregion
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Process(traceLevel = ${traceLevel})`, () => {
-		let sm: OwnerActor<ProcessConfig>;
+		let sm: TestActor<ProcessConfig>;
 		let clock: TestPort<HsmTop>;
 		beforeEach(async () => {
 			clearLastError();
@@ -71,7 +67,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		it(`run a process`, async () => {
 			const ctx = new Report();
 			clock = new TestPort<HsmTop>();
-			sm = makeOwnerActor(HsmTop as never, ctx, clock, { traceLevel });
+			sm = makeTestActor(HsmTop, ctx, clock, { traceLevel });
 			traceActorOnPort(sm, clock);
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).eq(A);

@@ -1,40 +1,37 @@
+## Call Signature
+
 > **mock**\<`C`\>(`Ctor`): `C`
 
-Class decorator that turns an **abstract** [TestPort](../classes/TestPort.mdx) subclass into a preloadable mock.
+Decorate an abstract [TestPort](../classes/TestPort.mdx) subclass; pass port method names (abstract members are type-only at runtime).
 
-Declare each port method as an `abstract` member whose **signature matches the real port**, and
-decorate the class with `@`mock. Instances (built with [makeTestPort](makeTestPort.mdx)) then expose
-every abstract method as a scriptable [Stubbed](../interfaces/Stubbed.mdx) method: it records each call and returns
-whatever the test scripted with `method.default(...)` / `method.once(...)`. You never write a
-method body — the behavior lives in the test, so one mock serves many scenarios.
+### Type Parameters
 
-Concrete members (public fields holding device state, helper methods) are left untouched; only the
-abstract port methods are auto-stubbed.
-
-## Type Parameters
-
-### C
+#### C
 
 `C` *extends* (...`args`) => [`TestPort`](../classes/TestPort.mdx)\<[`Any`](../../index/type-aliases/Any.mdx)\>
 
-## Parameters
+### Parameters
 
-### Ctor
-
-`C`
-
-## Returns
+#### Ctor
 
 `C`
 
-## Example
+### Returns
 
-```ts
-@ihsmTest.mock
-abstract class WatcherMock extends ihsmTest.TestPort<WatcherTop> {
-  abstract watch(path: string): ihsm.ResultWithSubscription<number>; // signature matches the port
-}
+`C`
 
-const port = ihsmTest.makeTestPort(WatcherMock);
-port.watch.default(path => ({ value: 1, subscription: { dispose: () => port.record('dispose') } }));
-```
+## Call Signature
+
+> **mock**(...`methodNames`): \<`C`\>(`Ctor`) => `C`
+
+Decorate an abstract [TestPort](../classes/TestPort.mdx) subclass; pass port method names (abstract members are type-only at runtime).
+
+### Parameters
+
+#### methodNames
+
+...`string`[]
+
+### Returns
+
+\<`C`\>(`Ctor`) => `C`

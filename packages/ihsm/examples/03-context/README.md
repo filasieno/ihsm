@@ -58,14 +58,14 @@ One concrete state is enough when behavior does not depend on mode:
 export class Running extends CounterTop {}
 ```
 
-makeHsm seeds initial data:
+makeActor seeds initial data:
 
 ```typescript
-const counter = makeHsm(CounterTop, { value: 10, step: 5 });
-await counter.sync();
+const counter = makeActor(CounterTop, { value: 10, step: 5 });
+await counter.hsm.sync();
 
-counter.post('increment');
-await counter.sync();
+counter.increment();
+await counter.hsm.sync();
 // counter.ctx.value === 15, currentState still Running
 ```
 

@@ -1,6 +1,9 @@
 import eslint from '@eslint/js';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import tseslint from 'typescript-eslint';
+import { noMultilineImport } from './eslint-rules/no-multiline-import.mjs';
+
+const ihsmPlugin = { rules: { 'no-multiline-import': noMultilineImport } };
 
 export default tseslint.config(
 	eslint.configs.recommended,
@@ -22,7 +25,9 @@ export default tseslint.config(
 	},
 	{
 		files: ['src/**/*.ts', 'examples/**/*.ts'],
+		plugins: { ihsm: ihsmPlugin },
 		rules: {
+			'ihsm/no-multiline-import': 'error',
 			'@typescript-eslint/no-explicit-any': 'off',
 			'@typescript-eslint/explicit-function-return-type': 'off',
 			'@typescript-eslint/no-unused-vars': [

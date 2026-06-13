@@ -1,8 +1,6 @@
-Error base for failures during **event dispatch**, with correlated event metadata.
-
 ## Extends
 
-- [`HsmError`](HsmError.mdx)\<`Context`, `Protocol`\>
+- [`HsmError`](HsmError.mdx)\<`C`\>
 
 ## Extended by
 
@@ -13,29 +11,19 @@ Error base for failures during **event dispatch**, with correlated event metadat
 
 ## Type Parameters
 
-### Context
+### C
 
-`Context`
-
-Domain context
-
-### Protocol
-
-`Protocol` *extends* \{ \} \| `undefined`
-
-Vocabulary interface
+`C` *extends* [`ActorConfig`](../interfaces/ActorConfig.mdx) = [`ActorConfig`](../interfaces/ActorConfig.mdx)
 
 ### EventName
 
-`EventName` *extends* keyof `Protocol`
-
-Event or service key being processed
+`EventName` *extends* `string` = `string`
 
 ## Constructors
 
 ### Constructor
 
-> `protected` **new RuntimeError**\<`Context`, `Protocol`, `EventName`\>(`errorName`, `hsm`, `message`, `cause?`): `RuntimeError`\<`Context`, `Protocol`, `EventName`\>
+> `protected` **new RuntimeError**\<`C`, `EventName`\>(`errorName`, `hsm`, `message`, `cause?`): `RuntimeError`\<`C`, `EventName`\>
 
 #### Parameters
 
@@ -45,7 +33,7 @@ Event or service key being processed
 
 ##### hsm
 
-[`State`](../interfaces/State.mdx)\<`Context`, `Protocol`\>
+`ErrorHost`\<`C`\>
 
 ##### message
 
@@ -57,7 +45,7 @@ Event or service key being processed
 
 #### Returns
 
-`RuntimeError`\<`Context`, `Protocol`, `EventName`\>
+`RuntimeError`\<`C`, `EventName`\>
 
 #### Overrides
 
@@ -69,8 +57,6 @@ Event or service key being processed
 
 > **name**: `string`
 
-Discriminator matching the class name (`EventHandlerError`, etc.).
-
 #### Inherited from
 
 [`HsmError`](HsmError.mdx).[`name`](HsmError.mdx#name)
@@ -80,8 +66,6 @@ Discriminator matching the class name (`EventHandlerError`, etc.).
 ### topStateName
 
 > **topStateName**: `string`
-
-[Properties.topStateName](../interfaces/Properties.mdx#topstatename) when the error was constructed.
 
 #### Inherited from
 
@@ -93,8 +77,6 @@ Discriminator matching the class name (`EventHandlerError`, etc.).
 
 > **stateName**: `string`
 
-[Properties.currentStateName](../interfaces/Properties.mdx#currentstatename) when the error was constructed.
-
 #### Inherited from
 
 [`HsmError`](HsmError.mdx).[`stateName`](HsmError.mdx#statename)
@@ -103,21 +85,17 @@ Discriminator matching the class name (`EventHandlerError`, etc.).
 
 ### context
 
-> **context**: `Context`
-
-Snapshot of [State.ctx](../interfaces/State.mdx#ctx) when the error was constructed.
+> **context**: [`ActorContextOf`](../type-aliases/ActorContextOf.mdx)\<`C`\>
 
 #### Inherited from
 
-[`HsmError`](HsmError.mdx).[`context`](HsmError.mdx#context-1)
+[`HsmError`](HsmError.mdx).[`context`](HsmError.mdx#context)
 
 ***
 
 ### cause?
 
 > `optional` **cause?**: `Error`
-
-Original thrown value when this error wraps a handler or lifecycle failure.
 
 #### Inherited from
 
@@ -127,14 +105,10 @@ Original thrown value when this error wraps a handler or lifecycle failure.
 
 ### eventName
 
-> **eventName**: [`PostedEvent`](../type-aliases/PostedEvent.mdx)\<`Protocol`, `EventName`\>
-
-Event or service name that was active when the failure occurred.
+> **eventName**: `EventName`
 
 ***
 
 ### eventPayload
 
-> **eventPayload**: [`EventPayload`](../type-aliases/EventPayload.mdx)\<`Protocol`, `EventName`\>
-
-Client-supplied arguments (excluding resolve/reject for services).
+> **eventPayload**: `unknown`[]

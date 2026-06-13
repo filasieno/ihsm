@@ -1,0 +1,48 @@
+Type-only public surface — erased at compile time; no runtime JS from this module.
+
+Import protocol and actor types from here:
+`import type { ActorConfig, ChildActor } from 'ihsm/types'`
+
+## Type Parameters
+
+### C
+
+`C` *extends* [`ActorConfig`](../interfaces/ActorConfig.mdx) = [`ActorConfig`](../interfaces/ActorConfig.mdx)
+
+## Implements
+
+- [`TransitionResolver`](../interfaces/TransitionResolver.mdx)\<`C`\>
+
+## Constructors
+
+### Constructor
+
+> **new RuntimeTransitionResolver**\<`C`\>(): `RuntimeTransitionResolver`\<`C`\>
+
+#### Returns
+
+`RuntimeTransitionResolver`\<`C`\>
+
+## Methods
+
+### resolve()
+
+> **resolve**(`src`, `dest`): `Transition`\<`C`\>
+
+#### Parameters
+
+##### src
+
+[`StateClass`](../type-aliases/StateClass.mdx)\<`C`\>
+
+##### dest
+
+[`StateClass`](../type-aliases/StateClass.mdx)\<`C`\>
+
+#### Returns
+
+`Transition`\<`C`\>
+
+#### Implementation of
+
+[`TransitionResolver`](../interfaces/TransitionResolver.mdx).[`resolve`](../interfaces/TransitionResolver.mdx#resolve)

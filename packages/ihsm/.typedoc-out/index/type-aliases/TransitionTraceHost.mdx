@@ -1,0 +1,74 @@
+> **TransitionTraceHost** = `object`
+
+Type-only public surface — erased at compile time; no runtime JS from this module.
+
+Import protocol and actor types from here:
+`import type { ActorConfig, ChildActor } from 'ihsm/types'`
+
+## Methods
+
+### \_tracePush()
+
+> **\_tracePush**(`domain`, `msg`): `void`
+
+#### Parameters
+
+##### domain
+
+`string`
+
+##### msg
+
+`string`
+
+#### Returns
+
+`void`
+
+***
+
+### \_traceWrite()
+
+> **\_traceWrite**(`msg`): `void`
+
+#### Parameters
+
+##### msg
+
+`string`
+
+#### Returns
+
+`void`
+
+***
+
+### \_tracePopDone()
+
+> **\_tracePopDone**(`msg`): `void`
+
+#### Parameters
+
+##### msg
+
+`string`
+
+#### Returns
+
+`void`
+
+***
+
+### \_tracePopError()
+
+> **\_tracePopError**(`msg`): `void`
+
+#### Parameters
+
+##### msg
+
+`string`
+
+#### Returns
+
+`void`

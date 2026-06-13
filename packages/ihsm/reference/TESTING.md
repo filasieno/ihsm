@@ -76,8 +76,8 @@ sequences — without reimplementing the machine (B2).
 | --- | --- |
 | **Virtual clock** — decoupled from wall clock, advanceable arbitrarily | Timeouts, retries, and "days" of behaviour run in seconds |
 
-**How ihsm maps here:** `TestPort.advance(ms)` fires due `deferredPost` timers on demand;
-`deferredPost` itself delegates to `port.setTimeout`, so production and test share the same API
+**How ihsm maps here:** `TestPort.advance(ms)` fires due `hsm.defer(ms)` timers on demand;
+`hsm.defer(ms)` itself delegates to `port.setTimeout`, so production and test share the same API
 with different clocks.
 
 ### E. Workload generation
@@ -163,7 +163,7 @@ Determinism is a first-class feature of ihsm, not an afterthought. It rests on t
 you can lean on in every test:
 
 1. **Serialized, run-to-completion dispatch.** Each handler runs to completion and never
-   interleaves with another. `await hsm.sync()` resolves only once every job enqueued before it
+   interleaves with another. `await hsm.hsm.sync()` resolves only once every job enqueued before it
    has finished, draining chained `post`s in order. There is no interleaving to race on — you
    advance the machine one barrier at a time.
 2. **A `Port` boundary.** All impurity — sockets, child processes, clocks, the filesystem, the
@@ -178,13 +178,11 @@ you can lean on in every test:
 
 The split shows up as two factory functions over the same machine:
 
-- **`makeActor<C, Public, Internal, Port>`** returns an `Actor<C, Public>` — the **production**
-  surface. Clients can `post` / `call` only public events; internal events are not in the
-  callable type at all. This is what ships.
-- **`makeTestActor<C, Public, Internal, Port>`** returns a `TestActor` over the **merged**
-  protocol **plus** typed access to `port`. This is the **white-box** surface: a test can pin a
-  state, post internal events directly (no live port required), and assert on the port's
-  recorded interactions.
+- **`makeActor`** returns an `Actor<C>` — the **production** surface (public notifications +
+  services only).
+- **`makeTestActor`** returns a test handle over the **merged** protocol plus typed `port`.
+  Tests can call internal notifications directly (`test.onData(…)`) or use `port.send` /
+  `port.actor!.onData(…)`.
 
 Both factories take the **three mandatory** arguments `topState`, `ctx`, `port` **positionally**,
 followed by an **optional** options bag `{ initialize?, traceLevel?, traceWriter?, … }`. `Context`,
@@ -195,7 +193,7 @@ only in compile-time checks that prove the public/internal boundary. Both are ti
 
 > **Import the test surface from `ihsm/testing`.** The mock machinery, the manual clock, and
 > `makeTestActor` ship in a **separate entry point** so they are never bundled into production code
-> that only imports `ihsm`. Production code does `import { makeHsm, TopState } from 'ihsm'`; test
+> that only imports `ihsm`. Production code does `import { makeOwnerActor, TopState } from 'ihsm'`; test
 > files do `import * as ihsm from 'ihsm/testing'` (which also re-exports the entire core API, so a
 > spec can import everything it needs from `ihsm/testing` alone).
 
@@ -269,7 +267,7 @@ serve every scenario** — the happy path, the slow reply, the error, and the ca
 
 | Example | Records (inbound calls) | How the tester drives the back-channel |
 | ------- | ----------------------- | -------------------------------------- |
-| testing-01 timers | — | `clock.advance(ms)` — fire due `deferredPost` timers |
+| testing-01 timers | — | `clock.advance(ms)` — fire due `hsm.defer(ms)` timers |
 | testing-02 network | `request` / `abort` | `request.default` returns an id; `port.send('onResponse', …)` settles it |
 | testing-03 stream | `subscribe` / `unsubscribe` | `port.moveTo(x, y)` drives device state; delivers only while `live` |
 | testing-04 faults | `attempt` | `attempt.default` runs a seeded fault and `port.send('onResult', ok)` |
@@ -305,7 +303,7 @@ When you want a golden trace of every event posted through the machine, wire
 const port = new ihsm.TestPort<HeartbeatTop>();
 const test = ihsm.makeTestActor(HeartbeatTop, new HeartbeatCtx(), port);
 const sub = test.subscribe(m => port.record(m.event, ...m.payload));
-test.post('start'); await test.sync();
+test.start(); await test.hsm.sync();
 expect(port.events).to.include('start');
 port.clear();
 sub.dispose();
@@ -343,7 +341,7 @@ own `tutorial.spec.ts`; the headless command is shown with each playground.
 ## 1. Deferred timers & simulated time
 
 The foundation of everything else: never block on real time. A `Heartbeat` machine ticks **every
-hour** with `deferredPost`, backed by the machine's standard **port timer service**. A test swaps in
+hour** with `hsm.defer(ms)`, backed by the machine's standard **port timer service**. A test swaps in
 a `TestPort` and `advance()`s it to simulate 48 hours in microseconds — establishing the two
 test surfaces (test **actor** vs. test **port**) you reuse for the rest of the chapter.
 

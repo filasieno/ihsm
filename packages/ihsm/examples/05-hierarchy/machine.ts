@@ -5,6 +5,7 @@
  * Pair with trace-sibling.ts for a shallow A→B→C chain first.
  */
 import * as ihsm from '../../src';
+import { makeTestActor } from '../../src/testing';
 import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
@@ -15,9 +16,9 @@ export interface DeepCtx {
 	failExit: boolean;
 }
 
-export interface DeepConfig extends ihsm.Config {
+export interface DeepConfig {
 	context: DeepCtx;
-	notifications: {
+notifications: {
 		tick(): void;
 		goSiblingWest(): void;
 		goParentWest(): void;
@@ -34,26 +35,6 @@ export interface DeepConfig extends ihsm.Config {
 	};
 }
 
-const deepManifest = ihsm.manifestFor<DeepConfig>({
-	services: [],
-	notifications: [
-		'tick',
-		'goSiblingWest',
-		'goParentWest',
-		'goAncestorWest',
-		'goRoot',
-		'goSelfWest',
-		'goCrossToLeafEastB',
-		'goCrossToBranchEast',
-		'goCrossToMidEast',
-		'goSiblingEast',
-		'goCrossToLeafWestB',
-		'goAsyncCrossEast',
-		'armFailExit',
-	],
-	internalServices: [],
-	internalNotifications: [],
-});
 
 function pushTrace(ctx: DeepCtx, line: string): void {
 	ctx.trace.push(line);
@@ -61,8 +42,6 @@ function pushTrace(ctx: DeepCtx, line: string): void {
 
 /** Root — LCA for every cross-stack transition. */
 export class DeepTop extends PlaygroundTopState<DeepConfig> {
-	static readonly manifest = deepManifest;
-	declare readonly __ihsm: DeepConfig;
 
 	onEntry(): void {
 		pushTrace(this.ctx, 'enter:DeepTop');
@@ -107,7 +86,7 @@ export class DeepTop extends PlaygroundTopState<DeepConfig> {
 	}
 	async goAsyncCrossEast(): Promise<void> {
 		pushTrace(this.ctx, 'handler:goAsyncCrossEast:start');
-		await this.hsm.sleep(10);
+		await new Promise<void>(resolve => (this.hsm.port as unknown as ihsm.Port).setTimeout(resolve, 10));
 		pushTrace(this.ctx, 'handler:goAsyncCrossEast:after-await');
 		this.hsm.transition(LeafEastA);
 	}
@@ -210,7 +189,7 @@ export class LeafEastB extends MidEast {
 }
 
 export function createDeepMachine() {
-	return ihsm.makeOwnerActor(DeepTop, { trace: [], value: 0, failExit: false }, new ihsm.Port());
+	return makeTestActor(DeepTop, { trace: [], value: 0, failExit: false }, new ihsm.Port());
 }
 
 /** After `create()` + `sync()`: outer → inner along `@ihsm.InitialState` chain. */

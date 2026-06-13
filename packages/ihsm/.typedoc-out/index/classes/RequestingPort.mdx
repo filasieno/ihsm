@@ -1,0 +1,45 @@
+Runtime port binding — `actor` is set synchronously before factory return.
+
+## Extends
+
+- [`BasePort`](BasePort.mdx)\<`T`\>
+
+## Type Parameters
+
+### T
+
+`T`
+
+## Constructors
+
+### Constructor
+
+> **new RequestingPort**\<`T`\>(): `RequestingPort`\<`T`\>
+
+#### Returns
+
+`RequestingPort`\<`T`\>
+
+#### Inherited from
+
+[`BasePort`](BasePort.mdx).[`constructor`](BasePort.mdx#constructor)
+
+## Properties
+
+### \_\_topState
+
+> `readonly` **\_\_topState**: `T`
+
+#### Inherited from
+
+[`BasePort`](BasePort.mdx).[`__topState`](BasePort.mdx#__topstate)
+
+***
+
+### actor
+
+> **actor**: [`ChildActor`](../type-aliases/ChildActor.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`T`\>\>
+
+#### Overrides
+
+[`BasePort`](BasePort.mdx).[`actor`](BasePort.mdx#actor)

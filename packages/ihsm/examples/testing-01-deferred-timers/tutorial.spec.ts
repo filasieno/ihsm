@@ -12,7 +12,7 @@ import { HeartbeatTop, Stopped, Running, HeartbeatCtx, HeartbeatPublic, HOUR_MS 
  * - **Test actor** ({@link ihsm.makeTestActor}): the machine handle for white-box tests. It
  *   exposes the **merged** protocol (so you can post internal events like `onTick` directly, with
  *   no live timer), grants typed access to the machine's `port`, and adds a `subscribe()` channel
- *   that observes every event. (A production {@link ihsm.Actor} from {@link ihsm.makeActor} exposes
+ *   that observes every event. (A production {@link ihsm.Actor} from {@link makeTestActor} exposes
  *   only the public protocol and none of those test affordances.)
  *
  * - **Test port** ({@link ihsm.TestPort}): a port test double that
@@ -20,7 +20,7 @@ import { HeartbeatTop, Stopped, Running, HeartbeatCtx, HeartbeatPublic, HOUR_MS 
  *   events inward. Here we also use {@link ihsm.TestPort} — a port whose virtual clock the
  *   test advances by hand — to fire the machine's hourly `deferredPost` deterministically.
  *
- * Note we never wrap {@link ihsm.makeActor} in a helper and never pass `undefined` placeholders:
+ * Note we never wrap {@link makeTestActor} in a helper and never pass `undefined` placeholders:
  * the factories take a single **named-parameters** object, so each test reads as its own setup.
  */
 describe('Testing 01: deferred timers & simulated time', () => {
@@ -106,7 +106,7 @@ describe('Testing 01: deferred timers & simulated time', () => {
 		// it is declared but never invoked.
 		const _typeChecks = (): void => {
 			// Inferred production surface: makeActor exposes only the public protocol.
-			const sm = ihsm.makeActor(HeartbeatTop, new HeartbeatCtx(), new ihsm.TestPort<HeartbeatTop>());
+			const sm = makeTestActor(HeartbeatTop, new HeartbeatCtx(), new ihsm.TestPort<HeartbeatTop>());
 
 			// @ts-expect-error 'onTick' is internal — not callable on the public Actor surface.
 			sm.onTick();
@@ -119,7 +119,7 @@ describe('Testing 01: deferred timers & simulated time', () => {
 				start(): void;
 			}
 			// @ts-expect-error public and internal protocols must not share keys ('start').
-			ihsm.makeActor<HeartbeatCtx, HeartbeatPublic, CollidingInternal>(HeartbeatTop, new HeartbeatCtx(), new ihsm.TestPort<HeartbeatTop>());
+			makeTestActor<HeartbeatCtx, HeartbeatPublic, CollidingInternal>(HeartbeatTop, new HeartbeatCtx(), new ihsm.TestPort<HeartbeatTop>());
 		};
 
 		expect(typeof _typeChecks).to.equal('function');

@@ -1,46 +1,36 @@
-Thrown when an event handler body throws and [StateEvents.onError](../interfaces/StateEvents.mdx#onerror) does not recover.
-
 ## Extends
 
-- [`RuntimeError`](RuntimeError.mdx)\<`Context`, `Protocol`, `EventName`\>
+- [`RuntimeError`](RuntimeError.mdx)\<`C`, `EventName`\>
 
 ## Type Parameters
 
-### Context
+### C
 
-`Context`
-
-### Protocol
-
-`Protocol` *extends* \{ \} \| `undefined`
+`C` *extends* [`ActorConfig`](../interfaces/ActorConfig.mdx) = [`ActorConfig`](../interfaces/ActorConfig.mdx)
 
 ### EventName
 
-`EventName` *extends* keyof `Protocol`
+`EventName` *extends* `string` = `string`
 
 ## Constructors
 
 ### Constructor
 
-> **new EventHandlerError**\<`Context`, `Protocol`, `EventName`\>(`hsm`, `cause`): `EventHandlerError`\<`Context`, `Protocol`, `EventName`\>
+> **new EventHandlerError**\<`C`, `EventName`\>(`hsm`, `cause`): `EventHandlerError`\<`C`, `EventName`\>
 
 #### Parameters
 
 ##### hsm
 
-[`State`](../interfaces/State.mdx)\<`Context`, `Protocol`\>
-
-Machine view with [eventName](#eventname-1) set to the failing handler
+`ErrorHost`\<`C`\>
 
 ##### cause
 
 `Error`
 
-Error thrown from handler code
-
 #### Returns
 
-`EventHandlerError`\<`Context`, `Protocol`, `EventName`\>
+`EventHandlerError`\<`C`, `EventName`\>
 
 #### Overrides
 
@@ -52,8 +42,6 @@ Error thrown from handler code
 
 > **name**: `string`
 
-Discriminator matching the class name (`EventHandlerError`, etc.).
-
 #### Inherited from
 
 [`RuntimeError`](RuntimeError.mdx).[`name`](RuntimeError.mdx#name)
@@ -63,8 +51,6 @@ Discriminator matching the class name (`EventHandlerError`, etc.).
 ### topStateName
 
 > **topStateName**: `string`
-
-[Properties.topStateName](../interfaces/Properties.mdx#topstatename) when the error was constructed.
 
 #### Inherited from
 
@@ -76,8 +62,6 @@ Discriminator matching the class name (`EventHandlerError`, etc.).
 
 > **stateName**: `string`
 
-[Properties.currentStateName](../interfaces/Properties.mdx#currentstatename) when the error was constructed.
-
 #### Inherited from
 
 [`RuntimeError`](RuntimeError.mdx).[`stateName`](RuntimeError.mdx#statename)
@@ -86,21 +70,17 @@ Discriminator matching the class name (`EventHandlerError`, etc.).
 
 ### context
 
-> **context**: `Context`
-
-Snapshot of [State.ctx](../interfaces/State.mdx#ctx) when the error was constructed.
+> **context**: [`ActorContextOf`](../type-aliases/ActorContextOf.mdx)\<`C`\>
 
 #### Inherited from
 
-[`RuntimeError`](RuntimeError.mdx).[`context`](RuntimeError.mdx#context-1)
+[`RuntimeError`](RuntimeError.mdx).[`context`](RuntimeError.mdx#context)
 
 ***
 
 ### cause?
 
 > `optional` **cause?**: `Error`
-
-Original thrown value when this error wraps a handler or lifecycle failure.
 
 #### Inherited from
 
@@ -110,9 +90,7 @@ Original thrown value when this error wraps a handler or lifecycle failure.
 
 ### eventName
 
-> **eventName**: [`PostedEvent`](../type-aliases/PostedEvent.mdx)\<`Protocol`, `EventName`\>
-
-Event or service name that was active when the failure occurred.
+> **eventName**: `EventName`
 
 #### Inherited from
 
@@ -122,9 +100,7 @@ Event or service name that was active when the failure occurred.
 
 ### eventPayload
 
-> **eventPayload**: [`EventPayload`](../type-aliases/EventPayload.mdx)\<`Protocol`, `EventName`\>
-
-Client-supplied arguments (excluding resolve/reject for services).
+> **eventPayload**: `unknown`[]
 
 #### Inherited from
 

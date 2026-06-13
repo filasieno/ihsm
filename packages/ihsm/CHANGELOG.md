@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`Config`** — single type bag (`context`, `services`, `notifications`, `internalServices`, `internalNotifications`, `port`) replacing v0.0.x positional `TopState<Context, Public, Internal, Port>` generics.
 - **Generated actor handles** — materialized prototypes per `(rootState, width)`; flat user method names (`conn.open()`, `await conn.fetchFrames(n)`). **No `Proxy`.**
-- **`makeActor` / `makeInternalActor` / `makeOwnerActor`** (`makeHsm` alias) — factories infer `Config` from `TopState`; `manifestFor<Config>()` + `static readonly manifest` on the root state class.
+- **`makeActor` / `makeInternalActor` / `makeOwnerActor`** (`makeHsm` alias) — factories infer `Config` from `TopState`; protocol handler methods on state classes.
 - **`HandlerHsm` / `ActorHsm`** — machinery namespace behind **`this.hsm`** (handlers) and **`actor.hsm`** (clients): `transition`, `actor` / `immediate` / `defer`, `port`, `sleep`, trace.
 - **Promise services** — `Config.services` / `internalServices` members return `Promise<Reply>` on the client; handlers may return values or `Promise` (no `resolve`/`reject` injection).
 - **`RequestingPort`** — opt-in port base widening `port.actor` with `internalServices`.
@@ -32,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Before | After |
 | ------ | ----- |
-| `interface DoorProtocol { open(): void }` + `TopState<Ctx, Protocol>` | `interface DoorConfig extends Config { context; notifications: { open(): void } }` + `manifestFor` |
+| `interface DoorProtocol { open(): void }` + `TopState<Ctx, Protocol>` | `interface DoorConfig extends Config { context; notifications: { open(): void } }` |
 | `door.post('open')` | `door.open()` |
 | `await wallet.call('getBalance')` | `await wallet.getBalance()` |
 | `this.transition(S)` | `this.hsm.transition(S)` |

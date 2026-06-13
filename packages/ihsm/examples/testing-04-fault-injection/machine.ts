@@ -22,9 +22,9 @@ export interface WorkerCtx {
 	log: string[];
 }
 
-export interface WorkerConfig extends ihsm.Config {
+export interface WorkerConfig {
 	context: WorkerCtx;
-	notifications: {
+notifications: {
 		run(): void;
 	};
 	internalNotifications: {
@@ -35,26 +35,16 @@ export interface WorkerConfig extends ihsm.Config {
 	};
 }
 
-/** @deprecated use WorkerConfig['notifications'] */
-export type WorkerPublic = WorkerConfig['notifications'];
+export type WorkerPublic = ihsm.ActorNotificationsOf<WorkerConfig>;
 
-/** @deprecated use WorkerConfig['internalNotifications'] */
-export type WorkerInternal = WorkerConfig['internalNotifications'];
+export type WorkerInternal = ihsm.ActorInternalNotificationsOf<WorkerConfig>;
 
 /** Outbound boundary to the impure, occasionally-failing operation. */
-export type FaultPort = WorkerConfig['port'];
+export type FaultPort = ihsm.DomainPortOf<WorkerConfig>;
 
-const workerManifest = ihsm.manifestFor<WorkerConfig>({
-	services: [],
-	notifications: ['run'],
-	internalServices: [],
-	internalNotifications: ['onResult'],
-});
 
 /** Root state. A stray `onResult` outside `Working` is a safe no-op. */
 export class WorkerTop extends ihsm.TopState<WorkerConfig> {
-	static readonly manifest = workerManifest;
-	declare readonly __ihsm: WorkerConfig;
 
 	run(): void {} // ignored unless Idle/Succeeded/Failed
 	onResult(_ok: boolean): void {} // ignored unless Working

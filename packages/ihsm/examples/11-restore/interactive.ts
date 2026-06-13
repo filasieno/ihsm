@@ -1,7 +1,8 @@
+import type { TestActor } from '../../src/testing';
 import type { TutorialInteractiveMeta } from '../shared/interactive-types';
 import { singleSenderTutorial } from '../shared/interactive-helpers';
 import * as machine from './machine';
-import { resumeSessionFromDb, suspendSessionToDb } from './machine';
+import { resumeSessionFromDb, suspendSessionToDb, type SessionConfig } from './machine';
 
 const SESSION_ID = 'interactive-demo';
 
@@ -31,7 +32,7 @@ export const interactive: TutorialInteractiveMeta = {
 				if (runtime.kind !== 'single') {
 					return;
 				}
-				suspendSessionToDb(SESSION_ID, runtime.sm);
+				suspendSessionToDb(SESSION_ID, runtime.sm as TestActor<SessionConfig>);
 				runtime.writer.lines.push(`↳ suspended session ${SESSION_ID}`);
 			},
 		},

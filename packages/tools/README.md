@@ -27,7 +27,7 @@ The runtime dispatch layer and generated tables share one implementation:
 
 - `planTransitionClasses(from, to)` — LCA exit/entry/final state (same as production dispatch)
 - `executeTransitionRoutine(hsm, instance, plan, from, to, options)` — production / debug / verbose execution with `TransitionError` on hook failure
-- `createHsmTransitionTrace(hsm)` — verbose trace sink for oracle tests
+- `createTransitionTracer(hsm)` — verbose trace sink for oracle tests
 - `transitionTraceLines(lines)` — canonical trace comparison helper
 
 Generated modules import `executeTransitionRoutine` and static per-pair `TransitionRoutinePlan` constants.

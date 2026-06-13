@@ -26,9 +26,9 @@ export interface FetchCtx {
 	subscription?: ihsm.Disposable;
 }
 
-export interface FetchConfig extends ihsm.Config {
+export interface FetchConfig {
 	context: FetchCtx;
-	notifications: {
+notifications: {
 		fetch(url: string): void;
 		cancel(): void;
 	};
@@ -44,21 +44,13 @@ export interface FetchConfig extends ihsm.Config {
 	};
 }
 
-/** @deprecated use FetchConfig['notifications'] */
-export type FetchPublic = FetchConfig['notifications'];
+export type FetchPublic = ihsm.ActorNotificationsOf<FetchConfig>;
 
-/** @deprecated use FetchConfig['internalNotifications'] */
-export type FetchInternal = FetchConfig['internalNotifications'];
+export type FetchInternal = ihsm.ActorInternalNotificationsOf<FetchConfig>;
 
 /** Outbound boundary to the (impure) network. */
-export type FetchPort = FetchConfig['port'];
+export type FetchPort = ihsm.DomainPortOf<FetchConfig>;
 
-const fetchManifest = ihsm.manifestFor<FetchConfig>({
-	services: ['body'],
-	notifications: ['fetch', 'cancel'],
-	internalServices: [],
-	internalNotifications: ['onResponse', 'onFailure'],
-});
 
 /**
  * Root state. `fetch` (start a request) is the shared behaviour of every *resting* state —
@@ -67,8 +59,6 @@ const fetchManifest = ihsm.manifestFor<FetchConfig>({
  * Late settled-events (`onResponse` / `onFailure` after a `cancel`) are safe no-ops here.
  */
 export class FetchTop extends ihsm.TopState<FetchConfig> {
-	static readonly manifest = fetchManifest;
-	declare readonly __ihsm: FetchConfig;
 
 	fetch(url: string): void {
 		this.ctx.url = url;

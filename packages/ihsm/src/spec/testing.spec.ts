@@ -1,11 +1,13 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { Disposable, InitialState, ResultWithSubscription, TopState, TraceLevel, defaultTraceWriter, makeActor, manifestFor, registerStateNames } from '../';
-import type { Config } from '../';
-import { Mock, Port, PreloadError, TestActor, TestPort, makeTestActor, makeTestPort, mock } from '../testing';
-import { traceActorOnPort } from './spec.utils';
-import { clearLastError, createTestDispatchErrorCallback } from './spec.utils';
+import { Disposable, InitialState, ResultWithSubscription, TopState, TraceLevel, defaultTraceWriter, makeActor } from '../';
+import type { TestActor } from '../testing';
+import { Mock, Port, PreloadError, TestPort, makeTestActor, makeTestPort, mock } from '../testing';
+import * as self from './testing.spec';
+import { clearLastError, createTestDispatchErrorCallback, registerSpecStateNames, traceActorOnPort } from './spec.utils';
+
+//#region ThisTestSpec
 
 interface DeviceCtx {
 	target: string;
@@ -15,7 +17,7 @@ interface DeviceCtx {
 	subscription?: Disposable;
 }
 
-interface DeviceConfig extends Config {
+interface DeviceConfig {
 	context: DeviceCtx;
 	services: {
 		lastHandle(): Promise<number>;
@@ -25,6 +27,7 @@ interface DeviceConfig extends Config {
 		poke(): void;
 		cancel(): void;
 	};
+	internalServices: Record<string, never>;
 	internalNotifications: {
 		onOpened(handle: number): void;
 		scheduleOnOpened(ms: number, handle: number): void;
@@ -35,17 +38,7 @@ interface DeviceConfig extends Config {
 	};
 }
 
-const deviceManifest = manifestFor<DeviceConfig>({
-	services: ['lastHandle'],
-	notifications: ['open', 'poke', 'cancel'],
-	internalServices: [],
-	internalNotifications: ['onOpened', 'scheduleOnOpened'],
-});
-
-class DeviceTop extends TopState {
-	static readonly manifest = deviceManifest;
-	declare readonly __ihsm: DeviceConfig;
-
+export class DeviceTop extends TopState<DeviceConfig> {
 	open(target: string): void {
 		this.ctx.target = target;
 		const { value, subscription } = this.hsm.port.connect(target);
@@ -68,14 +61,14 @@ class DeviceTop extends TopState {
 	}
 
 	scheduleOnOpened(ms: number, handle: number): void {
-		this.hsm.defer(ms).onOpened(handle);
+		this.hsm.port.defer(ms).onOpened(handle);
 	}
 }
 
 @InitialState
-class Idle extends DeviceTop {}
+export class Idle extends DeviceTop {}
 
-class Connecting extends DeviceTop {
+export class Connecting extends DeviceTop {
 	onOpened(handle: number): void {
 		this.ctx.handle = handle;
 		this.ctx.opened = true;
@@ -88,22 +81,23 @@ class Connecting extends DeviceTop {
 	}
 }
 
-class Open extends DeviceTop {}
+export class Open extends DeviceTop {}
 
-registerStateNames({ DeviceTop, Idle, Connecting, Open });
+registerSpecStateNames(self);
+//#endregion
 
 function freshCtx(): DeviceCtx {
 	return { target: '', handle: 0, opened: false, pokes: 0 };
 }
 
 @mock('connect', 'noop')
-abstract class MockDevicePort extends TestPort<DeviceTop> {
+abstract class MockDevicePort extends TestPort<typeof DeviceTop> {
 	abstract connect(target: string): ResultWithSubscription<number>;
 	abstract noop(): void;
 }
 
 // A TestPort subclass that is NOT decorated — makeTestPort must reject it.
-abstract class UndecoratedPort extends TestPort<DeviceTop> {
+abstract class UndecoratedPort extends TestPort<typeof DeviceTop> {
 	abstract connect(target: string): ResultWithSubscription<number>;
 }
 
@@ -111,7 +105,7 @@ describe('ihsm/testing', () => {
 	beforeEach(() => clearLastError());
 
 	describe('mock ports and Stubbed methods', () => {
-		let port: Mock<MockDevicePort, DeviceTop>;
+		let port: Mock<MockDevicePort, DeviceConfig>;
 		let nextId: number;
 
 		beforeEach(() => {
@@ -197,7 +191,7 @@ describe('ihsm/testing', () => {
 		const port = makeTestPort(MockDevicePort);
 		port.connect.default(() => ({ value: 1, subscription: { dispose: () => undefined } }));
 		const sm = makeTestActor(DeviceTop, freshCtx(), port);
-		const trace = new TestPort<DeviceTop>();
+		const trace = new TestPort<typeof DeviceTop>();
 		const sub = traceActorOnPort(sm, trace);
 		await sm.hsm.sync();
 
@@ -214,7 +208,7 @@ describe('ihsm/testing', () => {
 
 	describe('TestPort', () => {
 		it('advances virtual time and fires due timers in deadline order', () => {
-			const clock = new TestPort<DeviceTop>();
+			const clock = new TestPort<typeof DeviceTop>();
 			const fired: string[] = [];
 			clock.setTimeout(() => fired.push('b'), 200);
 			clock.setTimeout(() => fired.push('a'), 100);
@@ -336,7 +330,7 @@ describe('ihsm/testing', () => {
 	});
 
 	it('defer falls back to global setTimeout when the port omits setTimeout', async () => {
-		class BarePort extends Port<DeviceTop> {}
+		class BarePort extends Port<typeof DeviceTop> {}
 		const port = new BarePort();
 		const sm = makeTestActor(Connecting, freshCtx(), port, { initialize: false });
 		await sm.hsm.sync();
@@ -505,13 +499,13 @@ describe('ihsm/testing', () => {
 			const port = makeTestPort(MockDevicePort);
 			port.connect.default(() => ({ value: 9, subscription: { dispose: () => undefined } }));
 			const cb = createTestDispatchErrorCallback(true);
-			const actor = makeActor(DeviceTop as never, freshCtx(), port, {
+			const actor = makeActor(DeviceTop, freshCtx(), port, {
 				traceLevel: TraceLevel.PRODUCTION,
 				dispatchErrorCallback: cb,
 			});
 			await actor.hsm.sync();
 
-			expect(actor.ctx.target).equals('');
+			expect((actor as { ctx?: unknown }).ctx).equals(undefined);
 			expect(actor.hsm.currentStateName).equals('Idle');
 			expect(actor.hsm.topStateName).equals('DeviceTop');
 			expect(actor.hsm.traceLevel).equals(TraceLevel.PRODUCTION);

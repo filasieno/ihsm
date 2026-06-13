@@ -4,6 +4,7 @@
  * Uncomment the lines at the bottom locally to see TypeScript reject typos.
  */
 import * as ihsm from '../../src';
+import { makeTestActor } from '../../src/testing';
 import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
@@ -11,9 +12,9 @@ export interface ThermostatCtx {
 	celsius: number;
 }
 
-export interface ThermostatConfig extends ihsm.Config {
+export interface ThermostatConfig {
 	context: ThermostatCtx;
-	notifications: {
+notifications: {
 		setTarget(celsius: number): void;
 	};
 	services: {
@@ -21,16 +22,8 @@ export interface ThermostatConfig extends ihsm.Config {
 	};
 }
 
-const thermostatManifest = ihsm.manifestFor<ThermostatConfig>({
-	services: ['readTarget'],
-	notifications: ['setTarget'],
-	internalServices: [],
-	internalNotifications: [],
-});
 
 export class ThermostatTop extends PlaygroundTopState<ThermostatConfig> {
-	static readonly manifest = thermostatManifest;
-	declare readonly __ihsm: ThermostatConfig;
 
 	setTarget(celsius: number): void {
 		this.ctx.celsius = celsius;
@@ -47,7 +40,7 @@ export class Idle extends ThermostatTop {}
 ihsm.registerStateNames(self);
 
 export function createThermostat(initialCelsius: number) {
-	return ihsm.makeOwnerActor(ThermostatTop, { celsius: initialCelsius }, new ihsm.Port());
+	return makeTestActor(ThermostatTop, { celsius: initialCelsius }, new ihsm.Port());
 }
 
 // Compile-time examples (uncomment to verify the compiler rejects mistakes):

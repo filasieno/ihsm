@@ -123,7 +123,7 @@ describe('Testing 02: network fetch behind a port', () => {
 		// Validated by `tsc` (the examples project is type-checked); the body never runs. The
 		// production `makeActor` surface here is what demonstrates the public/internal boundary.
 		const _typeChecks = (): void => {
-			const fetcher = ihsm.makeActor(FetchTop, freshCtx(), ihsm.makeTestPort(MockFetchPort));
+			const fetcher = makeTestActor(FetchTop, freshCtx(), ihsm.makeTestPort(MockFetchPort));
 
 			// @ts-expect-error 'onResponse' is internal — not callable on the public Actor surface.
 			fetcher.onResponse(200, 'x');
@@ -143,7 +143,7 @@ describe('Testing 02: network fetch behind a port', () => {
 				fetch(url: string): void;
 			}
 			// @ts-expect-error public and internal protocols must not share keys ('fetch').
-			ihsm.makeActor<ReturnType<typeof freshCtx>, { fetch(u: string): void }, CollidingInternal>(FetchTop, freshCtx(), ihsm.makeTestPort(MockFetchPort));
+			makeTestActor<ReturnType<typeof freshCtx>, { fetch(u: string): void }, CollidingInternal>(FetchTop, freshCtx(), ihsm.makeTestPort(MockFetchPort));
 		};
 
 		expect(typeof _typeChecks).to.equal('function');

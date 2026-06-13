@@ -1,4 +1,4 @@
-# Post and Sync
+# Notifications and sync
 
 ## Problem
 
@@ -10,18 +10,18 @@ ihsm serializes dispatch with **run-to-completion semantics**.
 
 | Side | Where | Role |
 | ---- | ----- | ---- |
-| **Handler** | State class method | Runs when the event is dispatched |
-| **Client** | Code that holds `Hsm` | Calls `post` / `sync` — never runs inside the machine |
+| **Handler** | State class method | Runs when the notification is dispatched |
+| **Client** | Code that holds the actor handle | Calls generated methods + `await actor.hsm.sync()` |
 
 | API | Client waits? | Return value? | Use when |
 | --- | ------------- | ------------- | -------- |
-| **`post(event, …)`** | No — returns immediately | No | Fire-and-forget events |
-| **`call(service, …)`** | Yes — `await call(...)` | Yes — typed `Promise<T>` | One request that needs a reply |
-| **`sync()`** | Yes — `await sync()` | No | Drain everything already enqueued |
+| **`actor.event(…)`** (notification) | No — returns immediately | No | Fire-and-forget |
+| **`await actor.service(…)`** (service) | Yes — `await` the Promise | Yes — typed reply | Request/response |
+| **`await actor.hsm.sync()`** | Yes | No | Drain everything already enqueued |
 
-**Rule of thumb:** need a value back → **`call`**. Just tell the actor something happened → **`post`**. Need to know a batch of **posted** work finished → **`post` … `post` … `await sync()` once**.
+**Rule of thumb:** need a value back → **`await actor.service()`**. Just tell the actor something happened → **`actor.notification()`**. Need a batch of notifications to finish → **`actor.tick(); actor.done(); await actor.hsm.sync()` once**.
 
-Typed request/response: [Call services](../10-call-services/README.md).
+Typed services: [Call services](../10-call-services/README.md).
 
 ## UML statechart
 
@@ -30,146 +30,108 @@ Typed request/response: [Call services](../10-call-services/README.md).
 left to right direction
 state QueueTop {
   [*] --> Idle
-  Idle : start / post(tick); post(tick); post(done)
+  Idle : start / actor.tick(); actor.tick(); actor.done()
   Idle : tick
   Idle : done
 }
 @enduml
 ```
 
-## Protocol
+## Config
 
-Events are plain methods on the state class — return `void` (or `Promise<void>` for async):
+Notifications are plain methods on the state class — return `void` (or `Promise<void>` for async):
 
 ```typescript
-export interface QueueProtocol {
-	start(): void;
-	tick(): void;
-	done(): void;
+interface QueueConfig extends Config {
+  context: QueueCtx;
+  notifications: {
+    start(): void;
+    tick(): void;
+    done(): void;
+  };
 }
 ```
 
 ---
 
-## Example 1 · Batch `post` from the client, one `sync`
+## Example 1 · Batch notifications from the client, one `sync`
 
-### Handler (state machine)
+### Handler
 
 ```typescript
-export class QueueTop extends TopState<QueueCtx, QueueProtocol> {
-	tick(): void {
-		this.ctx.events.push('tick');
-	}
-
-	done(): void {
-		this.ctx.events.push('done');
-	}
+export class QueueTop extends TopState {
+  tick(): void {
+    this.ctx.events.push('tick');
+  }
+  done(): void {
+    this.ctx.events.push('done');
+  }
 }
 ```
 
-Each handler only mutates `ctx`. No return value — the client cannot `await post(...)`.
-
-### Client (caller)
+### Client
 
 ```typescript
 const sm = createQueueMachine();
-await sm.sync(); // wait for init
+await sm.hsm.sync();
 
-sm.post('tick');  // enqueue — returns immediately
-sm.post('tick');
-sm.post('done');
-await sm.sync();  // wait until all three handlers finished
+sm.tick();
+sm.tick();
+sm.done();
+await sm.hsm.sync();
 
 // sm.ctx.events === ['tick', 'tick', 'done']
 ```
 
-One `sync` after the batch — not after every `post`:
-
-```typescript
-// ✗ unnecessary
-sm.post('tick'); await sm.sync();
-sm.post('tick'); await sm.sync();
-
-// ✓ one drain point
-sm.post('tick');
-sm.post('tick');
-sm.post('done');
-await sm.sync();
-```
+One `sync` after the batch — not after every notification.
 
 ---
 
-## Example 2 · Handler chains `this.post` — client needs extra `sync`
+## Example 2 · Handler chains `this.hsm.actor` — client needs extra `sync`
 
-### Handler (state machine)
+### Handler
 
-`start` schedules follow-ups **after** it returns — they are not re-entrant:
+`start` schedules follow-ups **after** it returns:
 
 ```typescript
-export class QueueTop extends TopState<QueueCtx, QueueProtocol> {
-	start(): void {
-		this.ctx.events.push('start');
-		this.post('tick');  // queued for after start() completes
-		this.post('tick');
-		this.post('done');
-	}
-
-	tick(): void { this.ctx.events.push('tick'); }
-	done(): void { this.ctx.events.push('done'); }
+export class QueueTop extends TopState {
+  start(): void {
+    this.ctx.events.push('start');
+    this.hsm.actor.tick();
+    this.hsm.actor.tick();
+    this.hsm.actor.done();
+  }
 }
 ```
 
-### Client (caller)
+### Client
 
-Inner posts do not exist in the queue until `start` finishes:
+Inner notifications are not enqueued until `start` finishes:
 
 ```typescript
 const sm = createQueueMachine();
-await sm.sync();
+await sm.hsm.sync();
 
-sm.post('start');
-await sm.sync(); // through start only → events === ['start']
-await sm.sync(); // through tick, tick, done → ['start','tick','tick','done']
+sm.start();
+await sm.hsm.sync(); // through start only → ['start']
+await sm.hsm.sync(); // through tick, tick, done
 ```
 
 ---
 
-## Example 3 · `call` vs `post` + `sync` 
+## Example 3 · Service vs notification + sync
 
-When the client needs a **return value**, use `call` — not `post` + `sync`. See [Call services](../10-call-services/README.md).
-
-### Handler (service on state class)
+When the client needs a **return value**, use a service — not a notification + `sync`. See [Call services](../10-call-services/README.md).
 
 ```typescript
-getBalance(resolve: ResolveCallback<number>, _reject: RejectCallback): void {
-	resolve(this.ctx.balance);
-}
+const balance = await wallet.getBalance();
+
+wallet.deposit(10);
+await wallet.hsm.sync(); // optional: wait for deposit side effect
 ```
-
-### Client (caller)
-
-```typescript
-const balance = await wallet.call('getBalance'); // one await, typed result — no sync()
-
-wallet.post('deposit', 10);   // fire-and-forget event
-await wallet.sync();          // optional: wait for deposit side effect only
-```
-
----
-
-## Reading the trace
-
-With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
-
-Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
-
-On the [documentation page](https://filasieno.github.io/ihsm/reference), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:examples` headlessly.
-
-**What to notice:** `#start` finishes before `#tick` / `#done` dispatches appear — FIFO, run-to-completion dispatch, not re-entrant `post` from inside the handler.
 
 ## Verify
 
 ```shell
 npm run test:examples -- --grep 'Tutorial 08'
 ```
-

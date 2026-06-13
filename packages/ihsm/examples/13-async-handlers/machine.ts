@@ -4,6 +4,7 @@
  * transition(Done) runs only after all awaits complete.
  */
 import * as ihsm from '../../src';
+import { makeTestActor } from '../../src/testing';
 import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
@@ -14,19 +15,13 @@ export interface FileCtx {
 	steps: string[];
 }
 
-export interface FileConfig extends ihsm.Config {
+export interface FileConfig {
 	context: FileCtx;
-	notifications: {
+notifications: {
 		transfer(from: string, to: string): Promise<void>;
 	};
 }
 
-const fileManifest = ihsm.manifestFor<FileConfig>({
-	services: [],
-	notifications: ['transfer'],
-	internalServices: [],
-	internalNotifications: [],
-});
 
 /** Simulated file API — each step returns a Promise like real I/O. */
 async function open(path: string, mode: 'r' | 'w'): Promise<number> {
@@ -49,8 +44,6 @@ async function close(_fd: number): Promise<void> {
 }
 
 export class FileTop extends PlaygroundTopState<FileConfig> {
-	static readonly manifest = fileManifest;
-	declare readonly __ihsm: FileConfig;
 }
 
 @ihsm.InitialState
@@ -91,7 +84,7 @@ export class Done extends FileTop {}
 ihsm.registerStateNames(self);
 
 export function createFileActor() {
-	return ihsm.makeOwnerActor(
+	return makeTestActor(
 		FileTop,
 		{
 			sourcePath: '',

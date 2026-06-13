@@ -1,0 +1,40 @@
+> **TestHsm**\<`C`\> = [`ChildHsm`](ChildHsm.mdx)\<`C`\> & `object`
+
+Type-only public surface — erased at compile time; no runtime JS from this module.
+
+Import protocol and actor types from here:
+`import type { ActorConfig, ChildActor } from 'ihsm/types'`
+
+## Type Declaration
+
+### port
+
+> **port**: [`ActorPortOf`](ActorPortOf.mdx)\<`C`\>
+
+### subscribe()
+
+> **subscribe**(`observer`): `object`
+
+#### Parameters
+
+##### observer
+
+(`message`) => `void`
+
+#### Returns
+
+`object`
+
+##### dispose()
+
+> **dispose**(): `void`
+
+###### Returns
+
+`void`
+
+## Type Parameters
+
+### C
+
+`C` *extends* [`ActorConfig`](../interfaces/ActorConfig.mdx) = [`ActorConfig`](../interfaces/ActorConfig.mdx)

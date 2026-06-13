@@ -1,12 +1,12 @@
-> **MachineContext**\<`T`\> = `T` *extends* `object` ? `Context` : `never`
+> **MachineContext**\<`T`\> = [`ActorContextOf`](ActorContextOf.mdx)\<[`ActorConfigOf`](ActorConfigOf.mdx)\<`T`\>\>
 
-Extracts the **context** type from a [TopState](../classes/TopState.mdx) subclass — making the `TopState` the
-single point where the four machine types are declared.
+Type-only public surface — erased at compile time; no runtime JS from this module.
+
+Import protocol and actor types from here:
+`import type { ActorConfig, ChildActor } from 'ihsm/types'`
 
 ## Type Parameters
 
 ### T
 
 `T`
-
-A [TopState](../classes/TopState.mdx) subclass (instance type, e.g. `ConnTop`)

@@ -1,6 +1,15 @@
 import { expect } from 'chai';
 import 'mocha';
-import { asError, quoteError, quoteUnknown } from '../internal/utils';
+
+import { asError, quoteError, quoteUnknown } from '../internal/runtime';
+import * as self from './quote.spec';
+import { registerSpecStateNames } from './spec.utils';
+
+//#region ThisTestSpec
+
+registerSpecStateNames(self);
+
+//#endregion
 
 describe(`quote error`, () => {
 	it(`with no error message`, async () => {

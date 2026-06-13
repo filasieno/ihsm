@@ -1,0 +1,104 @@
+Type-only public surface — erased at compile time; no runtime JS from this module.
+
+Import protocol and actor types from here:
+`import type { ActorConfig, ChildActor } from 'ihsm/types'`
+
+## Methods
+
+### traceTransitionStart()
+
+> **traceTransitionStart**(`fromStateName`, `toStateName`): `void`
+
+#### Parameters
+
+##### fromStateName
+
+`string`
+
+##### toStateName
+
+`string`
+
+#### Returns
+
+`void`
+
+***
+
+### traceHookDone()
+
+> **traceHookDone**(`stateName`, `hook`): `void`
+
+#### Parameters
+
+##### stateName
+
+`string`
+
+##### hook
+
+`"onEntry"` \| `"onExit"`
+
+#### Returns
+
+`void`
+
+***
+
+### traceHookSkipped()
+
+> **traceHookSkipped**(`stateName`, `hook`): `void`
+
+#### Parameters
+
+##### stateName
+
+`string`
+
+##### hook
+
+`"onEntry"` \| `"onExit"`
+
+#### Returns
+
+`void`
+
+***
+
+### traceHookError()
+
+> **traceHookError**(`stateName`, `hook`, `cause`): `void`
+
+#### Parameters
+
+##### stateName
+
+`string`
+
+##### hook
+
+`"onEntry"` \| `"onExit"`
+
+##### cause
+
+`unknown`
+
+#### Returns
+
+`void`
+
+***
+
+### traceTransitionDone()
+
+> **traceTransitionDone**(`finalStateName`): `void`
+
+#### Parameters
+
+##### finalStateName
+
+`string`
+
+#### Returns
+
+`void`

@@ -1,36 +1,12 @@
-> **TopStateArg**\<`Context`, `Public`, `Internal`\> = [`StateClass`](StateClass.mdx)\<`Context`, [`Dispatch`](Dispatch.mdx)\<`Public`, `Internal`\>\> & `object`
+> **TopStateArg**\<`C`\> = [`StateClassOf`](StateClassOf.mdx)\<`C`\>
 
-The constrained root-state argument shared by [makeActor](../functions/makeActor.mdx) / [testing!makeTestActor](../../testing/functions/makeTestActor.mdx).
+Type-only public surface — erased at compile time; no runtime JS from this module.
 
-Its prototype carries the [MachineTypes](../interfaces/MachineTypes.mdx) marker, so `Context`, `Public`, and `Internal` are
-**inferred from the `topState`** at the call site — you never pass those generics explicitly.
-
-## Type Declaration
-
-### prototype
-
-> `readonly` **prototype**: `object`
-
-#### prototype.\_\_ihsm
-
-> `readonly` **\_\_ihsm**: [`MachineTypes`](../interfaces/MachineTypes.mdx)\<`Context`, `Public`, `Internal`, `unknown`\>
+Import protocol and actor types from here:
+`import type { ActorConfig, ChildActor } from 'ihsm/types'`
 
 ## Type Parameters
 
-### Context
+### C
 
-`Context`
-
-Domain context type
-
-### Public
-
-`Public` *extends* `undefined` \| \{ \}
-
-Public, client-callable protocol
-
-### Internal
-
-`Internal` *extends* `object`
-
-Internal protocol — only postable by the port / handlers
+`C` *extends* [`ActorConfig`](../interfaces/ActorConfig.mdx) = [`ActorConfig`](../interfaces/ActorConfig.mdx)

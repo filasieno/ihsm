@@ -1,0 +1,16 @@
+> **ServiceReply**\<`S`, `K`\> = `S`\[`K`\] *extends* (...`args`) => `Promise`\<infer R\> ? `Awaited`\<`R`\> : `never`
+
+Type-only public surface — erased at compile time; no runtime JS from this module.
+
+Import protocol and actor types from here:
+`import type { ActorConfig, ChildActor } from 'ihsm/types'`
+
+## Type Parameters
+
+### S
+
+`S` *extends* `object`
+
+### K
+
+`K` *extends* keyof `S`

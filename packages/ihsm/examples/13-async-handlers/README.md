@@ -80,7 +80,7 @@ export class Idle extends FileTop {
 		this.ctx.bytesWritten = await write(writeFd, data);
 		await close(writeFd);
 
-		this.transition(Done); // ← runs only after every await above
+		this.hsm.transition(Done); // ← runs only after every await above
 	}
 }
 ```
@@ -93,10 +93,10 @@ While `transfer` is in flight:
 
 ```typescript
 const sm = createFileActor();
-await sm.sync();
+await sm.hsm.sync();
 
-sm.post('transfer', '/inbox/a.dat', '/archive/a.dat');
-await sm.sync(); // waits through entire open/read/write/close chain
+sm.transfer('/inbox/a.dat', '/archive/a.dat');
+await sm.hsm.sync(); // waits through entire open/read/write/close chain
 
 expect(sm.currentState).equals(Done);
 expect(sm.ctx.bytesWritten).greaterThan(0);

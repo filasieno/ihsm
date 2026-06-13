@@ -143,7 +143,7 @@ flakiness (see [`tutorial.spec.ts`](./tutorial.spec.ts)):
 - **Golden trace.** The exact, ordered transcript — `['watch:/etc/hosts', 'dispose watch /etc/hosts']`
   — is asserted directly. Two runs produce a **byte-identical** trace, so a regression diffs cleanly.
 
-No `setTimeout`, no real filesystem, no `Math.random()`. Advance the machine with `await sm.sync()`
+No `setTimeout`, no real filesystem, no `Math.random()`. Advance the machine with `await sm.hsm.sync()`
 and decide every event yourself. That is what makes the test impossible to flake — and what makes a
 failure replayable byte-for-byte.
 

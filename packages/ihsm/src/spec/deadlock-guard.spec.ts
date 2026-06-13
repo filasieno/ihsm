@@ -1,24 +1,19 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import {
-	CallTimeoutError,
-	InitialState,
-	Port,
-	SelfCallDeadlockError,
-	TopState,
-	TraceLevel,
-	makeOwnerActor,
-	manifestFor,
-	registerStateNames,
-} from '../';
-import type { Config, OwnerActor } from '../';
+import { CallTimeoutError, InitialState, Port, SelfCallDeadlockError, TopState, TraceLevel } from '../';
+import type { TestActor } from '../testing';
+import { makeTestActor } from '../testing';
+import * as self from './deadlock-guard.spec';
+import { registerSpecStateNames } from './spec.utils';
+
+//#region ThisTestSpec
 
 interface DeadlockCtx {
-	actor?: OwnerActor<DeadlockConfig>;
+	actor?: TestActor<DeadlockConfig>;
 }
 
-interface DeadlockConfig extends Config {
+interface DeadlockConfig {
 	context: DeadlockCtx;
 	services: {
 		outer(): Promise<string>;
@@ -30,40 +25,33 @@ interface DeadlockConfig extends Config {
 	internalNotifications: Record<string, never>;
 }
 
-const deadlockManifest = manifestFor<DeadlockConfig>({
-	services: ['outer', 'inner', 'slow'],
-	notifications: [],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class DeadlockTop extends TopState {
-	static readonly manifest = deadlockManifest;
-	declare readonly __ihsm: DeadlockConfig;
+export class DeadlockTop extends TopState<DeadlockConfig> {
 }
 
 @InitialState
-class DeadlockActive extends DeadlockTop {
+export class DeadlockActive extends DeadlockTop {
 	async outer(): Promise<string> {
-		return this.ctx.actor!.inner();
+		return await (this.ctx.actor!.inner() as unknown as Promise<string>);
 	}
 
-	inner(): string {
+	async inner(): Promise<string> {
 		return 'inner-ok';
 	}
 
 	async slow(): Promise<string> {
-		await this.hsm.sleep(50);
+		await new Promise<void>(resolve => setTimeout(resolve, 50));
 		return 'slow-done';
 	}
 }
 
-registerStateNames({ DeadlockTop, DeadlockActive });
+registerSpecStateNames(self);
 
-describe('deadlock-guard (v2)', function (): void {
+//#endregion
+
+describe('deadlock-guard', function (): void {
 	it('throws SelfCallDeadlockError on nested service dispatch in debug builds', async () => {
 		const ctx: DeadlockCtx = {};
-		const actor = makeOwnerActor(DeadlockTop as never, ctx, new Port(), { traceLevel: TraceLevel.DEBUG });
+		const actor = makeTestActor(DeadlockTop, ctx, new Port(), { traceLevel: TraceLevel.DEBUG });
 		ctx.actor = actor;
 		await actor.hsm.sync();
 		try {
@@ -74,10 +62,10 @@ describe('deadlock-guard (v2)', function (): void {
 		}
 	});
 
-	it('does not throw SelfCallDeadlockError in production trace level', async function (): void {
+	it('does not throw SelfCallDeadlockError in production trace level', async function (this: Mocha.Context): Promise<void> {
 		this.timeout(5000);
 		const ctx: DeadlockCtx = {};
-		const actor = makeOwnerActor(DeadlockTop as never, ctx, new Port(), { traceLevel: TraceLevel.PRODUCTION });
+		const actor = makeTestActor(DeadlockTop, ctx, new Port(), { traceLevel: TraceLevel.PRODUCTION });
 		ctx.actor = actor;
 		await actor.hsm.sync();
 		const pending = actor.outer();
@@ -94,9 +82,9 @@ describe('deadlock-guard (v2)', function (): void {
 		expect(caught).not.instanceOf(SelfCallDeadlockError);
 	});
 
-	it('rejects with CallTimeoutError when timeoutMs elapses (job not cancelled)', async function (): void {
+	it('rejects with CallTimeoutError when timeoutMs elapses (job not cancelled)', async function (this: Mocha.Context): Promise<void> {
 		this.timeout(5000);
-		const actor = makeOwnerActor(DeadlockTop as never, {}, new Port(), { traceLevel: TraceLevel.DEBUG });
+		const actor = makeTestActor(DeadlockTop, {}, new Port(), { traceLevel: TraceLevel.DEBUG });
 		await actor.hsm.sync();
 		try {
 			await actor.slow({ timeoutMs: 5 });
@@ -109,7 +97,7 @@ describe('deadlock-guard (v2)', function (): void {
 	});
 
 	it('rejects immediately when timeoutMs is zero', async () => {
-		const actor = makeOwnerActor(DeadlockTop as never, {}, new Port());
+		const actor = makeTestActor(DeadlockTop, {}, new Port());
 		await actor.hsm.sync();
 		try {
 			await actor.slow({ timeoutMs: 0 });

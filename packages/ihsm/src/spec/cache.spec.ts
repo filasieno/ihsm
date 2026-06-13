@@ -1,35 +1,28 @@
 import { expect } from 'chai';
 import 'mocha';
-import { InitialState, TopState, makeOwnerActor, manifestFor, registerStateNames } from '../';
-import type { Config, OwnerActor } from '../';
-import { TestPort } from '../testing';
-import { TRACE_LEVELS, traceActorOnPort } from './spec.utils';
+import { InitialState, TopState } from '../';
+import type { TestActor } from '../testing';
+import { makeTestActor, TestPort } from '../testing';
+import * as self from './cache.spec';
+import { TRACE_LEVELS, registerSpecStateNames, traceActorOnPort } from './spec.utils';
 
+//#region ThisTestSpec
 class Report {
 	stateTrace: string[] = [];
 }
 
-interface CacheConfig extends Config {
+interface CacheConfig {
 	context: Report;
 	notifications: {
 		task(): void;
 	};
 }
 
-const cacheManifest = manifestFor<CacheConfig>({
-	services: [],
-	notifications: ['task'],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class HsmTop extends TopState {
-	static readonly manifest = cacheManifest;
-	declare readonly __ihsm: CacheConfig;
+export class HsmTop extends TopState<CacheConfig> {
 }
 
 @InitialState
-class A extends HsmTop {
+export class A extends HsmTop {
 	onEntry(): void {
 		this.ctx.stateTrace.push('A');
 	}
@@ -38,7 +31,8 @@ class A extends HsmTop {
 		this.hsm.transition(B);
 	}
 }
-class B extends HsmTop {
+
+export class B extends HsmTop {
 	onEntry(): void {
 		this.ctx.stateTrace.push('B');
 	}
@@ -48,15 +42,16 @@ class B extends HsmTop {
 	}
 }
 
-registerStateNames({ HsmTop, A, B });
+registerSpecStateNames(self);
+//#endregion
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Transition cache (traceLevel = ${traceLevel})`, () => {
-		let sm: OwnerActor<CacheConfig>;
+		let sm: TestActor<CacheConfig>;
 		it(`run a process`, async () => {
 			const ctx = new Report();
 			const port = new TestPort<HsmTop>();
-			sm = makeOwnerActor(HsmTop as never, ctx, port, { traceLevel });
+			sm = makeTestActor(HsmTop, ctx, port, { traceLevel });
 			traceActorOnPort(sm, port);
 			await sm.hsm.sync();
 			sm.task();

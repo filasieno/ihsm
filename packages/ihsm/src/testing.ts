@@ -6,7 +6,7 @@
  * into production code that only imports `ihsm`. Import test helpers from `ihsm/testing`:
  *
  * ```ts
- * import { makeHsm, TopState } from 'ihsm';            // production code
+ * import { makeActor, TopState } from 'ihsm';            // production code
  * import { makeTestActor, mock, TestPort } from 'ihsm/testing'; // tests only
  * ```
  *
@@ -15,35 +15,37 @@
  *
  * @packageDocumentation
  */
-import { Any, BasePort, Disposable, EventObserver, PortHandle, RandomService, TimerHandle, TraceLevel, TracedMessage, defaultDispatchErrorCallback, defaultInitialize, defaultTraceWriter } from './index';
-import { makeOwnerActor } from './v2/factories';
-import type { V2ActorOptions } from './v2/factories';
-import { kMachine } from './v2/handles';
-import type { HandleOwn } from './v2/handles';
-import { V2Machine } from './v2/machine';
-import type { Config, ConfigContext, ConfigPort, ConfigOf, OwnerActor, TestOwnerActorHsm, TopStateArg } from './v2/types';
+import { Port, TraceLevel, spawnActor, kMachine, Machine, defaultDispatchErrorCallback, defaultInitialize, defaultTraceWriter } from './internal/runtime';
+import type { Any, Disposable, EventObserver, MachinePortInput, RandomService, TracedMessage, ActorOptions, ActorConfig, ActorContextOf, ActorConfigOf, DomainPortOf, ChildActor, TestHsm, TopStateArg, ValidatedTopStateArg } from './internal/types';
+
+interface HandleOwn extends Record<symbol | string, unknown> {
+	[kMachine]: unknown;
+	ctx: unknown;
+	hsm: unknown;
+}
 
 export * from './index';
 
 /**
  * Full-access owner actor returned by {@link makeTestActor} for **deterministic testing**.
  *
- * Exposes the full `Config` protocol (services, notifications, internal buckets) as flat
+ * Exposes the full {@link ActorConfig} protocol (services, notifications, internal buckets) as flat
  * methods, with `hsm.port` and `hsm.subscribe` for test instrumentation.
  *
- * @typeParam C - Machine {@link Config} bag
+ * @typeParam C - Machine config bag (plain interface satisfying {@link ActorConfig})
  *
  * @category State machine
  */
-export type TestActor<C extends Config = Config> = OwnerActor<C> & {
-	hsm: TestOwnerActorHsm<C>;
+export type TestActor<C extends ActorConfig = ActorConfig> = ChildActor<C> & {
+	ctx: ActorContextOf<C>;
+	hsm: TestHsm<C>;
 };
 
 /**
  * Abstract base class for **mock ports** used in deterministic tests.
  *
- * Extends {@link BasePort} (so it inherits the lazily-bound {@link BasePort.actor | actor},
- * {@link BasePort.hsm | hsm}, and {@link BasePort.send | send}) and adds:
+ * Extends {@link Port} (so it inherits the lazily-bound {@link Port.actor | actor} and
+ * {@link Port.defer | defer}) and adds:
  *
  * - **Mocked timer services** — the same {@link TestPort.setTimeout | setTimeout} /
  *   {@link TestPort.setInterval | setInterval} / {@link TestPort.clearTimeout | clearTimeout} /
@@ -59,7 +61,7 @@ export type TestActor<C extends Config = Config> = OwnerActor<C> & {
  *   ({@link TestPort.messages | messages}, {@link TestPort.events | events},
  *   {@link TestPort.trace | trace}, {@link TestPort.clear | clear}, …).
  *
- * Like `BasePort`, it takes the root {@link TopState} as its single type argument. Subclass it
+ * Like `Port`, it takes the root {@link TopState} as its single type argument. Subclass it
  * (with `@`{@link mock}) to stub domain port methods; instantiate it directly when you only need
  * deterministic timers and randomness.
  *
@@ -84,15 +86,15 @@ export type TestActor<C extends Config = Config> = OwnerActor<C> & {
  *
  * @category Testing
  */
-type VirtualTimer = { id: TimerHandle; at: number; callback: () => void; repeat?: number };
+type VirtualTimer = { id: number; at: number; callback: () => void; repeat?: number };
 
-export class TestPort<T = Any> extends BasePort<T> implements RandomService {
+export class TestPort<T = Any> extends Port<T> {
 	private readonly _messages: TracedMessage[] = [];
 	private readonly _preloads = new Map<string, { queue: Array<(...args: unknown[]) => unknown>; fallback?: (...args: unknown[]) => unknown; calls: unknown[][] }>();
 	private _now = 0;
-	private _timerSeq = 0;
+	private _virtualTimerId = 0;
 	private readonly _timers: VirtualTimer[] = [];
-	private readonly _cancelled = new Set<TimerHandle>();
+	private readonly _cancelled = new Set<number>();
 	private readonly _randomQueue: number[] = [];
 	private readonly _cryptoRandomQueue: number[] = [];
 	private readonly _uuidQueue: string[] = [];
@@ -115,7 +117,7 @@ export class TestPort<T = Any> extends BasePort<T> implements RandomService {
 	 * Push an **inbound** internal notification into the bound actor (`port.actor.onData(…)`).
 	 *
 	 * Convenience for deterministic tests — equivalent to calling the generated method on
-	 * {@link BasePort.actor} after the factory has wired it.
+	 * {@link Port.actor} after the factory has wired it.
 	 */
 	send(event: string, ...payload: unknown[]): void {
 		const actor = this.actor as Record<string, ((...args: unknown[]) => void) | undefined> | undefined;
@@ -217,15 +219,15 @@ export class TestPort<T = Any> extends BasePort<T> implements RandomService {
 	}
 
 	/** @inheritdoc Port.setTimeout — backed by the virtual clock; fire with {@link TestPort.advance | advance}. */
-	setTimeout(callback: () => void, millis?: number): TimerHandle {
-		const id = ++this._timerSeq;
+	setTimeout(callback: () => void, millis?: number): number {
+		const id = ++this._virtualTimerId;
 		this._timers.push({ id, at: this._now + Math.max(0, millis ?? 0), callback });
 		this._sortTimers();
 		return id;
 	}
 
 	/** @inheritdoc Port.clearTimeout */
-	clearTimeout(id: TimerHandle | undefined): void {
+	clearTimeout(id: number | undefined): void {
 		if (id === undefined) {
 			return;
 		}
@@ -237,8 +239,8 @@ export class TestPort<T = Any> extends BasePort<T> implements RandomService {
 	}
 
 	/** @inheritdoc Port.setInterval — backed by the virtual clock; fire with {@link TestPort.advance | advance}. */
-	setInterval(callback: () => void, millis?: number): TimerHandle {
-		const id = ++this._timerSeq;
+	setInterval(callback: () => void, millis?: number): number {
+		const id = ++this._virtualTimerId;
 		const repeat = Math.max(0, millis ?? 0);
 		this._timers.push({ id, at: this._now + repeat, callback, repeat });
 		this._sortTimers();
@@ -246,7 +248,7 @@ export class TestPort<T = Any> extends BasePort<T> implements RandomService {
 	}
 
 	/** @inheritdoc Port.clearInterval */
-	clearInterval(id: TimerHandle | undefined): void {
+	clearInterval(id: number | undefined): void {
 		this.clearTimeout(id);
 	}
 
@@ -365,7 +367,7 @@ export class PreloadError extends Error {
  *
  * Both `default` and `once` take a closure with the **same parameters and return type** as the port
  * method, so scripts stay type-safe. Pushing internal events *inward* remains the separate
- * {@link BasePort.send | send} channel.
+ * {@link Port.send | send} channel.
  *
  * @typeParam A - The method's argument tuple (`Parameters<F>`)
  * @typeParam R - The method's return type (`ReturnType<F>`)
@@ -390,13 +392,15 @@ export interface Stubbed<A extends unknown[], R> {
  * a scriptable, introspectable {@link Stubbed} method.
  *
  * @typeParam P - The mock port class instance type
- * @typeParam T - The machine's root {@link TopState} subclass
+ * @typeParam C - The machine {@link ActorConfig} bag (inferred from the port's {@link TestPort} type param)
  *
  * @category Testing
  */
-export type Mock<P, T> = P & {
-	[K in keyof ConfigPort<ConfigOf<T>>]: ConfigPort<ConfigOf<T>>[K] extends (...args: infer A) => infer R ? Stubbed<A, R> : ConfigPort<ConfigOf<T>>[K];
+export type Mock<P, C extends ActorConfig = ActorConfig> = P & {
+	[K in keyof DomainPortOf<C>]: DomainPortOf<C>[K] extends (...args: infer A) => infer R ? Stubbed<A, R> : DomainPortOf<C>[K];
 };
+
+type ActorConfigFromPortClass<P> = P extends TestPort<infer M> ? ActorConfigOf<M> : ActorConfig;
 
 /** Property names the auto-stub must never synthesize — JS/test-framework probes and built-in port services. */
 const NON_STUB_PROPS: ReadonlySet<string> = new Set(['then', 'catch', 'finally', 'toJSON', 'inspect', 'asymmetricMatch', '$$typeof', 'nodeType', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'random', 'cryptoRandom', 'randomUUID', 'getRandomValues', 'advance', 'now', 'pending', 'feedRandom', 'feedCryptoRandom', 'feedUUID', 'feedRandomBytes', 'resetRandom']);
@@ -514,13 +518,16 @@ function installPortStubs(port: TestPort<Any>, PortClass: MockMarkedCtor): void 
 	}
 }
 
-export function makeTestPort<P extends TestPort<Any>>(PortClass: abstract new () => P): Mock<P, P extends { readonly __topState: infer T } ? T : never> {
+export function makeTestPort<P extends TestPort<Any>, C extends ActorConfig = ActorConfigFromPortClass<P>>(
+	PortClass: abstract new () => P,
+	_topState?: TopStateArg<C>,
+): Mock<P, C> {
 	if ((PortClass as { [MOCK_MARKER]?: boolean })[MOCK_MARKER] !== true) {
 		throw new Error('ihsm: makeTestPort requires a class decorated with @ihsm.mock');
 	}
 	const port = new (PortClass as unknown as new () => P)();
 	installPortStubs(port, PortClass);
-	return port as Mock<P, P extends { readonly __topState: infer T } ? T : never>;
+	return port as Mock<P, C>;
 }
 
 /**
@@ -551,13 +558,14 @@ export function makeTestPort<P extends TestPort<Any>>(PortClass: abstract new ()
  *
  * @category Factory
  */
-export function makeTestActor<C extends Config>(
-	topState: TopStateArg<C>,
-	ctx: ConfigContext<C>,
-	port: PortHandle<C> = new TestPort() as PortHandle<C>,
-	options: V2ActorOptions<C> = {},
-	..._disjointGuard: import('./v2/types').DisjointConfig<C> extends true ? [] : [error: import('./v2/types').DisjointConfig<C>]
-): TestActor<C> {
+export function makeTestActor<T extends TopStateArg<ActorConfig>>(
+	topState: ValidatedTopStateArg<T>,
+	ctx: ActorContextOf<ActorConfigOf<T>>,
+	port?: MachinePortInput<ActorConfigOf<T>> | TestPort<Any>,
+	options: ActorOptions<ActorConfigOf<T>> = {},
+): TestActor<ActorConfigOf<T>> {
+	type C = ActorConfigOf<T>;
+	const boundPort = (port ?? new TestPort()) as MachinePortInput<C>;
 	// Tests default to the most verbose trace (so a failing run is fully readable). Never silence to
 	// a production level here — the user opts down explicitly via `options.traceLevel`.
 	const {
@@ -567,22 +575,17 @@ export function makeTestActor<C extends Config>(
 		dispatchErrorCallback = defaultDispatchErrorCallback,
 		...rest
 	} = options;
-	const actor = (makeOwnerActor as (t: TopStateArg<C>, c: ConfigContext<C>, p: PortHandle<C>, o: V2ActorOptions<C>) => OwnerActor<C>)(
-		topState,
-		ctx,
-		port,
-		{
+	const actor = spawnActor('test', topState as TopStateArg<C>, ctx, boundPort, {
 			initialize,
 			traceLevel,
 			traceWriter,
 			dispatchErrorCallback,
 			...rest,
-		},
-	);
-	const machine = (actor as unknown as HandleOwn)[kMachine] as V2Machine<C>;
-	const testHsm = actor.hsm as TestOwnerActorHsm<C>;
+		});
+	const machine = (actor as unknown as HandleOwn)[kMachine] as Machine<C>;
+	const testHsm = actor.hsm as TestHsm<C>;
 	Object.defineProperties(testHsm, {
-		port: { enumerable: true, get: () => port },
+		port: { enumerable: true, get: () => boundPort },
 		subscribe: {
 			enumerable: true,
 			value: (observer: EventObserver) => machine.subscribe(observer),

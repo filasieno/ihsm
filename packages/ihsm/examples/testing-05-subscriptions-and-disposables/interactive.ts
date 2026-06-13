@@ -4,7 +4,7 @@ import { registerStateNamesFromExports } from '../shared/state-names';
 import { getSenderHsm } from '../shared/interactive-helpers';
 import type { InteractiveRuntime, TutorialInteractiveMeta } from '../shared/interactive-types';
 import * as machine from './machine';
-import { WatcherTop, WatcherCtx, WatcherPort } from './machine';
+import { WatcherTop, WatcherCtx, WatcherConfig, WatcherPort } from './machine';
 
 /**
  * Local playground watch source (a class on {@link TestPort}). The buttons push `onChange` /
@@ -35,7 +35,7 @@ function summarize(sm: { hsm: { currentStateName: string }; ctx: WatcherCtx }): 
 }
 
 async function emitChange(runtime: InteractiveRuntime): Promise<void> {
-	const sm = getSenderHsm(runtime, 'machine');
+	const sm = getSenderHsm<WatcherConfig>(runtime, 'machine');
 	sm.onChange(nextVersion++);
 	await sm.hsm.sync();
 }
@@ -67,13 +67,13 @@ export const interactive: TutorialInteractiveMeta = {
 				traceWriter: writer, // collect lines for the trace panel
 			}
 		);
-		return { kind: 'single', sm, writer };
+		return { kind: 'single', sm, writer } as unknown as InteractiveRuntime;
 	},
 	stateSummary: (runtime): string => {
 		if (runtime.kind !== 'single') {
 			return '';
 		}
-		return summarize(runtime.sm);
+		return summarize(runtime.sm as unknown as { hsm: { currentStateName: string }; ctx: WatcherCtx });
 	},
 	extraActions: [
 		{
@@ -94,7 +94,7 @@ export const interactive: TutorialInteractiveMeta = {
 			id: 'closed',
 			label: 'source closes',
 			run: async (runtime): Promise<void> => {
-				const sm = getSenderHsm(runtime, 'machine');
+				const sm = getSenderHsm<WatcherConfig>(runtime, 'machine');
 				sm.onClosed();
 				await sm.hsm.sync();
 			},

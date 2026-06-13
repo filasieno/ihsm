@@ -1,35 +1,7 @@
-> **StateClass**\<`Context`, `Protocol`\> = `Function` & `object`
-
-Constructor type for a state class participating in the hierarchy.
-
-Satisfied by any `Function` whose `prototype` derives from [TopState](../classes/TopState.mdx). Used wherever
-the runtime expects a state **class**, not an instance:
-[makeHsm](../functions/makeHsm.mdx), [State.transition](../interfaces/State.mdx#transition), [InitialState](../functions/InitialState.mdx), [Hsm.restore](../interfaces/Hsm.mdx#restore).
-
-## Type Declaration
-
-### prototype
-
-> **prototype**: [`State`](../interfaces/State.mdx)\<`Context`, `Protocol`\> & [`StateEvents`](../interfaces/StateEvents.mdx)\<`Context`, `Protocol`\>
+> **StateClass**\<`C`\> = [`StateClassOf`](StateClassOf.mdx)\<`C`\>
 
 ## Type Parameters
 
-### Context
+### C
 
-`Context` = [`Any`](Any.mdx)
-
-Domain context carried by the machine
-
-### Protocol
-
-`Protocol` *extends* \{ \} \| `undefined` = `undefined`
-
-Event/service vocabulary
-
-## Remarks
-
-The prototype constraint is the **port-less** handler contract ([State](../interfaces/State.mdx) &
-[StateEvents](../interfaces/StateEvents.mdx)) rather than [TopState](../classes/TopState.mdx) itself. This keeps the optional
-[TopState.port](../classes/TopState.mdx#port-1) member (which varies with the `Port` type parameter) out of
-transition / `restore` typing, so machines that declare a port remain assignable
-wherever a plain `StateClass` is expected.
+`C` *extends* [`ActorConfig`](../interfaces/ActorConfig.mdx) = [`ActorConfig`](../interfaces/ActorConfig.mdx)

@@ -1,56 +1,21 @@
-Application hook invoked when the runtime cannot recover from a dispatch failure.
-
-Called **after** [StateEvents.onError](StateEvents.mdx#onerror) and [StateEvents.onUnhandled](StateEvents.mdx#onunhandled) have
-been tried and the error is still propagating, or when no recovery hook handled it.
-The default implementation logs via [TraceWriter](TraceWriter.mdx) and **rethrows** the error.
-
-## Remarks
-
-Override at construction (`makeHsm(..., dispatchErrorCallback)`) or assign
-`hsm.dispatchErrorCallback` for integration tests that must assert failures.
-Note: [Hsm.sync](Hsm.mdx#sync) still resolves when the default callback throws — failures
-surface in logs, not as a rejected `sync()` Promise.
-
 ## Type Parameters
 
-### Context
+### C
 
-`Context`
-
-### Protocol
-
-`Protocol` *extends* \{ \} \| `undefined`
+`C` *extends* [`ActorConfig`](ActorConfig.mdx) = [`ActorConfig`](ActorConfig.mdx)
 
 > **DispatchErrorCallback**(`hsm`, `err`): `void`
-
-Application hook invoked when the runtime cannot recover from a dispatch failure.
-
-Called **after** [StateEvents.onError](StateEvents.mdx#onerror) and [StateEvents.onUnhandled](StateEvents.mdx#onunhandled) have
-been tried and the error is still propagating, or when no recovery hook handled it.
-The default implementation logs via [TraceWriter](TraceWriter.mdx) and **rethrows** the error.
 
 ## Parameters
 
 ### hsm
 
-[`Base`](Base.mdx)\<`Context`, `Protocol`\>
-
-The machine handle (`Hsm` or handler `State` view) at failure time
+[`Properties`](Properties.mdx)\<`C`\>
 
 ### err
 
 `Error`
 
-The error that terminated dispatch (often [EventHandlerError](../classes/EventHandlerError.mdx),
-  [UnhandledEventError](../classes/UnhandledEventError.mdx), [TransitionError](../classes/TransitionError.mdx), or [FatalError](../classes/FatalError.mdx))
-
 ## Returns
 
 `void`
-
-## Remarks
-
-Override at construction (`makeHsm(..., dispatchErrorCallback)`) or assign
-`hsm.dispatchErrorCallback` for integration tests that must assert failures.
-Note: [Hsm.sync](Hsm.mdx#sync) still resolves when the default callback throws — failures
-surface in logs, not as a rejected `sync()` Promise.

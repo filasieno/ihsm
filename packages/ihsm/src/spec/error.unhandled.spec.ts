@@ -1,13 +1,17 @@
 import { expect } from 'chai';
 import 'mocha';
-import { FatalErrorState, InitialState, RuntimeError, StateClass, TopState, UnhandledEventError, makeOwnerActor, manifestFor, registerStateNames } from '../';
-import type { Config, OwnerActor } from '../';
-import { TestPort } from '../testing';
-import { clearLastError, createTestDispatchErrorCallback, getLastError, TRACE_LEVELS, traceActorOnPort } from './spec.utils';
+import { FatalErrorState, InitialState, RuntimeError, StateClass, TopState, UnhandledEventError } from '../';
+import type { TestActor } from '../testing';
+import { makeTestActor, TestPort } from '../testing';
+import type { ActorNotificationsOf } from '../';
+import * as self from './error.unhandled.spec';
+import { clearLastError, createTestDispatchErrorCallback, getLastError, TRACE_LEVELS, registerSpecStateNames, traceActorOnPort } from './spec.utils';
 
-type State = StateClass<Record<string, never>, Record<string, unknown>>;
+//#region ThisTestSpec
 
-interface UnhandledConfig extends Config {
+type State = StateClass;
+
+interface UnhandledConfig {
 	context: Record<string, never>;
 	notifications: {
 		hello(): void;
@@ -15,18 +19,9 @@ interface UnhandledConfig extends Config {
 	};
 }
 
-const unhandledManifest = manifestFor<UnhandledConfig>({
-	services: [],
-	notifications: ['hello', 'transitionTo'],
-	internalServices: [],
-	internalNotifications: [],
-});
+export class HsmTop extends TopState<UnhandledConfig> {
 
-class HsmTop extends TopState {
-	static readonly manifest = unhandledManifest;
-	declare readonly __ihsm: UnhandledConfig;
-
-	onUnhandled<EventName extends keyof UnhandledConfig['notifications']>(error: UnhandledEventError<Record<string, never>, UnhandledConfig['notifications'], EventName>): Promise<void> | void {
+	onUnhandled<EventName extends keyof ActorNotificationsOf<UnhandledConfig>>(error: UnhandledEventError<UnhandledConfig, EventName>): Promise<void> | void {
 		console.log(`${error}`);
 		if (this.hsm.currentState === A) {
 			this.hsm.transition(B);
@@ -44,85 +39,77 @@ class HsmTop extends TopState {
 	}
 }
 
-class A extends HsmTop {
+export class A extends HsmTop {
 	hello(): void {
 		this.hsm.unhandled();
 	}
 }
 
-class C extends HsmTop {
-	onUnhandled<EventName extends keyof UnhandledConfig['notifications']>(error: UnhandledEventError<Record<string, never>, UnhandledConfig['notifications'], EventName>): Promise<void> | void {
+export class C extends HsmTop {
+	onUnhandled<EventName extends keyof ActorNotificationsOf<UnhandledConfig>>(error: UnhandledEventError<UnhandledConfig, EventName>): Promise<void> | void {
 		console.log(`error: ${error}`);
 		throw new Error('Unhandled throws');
 	}
 }
 
-class E extends HsmTop {
+export class E extends HsmTop {
 	onEntry(): Promise<void> | void {
 		throw new Error('Unhandled throws in a transition');
 	}
 }
 
-class F extends HsmTop {}
+export class F extends HsmTop {}
 
-class G extends HsmTop {
-	onError<EventName extends keyof UnhandledConfig['notifications']>(error: RuntimeError<Record<string, never>, UnhandledConfig['notifications'], EventName>): Promise<void> | void {
+export class G extends HsmTop {
+	onError<EventName extends keyof ActorNotificationsOf<UnhandledConfig>>(error: RuntimeError<UnhandledConfig, EventName>): Promise<void> | void {
 		console.log(`error: ${error}`);
 		console.log('recovered');
 	}
 
-	async onUnhandled<EventName extends keyof UnhandledConfig['notifications']>(error: UnhandledEventError<Record<string, never>, UnhandledConfig['notifications'], EventName>): Promise<void> {
+	async onUnhandled<EventName extends keyof ActorNotificationsOf<UnhandledConfig>>(error: UnhandledEventError<UnhandledConfig, EventName>): Promise<void> {
 		console.log(`error: ${error}`);
 		throw new Error('Error to recover');
 	}
 }
 
-class H extends HsmTop {
+export class H extends HsmTop {
 	hello(): void {
 		this.hsm.unhandled();
 	}
 
-	onError<EventName extends keyof UnhandledConfig['notifications']>(error: RuntimeError<Record<string, never>, UnhandledConfig['notifications'], EventName>): Promise<void> | void {
+	onError<EventName extends keyof ActorNotificationsOf<UnhandledConfig>>(error: RuntimeError<UnhandledConfig, EventName>): Promise<void> | void {
 		console.log(`${error}`);
 		throw new Error('Fail now');
 	}
 
-	onUnhandled<EventName extends keyof UnhandledConfig['notifications']>(error: UnhandledEventError<Record<string, never>, UnhandledConfig['notifications'], EventName>): Promise<void> | void {
+	onUnhandled<EventName extends keyof ActorNotificationsOf<UnhandledConfig>>(error: UnhandledEventError<UnhandledConfig, EventName>): Promise<void> | void {
 		console.log(`${error}`);
 		throw new Error('Error to recover');
 	}
 }
 
 @InitialState
-class B extends HsmTop {}
+export class B extends HsmTop {}
 
-const emptyTopManifest = manifestFor<{ notifications: { hello(): void } }>({
-	services: [],
-	notifications: ['hello'],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class EmptyTopState extends TopState {
-	static readonly manifest = emptyTopManifest;
-	declare readonly __ihsm: { notifications: { hello(): void } };
+export class EmptyTopState extends TopState<UnhandledConfig> {
 }
 
-class WithHello extends EmptyTopState {
+export class WithHello extends EmptyTopState {
 	hello(): void {}
 }
 
-registerStateNames({ HsmTop, A, B, C, E, F, G, H, EmptyTopState, WithHello });
+registerSpecStateNames(self);
+//#endregion
 
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`An unhandled event (traceLevel = ${traceLevel})`, function (): void {
-		let sm: OwnerActor<UnhandledConfig>;
+		let sm: TestActor<UnhandledConfig>;
 		let port: TestPort;
 
 		beforeEach(async () => {
 			clearLastError();
 			port = new TestPort();
-			sm = makeOwnerActor(HsmTop as never, {}, port, { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+			sm = makeTestActor(HsmTop, {}, port, { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			traceActorOnPort(sm, port);
 			await sm.hsm.sync();
 		});
@@ -174,7 +161,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		});
 
 		it(`the standard onUnhandled throws`, async () => {
-			const sm = makeOwnerActor(EmptyTopState as never, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+			const sm = makeTestActor(EmptyTopState, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			sm.hello();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(FatalErrorState);

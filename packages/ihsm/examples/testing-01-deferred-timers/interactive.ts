@@ -44,13 +44,13 @@ export const interactive: TutorialInteractiveMeta = {
 				traceWriter: writer, // collect lines for the trace panel
 			}
 		);
-		return { kind: 'single', sm, writer };
+		return { kind: 'single', sm, writer } as unknown as InteractiveRuntime;
 	},
 	stateSummary: (runtime): string => {
 		if (runtime.kind !== 'single') {
 			return '';
 		}
-		return summarize(runtime.sm);
+		return summarize(runtime.sm as unknown as { hsm: { currentStateName: string }; ctx: HeartbeatCtx });
 	},
 	extraActions: [
 		{

@@ -1,13 +1,14 @@
-import type { Config, OwnerActor } from '../../src';
+import type { ActorConfig } from '../../src';
+import type { TestActor } from '../../src/testing';
 import { CollectingTraceWriter, withTrace } from './trace';
 import { registerStateNamesFromExports } from './state-names';
 import type { InteractiveRuntime, SingleHsmRuntime, SingleSenderTutorialOptions, TutorialInteractiveMeta, TutorialMessage } from './interactive-types';
 
 const DEFAULT_SENDER = 'machine';
 
-type DispatchableActor = OwnerActor<Config> & Record<string, (...args: unknown[]) => unknown>;
+type DispatchableActor = TestActor<ActorConfig> & Record<string, (...args: unknown[]) => unknown>;
 
-export function singleSenderTutorial<C extends Config>(options: SingleSenderTutorialOptions<C>): TutorialInteractiveMeta {
+export function singleSenderTutorial<C extends ActorConfig>(options: SingleSenderTutorialOptions<C>): TutorialInteractiveMeta {
 	const { title, topState, initialCtx, initialize = true, messages, stateSummary, extraActions, machineExports } = options;
 
 	return {
@@ -19,27 +20,27 @@ export function singleSenderTutorial<C extends Config>(options: SingleSenderTuto
 				registerStateNamesFromExports(machineExports);
 			}
 			const { sm, writer } = withTrace(topState, initialCtx, initialize);
-			return { kind: 'single', sm, writer };
+			return { kind: 'single', sm, writer } as SingleHsmRuntime<C>;
 		},
 		stateSummary: runtime => {
 			if (runtime.kind !== 'single') {
 				return '';
 			}
-			return stateSummary(runtime.sm);
+			return stateSummary(runtime.sm as TestActor<C>);
 		},
 		extraActions,
 	};
 }
 
-export function getSenderHsm(runtime: InteractiveRuntime, senderId: string): OwnerActor<Config> {
+export function getSenderHsm<C extends ActorConfig = ActorConfig>(runtime: InteractiveRuntime, senderId: string): TestActor<C> {
 	if (runtime.kind === 'single') {
-		return runtime.sm;
+		return runtime.sm as TestActor<C>;
 	}
 	if (senderId === 'payment') {
-		return runtime.coordinator.payment;
+		return runtime.coordinator.payment as TestActor<C>;
 	}
 	if (senderId === 'shipping') {
-		return runtime.coordinator.shipping;
+		return runtime.coordinator.shipping as TestActor<C>;
 	}
 	throw new Error(`unknown sender: ${senderId}`);
 }
@@ -85,10 +86,10 @@ export function resetRuntime(meta: TutorialInteractiveMeta, runtime: Interactive
 	return runtime;
 }
 
-export function wrapWithTrace<C extends Config>(
+export function wrapWithTrace<C extends ActorConfig>(
 	topState: SingleSenderTutorialOptions<C>['topState'],
 	ctx: SingleSenderTutorialOptions<C>['initialCtx'],
 	initialize = true,
-): { sm: OwnerActor<C>; writer: CollectingTraceWriter } {
+): { sm: TestActor<C>; writer: CollectingTraceWriter } {
 	return withTrace(topState, ctx, initialize);
 }

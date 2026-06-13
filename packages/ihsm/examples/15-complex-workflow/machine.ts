@@ -4,6 +4,7 @@
  * Teaches: hsm.immediate from onEntry; transition() cleared if only scheduled from onExit/onEntry.
  */
 import * as ihsm from '../../src';
+import { makeTestActor } from '../../src/testing';
 import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
@@ -17,9 +18,9 @@ export interface CheckoutCtx {
 	validationNotes: string[];
 }
 
-export interface CheckoutConfig extends ihsm.Config {
+export interface CheckoutConfig {
 	context: CheckoutCtx;
-	notifications: {
+notifications: {
 		submit(): Promise<void>;
 		applyValidation(): void;
 		approve(): Promise<void>;
@@ -30,16 +31,8 @@ export interface CheckoutConfig extends ihsm.Config {
 	};
 }
 
-const checkoutManifest = ihsm.manifestFor<CheckoutConfig>({
-	services: ['getStatus'],
-	notifications: ['submit', 'applyValidation', 'approve', 'reject'],
-	internalServices: [],
-	internalNotifications: [],
-});
 
 export class CheckoutTop extends PlaygroundTopState<CheckoutConfig> {
-	static readonly manifest = checkoutManifest;
-	declare readonly __ihsm: CheckoutConfig;
 
 	getStatus(): OrderPhase {
 		return this.ctx.phase;
@@ -54,7 +47,7 @@ export class CheckoutTop extends PlaygroundTopState<CheckoutConfig> {
 export class Draft extends CheckoutTop {
 	async submit(): Promise<void> {
 		this.ctx.phase = 'validating';
-		await this.hsm.sleep(10);
+		await new Promise<void>(resolve => (this.hsm.port as unknown as ihsm.Port).setTimeout(resolve, 10));
 		this.ctx.validationNotes.push('fraud-check-ok');
 		this.hsm.transition(Validating);
 	}
@@ -88,7 +81,7 @@ export class Rejected extends CheckoutTop {}
 
 export class Completing extends CheckoutTop {
 	async onEntry(): Promise<void> {
-		await this.hsm.sleep(10);
+		await new Promise<void>(resolve => (this.hsm.port as unknown as ihsm.Port).setTimeout(resolve, 10));
 		this.ctx.phase = 'completed';
 	}
 }
@@ -96,7 +89,7 @@ export class Completing extends CheckoutTop {
 ihsm.registerStateNames(self);
 
 export function createCheckout(orderId: string, amount: number, limit: number) {
-	return ihsm.makeOwnerActor(
+	return makeTestActor(
 		CheckoutTop,
 		{
 			orderId,

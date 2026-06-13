@@ -12,7 +12,7 @@
 	"hideGenerator": true,
 	"sort": ["source-order"],
 	"kindSortOrder": ["Class", "Interface", "Enum", "TypeAlias", "Function"],
-	"categoryOrder": ["Factory", "State machine", "Event handler", "Error", "*"],
+	"categoryOrder": ["Factory", "Actor configuration", "State machine", "Port", "Testing", "Error", "*"],
 	"router": "member",
 	"fileExtension": ".mdx",
 	"entryFileName": "index",

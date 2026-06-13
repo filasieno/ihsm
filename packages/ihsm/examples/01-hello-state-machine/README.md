@@ -1,19 +1,18 @@
-# Hello State Machine
+# Hello state machine
 
 ## Problem
 
-A plain class with boolean flags (`isOpen`, `isClosed`) mixes **mode** and **behavior**. Every method must re-validate flags, and invalid combinations compile without error.
+Model each mode as a **state class**. Events are methods; crossing a mode boundary calls `this.hsm.transition(NextState)`.
 
 ## Solution
 
-Model each mode as a **state class**. Events are methods; crossing a mode boundary calls `this.transition(NextState)`.
+One `Config` bag declares context + notifications. `makeActor` returns a handle with flat methods (`door.open()`). Machinery (`transition`, `sync`, `currentState`) lives on `door.hsm`.
 
 ## UML statechart
 
 ```plantuml
 @startuml
 left to right direction
-skinparam ranksep 25
 state DoorTop {
   [*] --> Closed
   Closed -down-> Open : open / openCount++
@@ -22,101 +21,72 @@ state DoorTop {
 @enduml
 ```
 
-We declare what the machine remembers (`DoorCtx`) and which events exist (`DoorProtocol`). The protocol drives typed `post('open')` at compile time.
+## Config
 
 ```typescript
-export interface DoorCtx {
-	openCount: number;
+interface DoorConfig extends Config {
+  context: DoorCtx;
+  notifications: {
+    open(): void;
+    close(): void;
+  };
 }
 
-export interface DoorProtocol {
-	open(): void;
-	close(): void;
+
+export class DoorTop extends TopState {
+  declare readonly __ihsm: DoorConfig;
 }
 ```
 
-The **root state** inherits run-to-completion dispatch machinery from `TopState`. It anchors the hierarchy; behavior lives in substates.
-
-```typescript
-export class DoorTop extends TopState<DoorCtx, DoorProtocol> {}
-```
-
-Mark the **initial state** with `@InitialState`. After `makeHsm`, the runtime descends here.
-
-### Handler — `Closed` state
+Mark the **initial state** with `@InitialState`. After `makeActor` + `await door.hsm.sync()`, the runtime descends here.
 
 ```typescript
 @InitialState
-export class Closed extends DoorTop {
-	open(): void {
-		this.ctx.openCount += 1;
-		this.transition(Open);
-	}
+class Closed extends DoorTop {
+  open(): void {
+    this.ctx.openCount += 1;
+    this.hsm.transition(Open);
+  }
+}
+
+class Open extends DoorTop {
+  close(): void {
+    this.hsm.transition(Closed);
+  }
 }
 ```
 
-### Handler — `Open` state
+## Client
 
 ```typescript
-export class Open extends DoorTop {
-	close(): void {
-		this.transition(Closed);
-	}
-}
+import { makeActor, Port } from 'ihsm';
+
+const door = makeActor(DoorTop, { openCount: 0 }, new Port());
+await door.hsm.sync();
+
+door.open();                    // fire-and-forget notification
+await door.hsm.sync();          // handler + transition finished
+
+door.close();
+await door.hsm.sync();
+
+door.open();
+door.close();
+await door.hsm.sync();
+
+console.log(door.hsm.currentStateName); // 'Closed'
+console.log(door.ctx.openCount);          // 2
 ```
 
-### Client — create actor, `post`, `sync`
+| Side | Call | Blocks? |
+| ---- | ---- | ------- |
+| Client | `door.open()` | No — returns immediately |
+| Client | `await door.hsm.sync()` | Yes — drains enqueued work |
 
-Create the machine with `makeHsm` (or the tutorial helper `createDoor()`):
-
-```typescript
-import { makeHsm } from 'ihsm';
-
-const door = makeHsm(DoorTop, { openCount: 0 });
-await door.sync();           // wait for init (onEntry chain on initial state)
-```
-
-The client never calls `open()` directly — it enqueues the event by name:
-
-```typescript
-door.post('open');           // fire-and-forget — enqueues open handler
-await door.sync();           // wait until open handler + transition complete
-
-door.post('close');
-await door.sync();           // same pattern for the next event
-```
-
-Each **`post` + `sync`** pair is similar to a single **`await call(...)`**: the client waits until one enqueued dispatch finishes (handler + transition). The difference is that `post` has no typed return value — use `call` when you need a reply in the same step ([Call services](../10-call-services/README.md)).
-
-To wait until **several** posts have been processed, enqueue them all first, then **`sync` once**:
-
-```typescript
-door.post('open');
-door.post('close');
-await door.sync();           // drain the whole batch before continuing
-```
-
-See [Post and sync](../08-post-and-sync/README.md) for handler-side chaining and ordering rules.
-
-| Side | Code | Waits? |
-| ---- | ---- | ------ |
-| Handler | `open(): void { … }` on `Closed` | Runtime runs it when dispatched |
-| Client | `door.post('open')` | No — returns immediately |
-| Client | `await door.sync()` | Yes — drain queue through handler + transition |
-
-## Reading the trace
-
-With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
-
-Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
-
-On the [documentation page](https://filasieno.github.io/ihsm/reference), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:examples` headlessly.
-
-**What to notice:** `initialize` descends to `Closed`. Each `post` opens a `#open` / `#close` domain. After the handler, `requested transition` and `started transition` show the LCA path; `final state is` confirms the new leaf.
+See [Post & sync](../08-post-and-sync/README.md) for batching and handler chaining.
 
 ## Verify
 
 ```shell
 npm run test:examples -- --grep 'Tutorial 01'
 ```
-

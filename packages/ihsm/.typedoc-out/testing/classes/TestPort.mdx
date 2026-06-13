@@ -1,10 +1,4 @@
-Standard JavaScript random-generation surface exposed by [Port](../../index/classes/Port.mdx) and mocked by
-testing!TestPort.
-
-Route every nondeterministic draw through the machine's port — never `Math.random()` or
-`crypto.*` directly in handlers — so tests can script values with
-[feedRandom](#feedrandom) / [feedCryptoRandom](#feedcryptorandom) /
-[feedUUID](#feeduuid) / [feedRandomBytes](#feedrandombytes).
+Runtime port binding — `actor` is set synchronously before factory return.
 
 ## Extends
 
@@ -40,9 +34,6 @@ Route every nondeterministic draw through the machine's port — never `Math.ran
 
 > `readonly` **\_\_topState**: `T`
 
-Phantom carrier of the root [TopState](../../index/classes/TopState.mdx) type, so [testing!makeTestPort](../functions/makeTestPort.mdx) can recover `T`
-(and therefore the port surface, via [MachinePort](../../index/type-aliases/MachinePort.mdx)) from a mock class. Type-only.
-
 #### Inherited from
 
 [`BasePort`](../../index/classes/BasePort.mdx).[`__topState`](../../index/classes/BasePort.mdx#__topstate)
@@ -51,12 +42,7 @@ Phantom carrier of the root [TopState](../../index/classes/TopState.mdx) type, s
 
 ### actor
 
-> **actor**: [`InboundPoster`](../../index/type-aliases/InboundPoster.mdx)\<[`MachineContext`](../../index/type-aliases/MachineContext.mdx)\<`T`\>, [`MachineInternal`](../../index/type-aliases/MachineInternal.mdx)\<`T`\>\> \| `undefined`
-
-The machine handle this port posts internal events through. **Bound lazily** by the runtime
-([makeHsm](../../index/functions/makeHsm.mdx) / [makeActor](../../index/functions/makeActor.mdx) / [testing!makeTestActor](../functions/makeTestActor.mdx)) right after the actor is
-constructed — so a port is created with no constructor arguments and wired up afterwards.
-`undefined` before binding / after teardown.
+> **actor**: [`InboundActor`](../../index/type-aliases/InboundActor.mdx)\<[`ActorConfigOf`](../../index/type-aliases/ActorConfigOf.mdx)\<`T`\>\> \| [`ChildActor`](../../index/type-aliases/ChildActor.mdx)\<[`ActorConfigOf`](../../index/type-aliases/ActorConfigOf.mdx)\<`T`\>\>
 
 #### Inherited from
 
@@ -162,67 +148,6 @@ Number of timers still pending (not yet fired or disposed).
 
 ## Methods
 
-### hsm()
-
-> **hsm**(): [`InboundPoster`](../../index/type-aliases/InboundPoster.mdx)\<[`MachineContext`](../../index/type-aliases/MachineContext.mdx)\<`T`\>, [`MachineInternal`](../../index/type-aliases/MachineInternal.mdx)\<`T`\>\> \| `undefined`
-
-The bound machine handle (same as [PortHandle.actor](../../index/interfaces/PortHandle.mdx#actor)); `undefined` before binding.
-
-#### Returns
-
-[`InboundPoster`](../../index/type-aliases/InboundPoster.mdx)\<[`MachineContext`](../../index/type-aliases/MachineContext.mdx)\<`T`\>, [`MachineInternal`](../../index/type-aliases/MachineInternal.mdx)\<`T`\>\> \| `undefined`
-
-#### Inherited from
-
-[`BasePort`](../../index/classes/BasePort.mdx).[`hsm`](../../index/classes/BasePort.mdx#hsm)
-
-***
-
-### send()
-
-> **send**\<`EventName`\>(`eventName`, ...`payload`): `void`
-
-Post an internal event inward through the bound [actor](../../index/classes/BasePort.mdx#actor).
-
-This is the one channel a port (or a test driving the port) uses to feed the machine its
-internal protocol. Because emission is explicit — never a side effect of the outbound call
-the machine made — a single mock works across many tests: the test decides *when* (and
-whether) to push each internal event.
-
-#### Type Parameters
-
-##### EventName
-
-`EventName` *extends* `string` \| `number` \| `symbol`
-
-#### Parameters
-
-##### eventName
-
-[`PostedEvent`](../../index/type-aliases/PostedEvent.mdx)\<[`MachineInternal`](../../index/type-aliases/MachineInternal.mdx)\<`T`\>, `EventName`\>
-
-Internal event to post
-
-##### payload
-
-...[`EventPayload`](../../index/type-aliases/EventPayload.mdx)\<[`MachineInternal`](../../index/type-aliases/MachineInternal.mdx)\<`T`\>, `EventName`\>
-
-Arguments for the event
-
-#### Returns
-
-`void`
-
-#### Throws
-
-If called before the actor has been bound by a factory
-
-#### Inherited from
-
-[`BasePort`](../../index/classes/BasePort.mdx).[`send`](../../index/classes/BasePort.mdx#send)
-
-***
-
 ### record()
 
 > **record**(`event`, ...`payload`): `void`
@@ -252,6 +177,31 @@ Optional values associated with the entry
 
 ***
 
+### send()
+
+> **send**(`event`, ...`payload`): `void`
+
+Push an **inbound** internal notification into the bound actor (`port.actor.onData(…)`).
+
+Convenience for deterministic tests — equivalent to calling the generated method on
+[BasePort.actor](../../index/classes/BasePort.mdx#actor) after the factory has wired it.
+
+#### Parameters
+
+##### event
+
+`string`
+
+##### payload
+
+...`unknown`[]
+
+#### Returns
+
+`void`
+
+***
+
 ### clear()
 
 > **clear**(): `void`
@@ -268,8 +218,6 @@ Clear the recorded message log.
 
 > **setTimeout**(`callback`, `millis?`): `number`
 
-Schedule `callback` after `millis` milliseconds — same argument order as `globalThis.setTimeout`.
-
 #### Parameters
 
 ##### callback
@@ -284,7 +232,9 @@ Schedule `callback` after `millis` milliseconds — same argument order as `glob
 
 `number`
 
-An opaque handle for [Port.clearTimeout](../../index/classes/Port.mdx#cleartimeout)
+#### Inherit Doc
+
+— backed by the virtual clock; fire with [advance](#advance).
 
 ***
 
@@ -292,8 +242,6 @@ An opaque handle for [Port.clearTimeout](../../index/classes/Port.mdx#cleartimeo
 
 > **clearTimeout**(`id`): `void`
 
-Cancel a pending [Port.setTimeout](../../index/classes/Port.mdx#settimeout) handle. No-op when `id` is `undefined` or unknown.
-
 #### Parameters
 
 ##### id
@@ -304,13 +252,13 @@ Cancel a pending [Port.setTimeout](../../index/classes/Port.mdx#settimeout) hand
 
 `void`
 
+#### Inherit Doc
+
 ***
 
 ### setInterval()
 
 > **setInterval**(`callback`, `millis?`): `number`
-
-Schedule `callback` every `millis` milliseconds — same argument order as `globalThis.setInterval`.
 
 #### Parameters
 
@@ -326,15 +274,15 @@ Schedule `callback` every `millis` milliseconds — same argument order as `glob
 
 `number`
 
-An opaque handle for [Port.clearInterval](../../index/classes/Port.mdx#clearinterval)
+#### Inherit Doc
+
+— backed by the virtual clock; fire with [advance](#advance).
 
 ***
 
 ### clearInterval()
 
 > **clearInterval**(`id`): `void`
-
-Cancel a pending [Port.setInterval](../../index/classes/Port.mdx#setinterval) handle. No-op when `id` is `undefined` or unknown.
 
 #### Parameters
 
@@ -345,6 +293,8 @@ Cancel a pending [Port.setInterval](../../index/classes/Port.mdx#setinterval) ha
 #### Returns
 
 `void`
+
+#### Inherit Doc
 
 ***
 
@@ -458,11 +408,13 @@ Clear all scripted random queues ([feedRandom](#feedrandom) / [feedCryptoRandom]
 
 > **random**(): `number`
 
-Uniform in `[0, 1)` — `Math.random()`.
-
 #### Returns
 
 `number`
+
+#### Inherit Doc
+
+— queued values only; returns `0` when empty (never calls `Math.random`).
 
 #### Implementation of
 
@@ -474,11 +426,13 @@ Uniform in `[0, 1)` — `Math.random()`.
 
 > **cryptoRandom**(): `number`
 
-Uniform in `[0, 1)` — `crypto.random()` when available, otherwise `Math.random()`.
-
 #### Returns
 
 `number`
+
+#### Inherit Doc
+
+— queued values only; returns `0` when empty (never calls `crypto.random`).
 
 #### Implementation of
 
@@ -490,11 +444,13 @@ Uniform in `[0, 1)` — `crypto.random()` when available, otherwise `Math.random
 
 > **randomUUID**(): `string`
 
-RFC 4122 UUID — `crypto.randomUUID()`.
-
 #### Returns
 
 `string`
+
+#### Inherit Doc
+
+— queued values only; never calls `crypto.randomUUID`.
 
 #### Implementation of
 
@@ -505,8 +461,6 @@ RFC 4122 UUID — `crypto.randomUUID()`.
 ### getRandomValues()
 
 > **getRandomValues**\<`T`\>(`array`): `T`
-
-In-place fill — `crypto.getRandomValues()`.
 
 #### Type Parameters
 
@@ -523,6 +477,10 @@ In-place fill — `crypto.getRandomValues()`.
 #### Returns
 
 `T`
+
+#### Inherit Doc
+
+— queued bytes only; never calls `crypto.getRandomValues`.
 
 #### Implementation of
 

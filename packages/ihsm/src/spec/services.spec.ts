@@ -1,28 +1,22 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { InitialState, TopState, makeOwnerActor, manifestFor } from '../';
-import type { Config, OwnerActor } from '../';
-import { TestPort } from '../testing';
-import { traceActorOnPort } from './spec.utils';
+import { InitialState, TopState } from '../';
+import type { TestActor } from '../testing';
+import { makeTestActor, TestPort } from '../testing';
+import * as self from './services.spec';
+import { registerSpecStateNames, traceActorOnPort } from './spec.utils';
 
-interface ServicesConfig extends Config {
+//#region ThisTestSpec
+
+interface ServicesConfig {
 	context: Record<string, never>;
 	services: {
 		getResult(value: string): Promise<string>;
 	};
 }
 
-const servicesManifest = manifestFor<ServicesConfig>({
-	services: ['getResult'],
-	notifications: [],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class HsmTop extends TopState {
-	static readonly manifest = servicesManifest;
-	declare readonly __ihsm: ServicesConfig;
+export class HsmTop extends TopState<ServicesConfig> {
 
 	async getResult(value: string): Promise<string> {
 		if (value.startsWith('ok:')) {
@@ -33,15 +27,18 @@ class HsmTop extends TopState {
 }
 
 @InitialState
-class A extends HsmTop {}
+export class A extends HsmTop {}
+
+registerSpecStateNames(self);
+//#endregion
 
 describe(`services`, function (): void {
-	let sm: OwnerActor<ServicesConfig>;
+	let sm: TestActor<ServicesConfig>;
 	let port: TestPort;
 
 	beforeEach(async () => {
 		port = new TestPort();
-		sm = makeOwnerActor(HsmTop as never, {}, port);
+		sm = makeTestActor(HsmTop, {}, port);
 		traceActorOnPort(sm, port);
 		await sm.hsm.sync();
 		expect(sm.hsm.currentState).equals(A);

@@ -1,104 +1,56 @@
-# postNow()
+# Hi-priority notifications (`hsm.immediate`)
 
 ## Problem
 
-During a handler you sometimes need **internal** follow-up events (inventory lock, payment capture, cleanup) to run **before** other work — including normal `post` calls from the same handler or the next dispatched job. That pattern models **extended transitions**: several steps that belong to one logical turn.
+Sometimes a handler must run **follow-up protocol steps before** normal-priority notifications scheduled in the same turn — extended transitions, pseudo-states, inventory locks.
 
 ## Solution
 
-**`postNow(event, …args)`** enqueues on the **hi-priority** queue. After the current handler and its transitions finish, the runtime drains all hi-priority jobs before normal posts from that handler or the next external `post`.
+**`this.hsm.immediate.event()`** enqueues on the **hi-priority** queue. After the current handler and its transitions finish, the runtime drains all hi-priority jobs before normal `hsm.actor` notifications from that handler.
 
-Only available **inside** handlers (`this.postNow`). The client uses ordinary `post`.
+Only available **inside** handlers. Clients use ordinary generated notification methods.
 
 ## UML statechart
 
 ```plantuml
 @startuml
 left to right direction
-state CheckoutTop {
+state OrderTop {
   [*] --> Draft
-  Draft : confirm / postNow(lock); postNow(capture); post(cancel)
+  Draft : confirm / immediate.lock(); immediate.capture(); actor.cancel()
   Draft --> Confirmed : confirm
 }
 @enduml
 ```
 
-Internal `lockInventory` and `capturePayment` are not separate states — they are hi-priority events orchestrating the extended `confirm` transition.
+## Handler
 
-## Protocol
-
-```typescript
-export interface CheckoutProtocol {
-	confirm(): void;
-	lockInventory(): void;
-	capturePayment(): void;
-	cancel(): void;
-}
-```
-
----
-
-## Example · Extended transition with guaranteed order
-
-### Handler (state machine)
-
-`confirm` schedules a normal `cancel` (deferred side effect) plus critical steps via `postNow`:
+`confirm` schedules a normal `cancel` (deferred side effect) plus critical steps via `immediate`:
 
 ```typescript
 confirm(): void {
-	this.ctx.steps.push('confirm-start');
-	this.post('cancel');                  // normal — runs after postNow steps
-	this.postNow('lockInventory');          // hi-priority
-	this.postNow('capturePayment');         // hi-priority
-	this.ctx.steps.push('confirm-end');
-	this.transition(Confirmed);
+  this.ctx.steps.push('confirm-start');
+  this.hsm.actor.cancel();           // normal — runs after immediate steps
+  this.hsm.immediate.lockInventory();
+  this.hsm.immediate.capturePayment();
+  this.ctx.steps.push('confirm-end');
+  this.hsm.transition(Confirmed);
 }
 ```
 
-`postNow` handlers run **after** `confirm-end` is recorded but **before** `cancel` — still within the same overall `confirm` dispatch cycle.
+`immediate` handlers run **after** `confirm-end` is recorded but **before** `cancel`.
 
-### Client (caller)
+## Client
 
 ```typescript
-const sm = createCheckout();
-await sm.sync();
-
-sm.post('confirm');
-await sm.sync();
-await sm.sync(); // drain postNow follow-ups
-
-expect(sm.ctx.steps).to.deep.equal([
-	'confirm-start',
-	'confirm-end',
-	'lock',
-	'capture',
-	'cancel',
-]);
-expect(sm.ctx.committed).equals(true);
+sm.confirm();
+await sm.hsm.sync(); // through confirm + transition
+await sm.hsm.sync(); // drain immediate follow-ups
 ```
 
-| Step | What happens |
-| ---- | ------------ |
-| 1 | `#confirm` handler body runs through `confirm-end` |
-| 2 | Transition to `Confirmed` (if any exit/entry/`then`) |
-| 3 | Hi-priority `#lockInventory`, `#capturePayment` |
-| 4 | Normal `#cancel` from the same handler |
+Compare with [Notifications & sync](../08-post-and-sync/README.md): plain `this.hsm.actor` from a handler is FIFO **after** the handler returns — `immediate` cuts ahead of those normal notifications.
 
-Compare with [Post & sync](../08-post-and-sync/README.md): plain `this.post` from a handler is FIFO **after** the handler returns — `postNow` cuts ahead of those normal posts.
-
----
-
-Use **`postNow`** to run internal protocol handlers in the same dispatch turn — for example choice pseudo states after entry ([Complex workflow](../15-complex-workflow/README.md)) or extended transitions like this tutorial.
-
----
-
-## Reading the trace
-
-With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
-
-On the [documentation page](https://filasieno.github.io/ihsm/reference), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:examples` headlessly.
-
-**What to notice:** `#lockInventory` and `#capturePayment` appear after `#confirm` completes its handler body but before `#cancel`.
+Use **`hsm.immediate`** for internal orchestration in the same dispatch turn — see also [Complex workflow](../15-complex-workflow/README.md).
 
 ## Verify
 

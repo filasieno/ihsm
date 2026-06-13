@@ -124,7 +124,7 @@ describe('Testing 04: fault injection & seeded DST', () => {
 		// Validated by `tsc` (the examples project is type-checked); the body never runs. The
 		// production `makeActor` surface here is what demonstrates the public/internal boundary.
 		const _typeChecks = (): void => {
-			const worker = ihsm.makeActor(WorkerTop, freshCtx(), ihsm.makeTestPort(FaultMock));
+			const worker = makeTestActor(WorkerTop, freshCtx(), ihsm.makeTestPort(FaultMock));
 
 			// @ts-expect-error 'onResult' is internal — not callable on the public Actor surface.
 			worker.onResult(true);
@@ -135,7 +135,7 @@ describe('Testing 04: fault injection & seeded DST', () => {
 				run(): void;
 			}
 			// @ts-expect-error public and internal protocols must not share keys ('run').
-			ihsm.makeActor<ReturnType<typeof freshCtx>, { run(): void }, CollidingInternal>(WorkerTop, freshCtx(), ihsm.makeTestPort(FaultMock));
+			makeTestActor<ReturnType<typeof freshCtx>, { run(): void }, CollidingInternal>(WorkerTop, freshCtx(), ihsm.makeTestPort(FaultMock));
 		};
 
 		expect(typeof _typeChecks).to.equal('function');

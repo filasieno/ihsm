@@ -57,8 +57,8 @@ export class Working extends WorkerTop {
 ```
 
 ```typescript
-worker.post('risky');
-await worker.sync();
+worker.risky();
+await worker.hsm.sync();
 // still Working, recovered === 1
 ```
 

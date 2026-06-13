@@ -1,0 +1,737 @@
+## Type Parameters
+
+### C
+
+`C` *extends* [`ActorConfig`](../interfaces/ActorConfig.mdx)
+
+## Implements
+
+- `DispatchableMachine`
+
+## Constructors
+
+### Constructor
+
+> **new Machine**\<`C`\>(`topState`, `instance`, `protocolIndex`, `traceWriter`, `traceLevel`, `dispatchErrorCallback`, `initialize`, `transitionResolver?`): `Machine`\<`C`\>
+
+#### Parameters
+
+##### topState
+
+[`StateClass`](../type-aliases/StateClass.mdx)\<`C`\>
+
+##### instance
+
+###### ctx
+
+[`ActorContextOf`](../type-aliases/ActorContextOf.mdx)\<`C`\>
+
+###### hsm
+
+[`HandlerHsm`](../type-aliases/HandlerHsm.mdx)\<`C`\>
+
+###### portRef?
+
+`unknown`
+
+##### protocolIndex
+
+[`ProtocolIndex`](../interfaces/ProtocolIndex.mdx)
+
+##### traceWriter
+
+[`TraceWriter`](../interfaces/TraceWriter.mdx)
+
+##### traceLevel
+
+[`TraceLevel`](../enumerations/TraceLevel.mdx)
+
+##### dispatchErrorCallback
+
+[`DispatchErrorCallback`](../interfaces/DispatchErrorCallback.mdx)\<`C`\>
+
+##### initialize
+
+`boolean`
+
+##### transitionResolver?
+
+[`TransitionResolver`](../interfaces/TransitionResolver.mdx)\<`C`\>
+
+#### Returns
+
+`Machine`\<`C`\>
+
+#### Overrides
+
+`HsmObject<C>.constructor`
+
+## Properties
+
+### topState
+
+> **topState**: [`StateClass`](../type-aliases/StateClass.mdx)\<`C`\>
+
+#### Inherited from
+
+`HsmObject.topState`
+
+***
+
+### topStateName
+
+> **topStateName**: `string`
+
+#### Inherited from
+
+`HsmObject.topStateName`
+
+***
+
+### ctxTypeName
+
+> `readonly` **ctxTypeName**: `string`
+
+#### Inherited from
+
+`HsmObject.ctxTypeName`
+
+***
+
+### traceWriter
+
+> **traceWriter**: [`TraceWriter`](../interfaces/TraceWriter.mdx)
+
+#### Inherited from
+
+`HsmObject.traceWriter`
+
+***
+
+### \_instance
+
+> **\_instance**: `Instance`\<`C`\>
+
+#### Inherited from
+
+`HsmObject._instance`
+
+***
+
+### \_transitionCache
+
+> **\_transitionCache**: `Map`\<`string`, `Transition`\<`C`\>\>
+
+#### Inherited from
+
+`HsmObject._transitionCache`
+
+***
+
+### \_jobs
+
+> **\_jobs**: `Task`[]
+
+#### Inherited from
+
+`HsmObject._jobs`
+
+***
+
+### \_hiPriorityJobs
+
+> **\_hiPriorityJobs**: `Task`[]
+
+#### Inherited from
+
+`HsmObject._hiPriorityJobs`
+
+***
+
+### \_transitionState?
+
+> `optional` **\_transitionState?**: [`StateClass`](../type-aliases/StateClass.mdx)\<`C`\>
+
+#### Inherited from
+
+`HsmObject._transitionState`
+
+***
+
+### \_currentEventName?
+
+> `optional` **\_currentEventName?**: `string`
+
+#### Inherited from
+
+`HsmObject._currentEventName`
+
+***
+
+### \_currentEventPayload?
+
+> `optional` **\_currentEventPayload?**: `unknown`[]
+
+#### Inherited from
+
+`HsmObject._currentEventPayload`
+
+***
+
+### dispatchErrorCallback
+
+> **dispatchErrorCallback**: [`DispatchErrorCallback`](../interfaces/DispatchErrorCallback.mdx)\<`C`\>
+
+#### Inherited from
+
+`HsmObject.dispatchErrorCallback`
+
+***
+
+### \_createEventDispatchTask
+
+> **\_createEventDispatchTask**: \<`DispatchC`\>(`hsm`, `eventName`, ...`eventPayload`) => `Task`
+
+#### Type Parameters
+
+##### DispatchC
+
+`DispatchC` *extends* [`ActorConfig`](../interfaces/ActorConfig.mdx)
+
+#### Parameters
+
+##### hsm
+
+`HsmWithTracing`\<`DispatchC`\>
+
+##### eventName
+
+`string`
+
+##### eventPayload
+
+...`unknown`[]
+
+#### Returns
+
+`Task`
+
+#### Inherited from
+
+`HsmObject._createEventDispatchTask`
+
+***
+
+### transitionResolver
+
+> `readonly` **transitionResolver**: [`TransitionResolver`](../interfaces/TransitionResolver.mdx)\<`C`\>
+
+## Accessors
+
+### ctx
+
+#### Get Signature
+
+> **get** **ctx**(): [`ActorContextOf`](../type-aliases/ActorContextOf.mdx)\<`C`\>
+
+##### Returns
+
+[`ActorContextOf`](../type-aliases/ActorContextOf.mdx)\<`C`\>
+
+#### Set Signature
+
+> **set** **ctx**(`ctx`): `void`
+
+##### Parameters
+
+###### ctx
+
+[`ActorContextOf`](../type-aliases/ActorContextOf.mdx)\<`C`\>
+
+##### Returns
+
+`void`
+
+#### Implementation of
+
+`DispatchableMachine.ctx`
+
+#### Inherited from
+
+`HsmObject.ctx`
+
+***
+
+### port
+
+#### Get Signature
+
+> **get** **port**(): `unknown`
+
+##### Returns
+
+`unknown`
+
+#### Inherited from
+
+`HsmObject.port`
+
+***
+
+### eventName
+
+#### Get Signature
+
+> **get** **eventName**(): `string`
+
+##### Returns
+
+`string`
+
+#### Inherited from
+
+`HsmObject.eventName`
+
+***
+
+### eventPayload
+
+#### Get Signature
+
+> **get** **eventPayload**(): `unknown`[]
+
+##### Returns
+
+`unknown`[]
+
+#### Inherited from
+
+`HsmObject.eventPayload`
+
+***
+
+### currentStateName
+
+#### Get Signature
+
+> **get** **currentStateName**(): `string`
+
+##### Returns
+
+`string`
+
+#### Inherited from
+
+`HsmObject.currentStateName`
+
+***
+
+### currentState
+
+#### Get Signature
+
+> **get** **currentState**(): [`StateClass`](../type-aliases/StateClass.mdx)\<`C`\>
+
+##### Returns
+
+[`StateClass`](../type-aliases/StateClass.mdx)\<`C`\>
+
+#### Set Signature
+
+> **set** **currentState**(`newState`): `void`
+
+##### Parameters
+
+###### newState
+
+[`StateClass`](../type-aliases/StateClass.mdx)\<`C`\>
+
+##### Returns
+
+`void`
+
+#### Inherited from
+
+`HsmObject.currentState`
+
+***
+
+### traceLevel
+
+#### Get Signature
+
+> **get** **traceLevel**(): [`TraceLevel`](../enumerations/TraceLevel.mdx)
+
+##### Returns
+
+[`TraceLevel`](../enumerations/TraceLevel.mdx)
+
+#### Set Signature
+
+> **set** **traceLevel**(`traceLevel`): `void`
+
+##### Parameters
+
+###### traceLevel
+
+[`TraceLevel`](../enumerations/TraceLevel.mdx)
+
+##### Returns
+
+`void`
+
+#### Inherited from
+
+`HsmObject.traceLevel`
+
+***
+
+### traceHeader
+
+#### Get Signature
+
+> **get** **traceHeader**(): `string`
+
+##### Returns
+
+`string`
+
+#### Inherited from
+
+`HsmObject.traceHeader`
+
+## Methods
+
+### subscribe()
+
+> **subscribe**(`observer`): [`Disposable`](../interfaces/Disposable.mdx)
+
+#### Parameters
+
+##### observer
+
+[`EventObserver`](../type-aliases/EventObserver.mdx)
+
+#### Returns
+
+[`Disposable`](../interfaces/Disposable.mdx)
+
+#### Inherited from
+
+`HsmObject.subscribe`
+
+***
+
+### recordObserverEvent()
+
+> `protected` **recordObserverEvent**(`eventName`, `eventPayload`): `void`
+
+#### Parameters
+
+##### eventName
+
+`string` \| `number` \| `symbol`
+
+##### eventPayload
+
+`unknown`[]
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+`HsmObject.recordObserverEvent`
+
+***
+
+### transition()
+
+> **transition**(`nextState`): `void`
+
+#### Parameters
+
+##### nextState
+
+[`StateClass`](../type-aliases/StateClass.mdx)\<`C`\>
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+`HsmObject.transition`
+
+***
+
+### unhandled()
+
+> **unhandled**(): `never`
+
+#### Returns
+
+`never`
+
+#### Inherited from
+
+`HsmObject.unhandled`
+
+***
+
+### sync()
+
+> **sync**(): `Promise`\<`void`\>
+
+#### Returns
+
+`Promise`\<`void`\>
+
+#### Inherited from
+
+`HsmObject.sync`
+
+***
+
+### pushTask()
+
+> **pushTask**(`t`): `void`
+
+#### Parameters
+
+##### t
+
+`Task`
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+`HsmObject.pushTask`
+
+***
+
+### pushHiPriorityTask()
+
+> **pushHiPriorityTask**(`t`): `void`
+
+#### Parameters
+
+##### t
+
+`Task`
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+`HsmObject.pushHiPriorityTask`
+
+***
+
+### unshiftHiPriorityTask()
+
+> **unshiftHiPriorityTask**(`t`): `void`
+
+#### Parameters
+
+##### t
+
+`Task`
+
+#### Returns
+
+`void`
+
+#### Implementation of
+
+`DispatchableMachine.unshiftHiPriorityTask`
+
+#### Inherited from
+
+`HsmObject.unshiftHiPriorityTask`
+
+***
+
+### restore()
+
+> **restore**(`state`, `ctx`): `void`
+
+#### Parameters
+
+##### state
+
+[`StateClass`](../type-aliases/StateClass.mdx)\<`C`\>
+
+##### ctx
+
+[`ActorContextOf`](../type-aliases/ActorContextOf.mdx)\<`C`\>
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+`HsmObject.restore`
+
+***
+
+### \_tracePush()
+
+> **\_tracePush**(`d`, `msg`): `void`
+
+#### Parameters
+
+##### d
+
+`string`
+
+##### msg
+
+`string`
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+`HsmObject._tracePush`
+
+***
+
+### \_tracePopDone()
+
+> **\_tracePopDone**(`msg`): `void`
+
+#### Parameters
+
+##### msg
+
+`string`
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+`HsmObject._tracePopDone`
+
+***
+
+### \_tracePopError()
+
+> **\_tracePopError**(`msg`): `void`
+
+#### Parameters
+
+##### msg
+
+`string`
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+`HsmObject._tracePopError`
+
+***
+
+### \_traceWrite()
+
+> **\_traceWrite**(`msg`): `void`
+
+#### Parameters
+
+##### msg
+
+`any`
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+`HsmObject._traceWrite`
+
+***
+
+### dispatchService()
+
+> **dispatchService**(`name`, `args`): `Promise`\<`unknown`\>
+
+#### Parameters
+
+##### name
+
+`string`
+
+##### args
+
+`unknown`[]
+
+#### Returns
+
+`Promise`\<`unknown`\>
+
+#### Implementation of
+
+`DispatchableMachine.dispatchService`
+
+***
+
+### dispatchNotification()
+
+> **dispatchNotification**(`name`, `args`, `queue`): `void`
+
+#### Parameters
+
+##### name
+
+`string`
+
+##### args
+
+`unknown`[]
+
+##### queue
+
+`NotificationQueue`
+
+#### Returns
+
+`void`
+
+#### Implementation of
+
+`DispatchableMachine.dispatchNotification`
+
+***
+
+### actorHsmFor()
+
+> **actorHsmFor**(`kind`): [`ExternalHsm`](../type-aliases/ExternalHsm.mdx)\<`C`\> \| [`InboundHsm`](../type-aliases/InboundHsm.mdx)\<`C`\> \| [`ChildHsm`](../type-aliases/ChildHsm.mdx)\<`C`\>
+
+#### Parameters
+
+##### kind
+
+[`EmbodimentKind`](../type-aliases/EmbodimentKind.mdx)
+
+#### Returns
+
+[`ExternalHsm`](../type-aliases/ExternalHsm.mdx)\<`C`\> \| [`InboundHsm`](../type-aliases/InboundHsm.mdx)\<`C`\> \| [`ChildHsm`](../type-aliases/ChildHsm.mdx)\<`C`\>
+
+#### Implementation of
+
+`DispatchableMachine.actorHsmFor`

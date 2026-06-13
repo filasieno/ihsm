@@ -1,14 +1,22 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { FatalErrorState, InitialState, TopState, TransitionError, UnhandledEventError, makeOwnerActor, manifestFor } from '../';
-import type { Config, HandlerHsm } from '../';
-import { TestPort } from '../testing';
-import { kMachine } from '../v2/handles';
-import type { HandleOwn } from '../v2/handles';
+import { FatalErrorState, InitialState, TopState, TransitionError, UnhandledEventError } from '../';
+import type { ActorNotificationsOf, HandlerHsm } from '../';
+import { kMachine } from '../internal/runtime';
+import type { HandleOwn } from '../internal/runtime';
+import { makeTestActor, TestPort } from '../testing';
+import * as self from './coverage.spec';
 import { clearLastError, createTestDispatchErrorCallback, getLastError, TRACE_LEVELS, registerSpecStateNames, traceActorOnPort } from './spec.utils';
 
-interface CoverageConfig extends Config {
+function transitionError(hsm: HandlerHsm<CoverageConfig>, phase: 'onEntry' | 'onExit' = 'onEntry'): TransitionError<CoverageConfig, 'trigger'> {
+	const stateName = hsm.currentStateName;
+	return new TransitionError(hsm as never, new Error('transition failed'), stateName, phase, stateName, 'Target');
+}
+
+//#region ThisTestSpec
+
+interface CoverageConfig {
 	context: Record<string, never>;
 	notifications: {
 		trigger(): void;
@@ -16,36 +24,100 @@ interface CoverageConfig extends Config {
 	};
 }
 
-const coverageManifest = manifestFor<CoverageConfig>({
-	services: [],
-	notifications: ['trigger', 'boom'],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-function transitionError(hsm: HandlerHsm<CoverageConfig>, phase: 'onEntry' | 'onExit' = 'onEntry'): TransitionError<Record<string, never>, CoverageConfig['notifications'], 'trigger'> {
-	const stateName = hsm.currentStateName;
-	return new TransitionError(hsm as never, new Error('transition failed'), stateName, phase, stateName, 'Target');
-}
-
-class Top extends TopState {
-	static readonly manifest = coverageManifest;
-	declare readonly __ihsm: CoverageConfig;
+export class Top extends TopState<CoverageConfig> {
 
 	trigger(): void {}
 	boom(): void {}
 }
 
+export class HandlerThrowsTransition extends Top {
+	trigger(): void {
+		throw transitionError(this.hsm);
+	}
+}
+
+export class OnErrorRethrowsTransition extends Top {
+	trigger(): void {
+		throw new Error('handler failed');
+	}
+
+	onError(): void {
+		throw transitionError(this.hsm);
+	}
+}
+
+export class OnUnhandledRethrowsTransition extends Top {
+	trigger(): void {
+		this.hsm.unhandled();
+	}
+
+	onUnhandled<EventName extends keyof ActorNotificationsOf<CoverageConfig>>(_error: UnhandledEventError<CoverageConfig, EventName>): void {
+		throw transitionError(this.hsm);
+	}
+}
+
+export class InitTransitionTop extends TopState<CoverageConfig> {
+}
+
+@InitialState
+export class InitOnEntryThrowsTransition extends InitTransitionTop {
+	onEntry(): void {
+		throw transitionError(this.hsm);
+	}
+}
+
+void InitOnEntryThrowsTransition;
+
+export class AsyncOnErrorRecovery extends Top {
+	trigger(): void {
+		throw new Error('handler failed');
+	}
+
+	async onError(): Promise<void> {
+		await new Promise<void>(resolve => setTimeout(resolve, 1));
+	}
+}
+
+export class AsyncOnUnhandledRecovery extends Top {
+	trigger(): void {
+		this.hsm.unhandled();
+	}
+
+	async onUnhandled<EventName extends keyof ActorNotificationsOf<CoverageConfig>>(_error: UnhandledEventError<CoverageConfig, EventName>): Promise<void> {
+		await new Promise<void>(resolve => setTimeout(resolve, 1));
+	}
+}
+
+export class MissingHandlerTop extends TopState<CoverageConfig> {
+
+	onUnhandled(_error: UnhandledEventError<CoverageConfig, never>): void {
+		throw new Error('onUnhandled failed');
+	}
+}
+
+export class BoomUnhandled extends Top {
+	boom(): void {
+		this.hsm.unhandled();
+	}
+
+	onUnhandled<EventName extends keyof ActorNotificationsOf<CoverageConfig>>(_error: UnhandledEventError<CoverageConfig, EventName>): void {
+		throw new Error('nested unhandled recovery failed');
+	}
+}
+
+registerSpecStateNames(self);
+//#endregion
+
 describe('hi-priority queue when idle', () => {
 	it('runs an unshifted task without a preceding main-queue job', async () => {
-		const actor = makeOwnerActor(Top as never, {}, new TestPort(), { initialize: false });
+		const actor = makeTestActor(Top, {}, new TestPort(), { initialize: false });
 		let ran = 0;
-		(actor as HandleOwn)[kMachine].unshiftHiPriorityTask(done => {
+		(actor as unknown as HandleOwn)[kMachine].unshiftHiPriorityTask(done => {
 			ran += 1;
 			done();
 		});
 		// A second unshift while the queue is already draining hits the early-return guard.
-		(actor as HandleOwn)[kMachine].unshiftHiPriorityTask(done => {
+		(actor as unknown as HandleOwn)[kMachine].unshiftHiPriorityTask(done => {
 			ran += 1;
 			done();
 		});
@@ -54,19 +126,13 @@ describe('hi-priority queue when idle', () => {
 	});
 });
 
-class HandlerThrowsTransition extends Top {
-	trigger(): void {
-		throw transitionError(this.hsm);
-	}
-}
-
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`handler throws TransitionError (traceLevel = ${traceLevel})`, () => {
 		beforeEach(() => clearLastError());
 
 		it('surfaces the transition error through dispatch', async () => {
 			const port = new TestPort();
-			const sm = makeOwnerActor(HandlerThrowsTransition as never, {}, port, { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+			const sm = makeTestActor(HandlerThrowsTransition, {}, port, { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			traceActorOnPort(sm, port);
 			await sm.hsm.sync();
 			sm.trigger();
@@ -77,22 +143,12 @@ for (const traceLevel of TRACE_LEVELS) {
 	});
 }
 
-class OnErrorRethrowsTransition extends Top {
-	trigger(): void {
-		throw new Error('handler failed');
-	}
-
-	onError(): void {
-		throw transitionError(this.hsm);
-	}
-}
-
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`onError rethrows TransitionError (traceLevel = ${traceLevel})`, () => {
 		beforeEach(() => clearLastError());
 
 		it('does not recover', async () => {
-			const sm = makeOwnerActor(OnErrorRethrowsTransition as never, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+			const sm = makeTestActor(OnErrorRethrowsTransition, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			await sm.hsm.sync();
 			sm.trigger();
 			await sm.hsm.sync();
@@ -101,22 +157,12 @@ for (const traceLevel of TRACE_LEVELS) {
 	});
 }
 
-class OnUnhandledRethrowsTransition extends Top {
-	trigger(): void {
-		this.hsm.unhandled();
-	}
-
-	onUnhandled<EventName extends keyof CoverageConfig['notifications']>(_error: UnhandledEventError<Record<string, never>, CoverageConfig['notifications'], EventName>): void {
-		throw transitionError(this.hsm);
-	}
-}
-
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`onUnhandled rethrows TransitionError (traceLevel = ${traceLevel})`, () => {
 		beforeEach(() => clearLastError());
 
 		it('moves to fatal state', async () => {
-			const sm = makeOwnerActor(OnUnhandledRethrowsTransition as never, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+			const sm = makeTestActor(OnUnhandledRethrowsTransition, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			await sm.hsm.sync();
 			sm.trigger();
 			await sm.hsm.sync();
@@ -125,53 +171,22 @@ for (const traceLevel of TRACE_LEVELS) {
 	});
 }
 
-const initOnlyManifest = manifestFor<{ notifications: Record<string, never> }>({
-	services: [],
-	notifications: [],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class InitTransitionTop extends TopState {
-	static readonly manifest = initOnlyManifest;
-	declare readonly __ihsm: { notifications: Record<string, never> };
-}
-
-@InitialState
-class InitOnEntryThrowsTransition extends InitTransitionTop {
-	onEntry(): void {
-		throw transitionError(this.hsm);
-	}
-}
-
-void InitOnEntryThrowsTransition;
-
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`init onEntry throws TransitionError (traceLevel = ${traceLevel})`, () => {
 		beforeEach(() => clearLastError());
 
 		it('rethrows the transition error', async () => {
-			makeOwnerActor(InitTransitionTop as never, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+			makeTestActor(InitTransitionTop, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			await new Promise(resolve => setTimeout(resolve, 50));
 			expect(getLastError()).instanceOf(TransitionError);
 		});
 	});
 }
 
-class AsyncOnErrorRecovery extends Top {
-	trigger(): void {
-		throw new Error('handler failed');
-	}
-
-	async onError(): Promise<void> {
-		await this.hsm.sleep(1);
-	}
-}
-
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`async onError recovery (traceLevel = ${traceLevel})`, () => {
 		it('awaits the onError promise', async () => {
-			const sm = makeOwnerActor(AsyncOnErrorRecovery as never, {}, new TestPort(), { traceLevel });
+			const sm = makeTestActor(AsyncOnErrorRecovery, {}, new TestPort(), { traceLevel });
 			await sm.hsm.sync();
 			sm.trigger();
 			await sm.hsm.sync();
@@ -180,20 +195,10 @@ for (const traceLevel of TRACE_LEVELS) {
 	});
 }
 
-class AsyncOnUnhandledRecovery extends Top {
-	trigger(): void {
-		this.hsm.unhandled();
-	}
-
-	async onUnhandled<EventName extends keyof CoverageConfig['notifications']>(_error: UnhandledEventError<Record<string, never>, CoverageConfig['notifications'], EventName>): Promise<void> {
-		await this.hsm.sleep(1);
-	}
-}
-
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`async onUnhandled recovery (traceLevel = ${traceLevel})`, () => {
 		it('awaits the onUnhandled promise', async () => {
-			const sm = makeOwnerActor(AsyncOnUnhandledRecovery as never, {}, new TestPort(), { traceLevel });
+			const sm = makeTestActor(AsyncOnUnhandledRecovery, {}, new TestPort(), { traceLevel });
 			await sm.hsm.sync();
 			sm.trigger();
 			await sm.hsm.sync();
@@ -202,65 +207,26 @@ for (const traceLevel of TRACE_LEVELS) {
 	});
 }
 
-const missingHandlerManifest = manifestFor<{ notifications: Record<string, never> }>({
-	services: [],
-	notifications: [],
-	internalServices: [],
-	internalNotifications: [],
-});
-
-class MissingHandlerTop extends TopState {
-	static readonly manifest = missingHandlerManifest;
-	declare readonly __ihsm: { notifications: Record<string, never> };
-
-	onUnhandled(_error: UnhandledEventError<Record<string, never>, Record<string, never>, never>): void {
-		throw new Error('onUnhandled failed');
-	}
-}
-
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`missing handler with failing onUnhandled (traceLevel = ${traceLevel})`, () => {
 		beforeEach(() => clearLastError());
 
 		it('reports dispatch failure', async () => {
-			const sm = makeOwnerActor(MissingHandlerTop as never, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+			const sm = makeTestActor(MissingHandlerTop, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			await sm.hsm.sync();
-			(sm as HandleOwn)[kMachine].dispatchNotification('unknownEvent', [], 'default');
+			(sm as unknown as HandleOwn)[kMachine].dispatchNotification('unknownEvent', [], 'default');
 			await sm.hsm.sync();
 			expect(getLastError()).instanceOf(Error);
 		});
 	});
 }
 
-class BoomUnhandled extends Top {
-	boom(): void {
-		this.hsm.unhandled();
-	}
-
-	onUnhandled<EventName extends keyof CoverageConfig['notifications']>(_error: UnhandledEventError<Record<string, never>, CoverageConfig['notifications'], EventName>): void {
-		throw new Error('nested unhandled recovery failed');
-	}
-}
-
-registerSpecStateNames({
-	Top,
-	HandlerThrowsTransition,
-	OnErrorRethrowsTransition,
-	OnUnhandledRethrowsTransition,
-	InitTransitionTop,
-	InitOnEntryThrowsTransition,
-	MissingHandlerTop,
-	AsyncOnErrorRecovery,
-	AsyncOnUnhandledRecovery,
-	BoomUnhandled,
-});
-
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`unhandled() with failing onUnhandled (traceLevel = ${traceLevel})`, () => {
 		beforeEach(() => clearLastError());
 
 		it('reports nested dispatch failure', async () => {
-			const sm = makeOwnerActor(BoomUnhandled as never, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+			const sm = makeTestActor(BoomUnhandled, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			await sm.hsm.sync();
 			sm.boom();
 			await sm.hsm.sync();

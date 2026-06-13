@@ -4,7 +4,7 @@ import { registerStateNamesFromExports } from '../shared/state-names';
 import { getSenderHsm } from '../shared/interactive-helpers';
 import type { InteractiveRuntime, TutorialInteractiveMeta } from '../shared/interactive-types';
 import * as machine from './machine';
-import { MouseTop, MouseCtx, MouseStreamPort, freshCtx } from './machine';
+import { MouseTop, MouseCtx, MouseConfig, MouseStreamPort, freshCtx } from './machine';
 
 /**
  * Local playground stream source (a class on {@link TestPort}). The "move mouse" / mouse-pad
@@ -33,7 +33,7 @@ function summarize(sm: { hsm: { currentStateName: string }; ctx: MouseCtx }): st
 }
 
 async function streamMove(runtime: InteractiveRuntime, x: number, y: number): Promise<void> {
-	const sm = getSenderHsm(runtime, 'machine');
+	const sm = getSenderHsm<MouseConfig>(runtime, 'machine');
 	sm.onMouseMove(x, y);
 	await sm.hsm.sync();
 }
@@ -63,13 +63,13 @@ export const interactive: TutorialInteractiveMeta = {
 				traceWriter: writer, // collect lines for the trace panel
 			}
 		);
-		return { kind: 'single', sm, writer };
+		return { kind: 'single', sm, writer } as unknown as InteractiveRuntime;
 	},
 	stateSummary: (runtime): string => {
 		if (runtime.kind !== 'single') {
 			return '';
 		}
-		return summarize(runtime.sm);
+		return summarize(runtime.sm as unknown as { hsm: { currentStateName: string }; ctx: MouseCtx });
 	},
 	extraActions: [
 		{
@@ -90,7 +90,7 @@ export const interactive: TutorialInteractiveMeta = {
 			id: 'session',
 			label: 'run simulated session',
 			run: async (runtime): Promise<void> => {
-				const sm = getSenderHsm(runtime, 'machine');
+				const sm = getSenderHsm<MouseConfig>(runtime, 'machine');
 				sm.listen();
 				await sm.hsm.sync();
 				for (const [x, y] of [

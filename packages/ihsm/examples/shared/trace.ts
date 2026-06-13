@@ -1,4 +1,5 @@
-import { TraceLevel, TraceWriter, makeOwnerActor, Port, type ActorOptions, type Config, type ConfigContext, type OwnerActor, type TopStateArg } from '../../src';
+import { TraceLevel, TraceWriter, type ActorOptions, type ActorConfig, type ActorContextOf, type TopStateArg } from '../../src';
+import { makeTestActor, type TestActor } from '../../src/testing';
 
 /** Mirrors {@link ConsoleTraceWriter} — one line per dispatch step. */
 export class CollectingTraceWriter implements TraceWriter {
@@ -17,18 +18,18 @@ export class CollectingTraceWriter implements TraceWriter {
 	}
 }
 
-export function withTrace<C extends Config>(
+export function withTrace<C extends ActorConfig>(
 	topState: TopStateArg<C>,
-	ctx: ConfigContext<C>,
+	ctx: ActorContextOf<C>,
 	initialize = true,
-): { sm: OwnerActor<C>; writer: CollectingTraceWriter } {
+): { sm: TestActor<C>; writer: CollectingTraceWriter } {
 	const writer = new CollectingTraceWriter();
 	const options: ActorOptions<C> = {
 		initialize,
 		traceLevel: TraceLevel.VERBOSE_DEBUG,
 		traceWriter: writer,
 	};
-	const sm = makeOwnerActor(topState, ctx, new Port(), options);
+	const sm = makeTestActor(topState as never, ctx as never, undefined, options);
 	return { sm, writer };
 }
 
@@ -40,7 +41,7 @@ export function expectTraceMatching(writer: CollectingTraceWriter, patterns: Reg
 	const text = traceText(writer);
 	for (const pattern of patterns) {
 		if (!pattern.test(text)) {
-			throw new Error(`trace missing ${pattern}:\n${text}`);
+			throw new Error(`trace missing pattern ${pattern}\n---\n${text}`);
 		}
 	}
 }

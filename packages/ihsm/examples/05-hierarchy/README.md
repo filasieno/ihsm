@@ -6,7 +6,7 @@ Hierarchy alone does not explain **when** `onEntry` and `onExit` run. Crossing b
 
 ## Solution
 
-Call `this.transition(Destination)`. ihsm finds the **lowest common ancestor** on the class prototype chain, runs **`onExit`** from the current leaf up to (not including) the LCA, then **`onEntry`** down toward the target — following `@InitialState` chains when the target is a composite.
+Call `this.hsm.transition(Destination)`. ihsm finds the **lowest common ancestor** on the class prototype chain, runs **`onExit`** from the current leaf up to (not including) the LCA, then **`onEntry`** down toward the target — following `@InitialState` chains when the target is a composite.
 
 Two machines in this topic:
 
@@ -50,10 +50,10 @@ export class TraceTop extends TopState<TraceCtx, TraceProtocol> {
 		this.ctx.log.push('exit:Top');
 	}
 	goToB(): void {
-		this.transition(B);
+		this.hsm.transition(B);
 	}
 	goToC(): void {
-		this.transition(C);
+		this.hsm.transition(C);
 	}
 }
 
@@ -70,15 +70,15 @@ export class A extends TraceTop {
 
 ```typescript
 const sm = createTracer();
-await sm.sync();
+await sm.hsm.sync();
 // log: enter:Top, enter:A
 
-sm.post('goToB');
-await sm.sync();
+sm.goToB();
+await sm.hsm.sync();
 // exit:A, enter:B — TraceTop stays active
 
-sm.post('goToC');
-await sm.sync();
+sm.goToC();
+await sm.hsm.sync();
 // exit:B, enter:C — still no exit:Top
 ```
 
@@ -144,7 +144,7 @@ When exercising the deep stacks below, use the embedded playground on the [docum
 
 ## How ihsm applies a transition
 
-1. Handler calls `this.transition(TargetStateClass)`.
+1. Handler calls `this.hsm.transition(TargetStateClass)`.
 2. Runtime finds the **LCA** on the class prototype chain (`TopState` is not part of your hierarchy).
 3. **`onExit`** from the current leaf **up to but not including** the LCA.
 4. **`onEntry`** from the LCA **down toward** the target; if the target is a **composite**, follow each `@InitialState` until the deepest leaf.

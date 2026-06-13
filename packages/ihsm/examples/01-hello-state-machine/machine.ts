@@ -1,10 +1,11 @@
 /**
  * Hello state machine — minimal open/closed door.
  *
- * Teaches: DoorCtx, DoorConfig, TopState root, @InitialState, hsm.transition()
- * between sibling states, registerStateNames, makeOwnerActor factory.
+ * Teaches: DoorCtx, Door, TopState root, @InitialState, hsm.transition()
+ * between sibling states, registerStateNames, makeActor factory.
  */
 import * as ihsm from '../../src';
+import { makeTestActor } from '../../src/testing';
 import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
@@ -14,28 +15,20 @@ export interface DoorCtx {
 	openCount: number;
 }
 
-export interface DoorConfig extends ihsm.Config {
+export interface DoorConfig {
 	context: DoorCtx;
-	notifications: {
+notifications: {
 		open(): void;
 		close(): void;
 	};
 }
 
-const doorManifest = ihsm.manifestFor<DoorConfig>({
-	services: [],
-	notifications: ['open', 'close'],
-	internalServices: [],
-	internalNotifications: [],
-});
 
 /** Root state: inherits run-to-completion dispatch, transition(), and tracing from TopState. */
 export class DoorTop extends PlaygroundTopState<DoorConfig> {
-	static readonly manifest = doorManifest;
-	declare readonly __ihsm: DoorConfig;
 }
 
-/** Initial leaf after makeOwnerActor + sync — door starts closed. */
+/** Initial leaf after makeActor + sync — door starts closed. */
 @ihsm.InitialState
 export class Closed extends DoorTop {
 	open(): void {
@@ -56,5 +49,5 @@ ihsm.registerStateNames(self);
 
 /** Factory used by tests, interactive panel, and application code. */
 export function createDoor() {
-	return ihsm.makeOwnerActor(DoorTop, { openCount: 0 }, new ihsm.Port());
+	return makeTestActor(DoorTop, { openCount: 0 }, new ihsm.Port());
 }
