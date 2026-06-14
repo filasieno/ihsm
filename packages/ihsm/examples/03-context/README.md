@@ -1,5 +1,14 @@
 # Context
 
+## What this presents
+
+Domain data on `ctx` that survives transitions unless replaced in `restore()`.
+
+## Why it's done this way
+
+Context is separate from active state — counters and buffers persist across mode changes without encoding data in the state class name.
+
+
 ## Problem
 
 Domain counters and configuration must survive many events. Storing them outside the actor invites drift between “state name” and “state data”.
@@ -84,4 +93,3 @@ On the [documentation page](https://filasieno.github.io/ihsm/reference), use the
 ```shell
 npm run test:examples -- --grep 'Tutorial 03'
 ```
-

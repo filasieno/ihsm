@@ -1,5 +1,14 @@
 # Examples
 
+## What this presents
+
+Runnable tutorial machines with playgrounds and `tutorial.spec.ts` coverage — Config model, standard tutorials 00–19, and DST testing series.
+
+## Why it's done this way
+
+Examples stay in-repo (not published to npm) so docs and CI share one source of truth; faceted `notify` / `notifyNow` / `call` handles match production API.
+
+
 Runnable ihsm example machines used by the documentation site (interactive playgrounds) and by `npm run test:examples`.
 
 | Series | Folders | Docs |

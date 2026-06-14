@@ -1,5 +1,14 @@
 # Error Recovery
 
+## What this presents
+
+Typed error hierarchy, `onUnhandled`, `onError`, and `FatalErrorState` recovery.
+
+## Why it's done this way
+
+Handler failures are observable and overridable; default policy lands in a terminal error state when recovery fails.
+
+
 ## Problem
 
 Handlers throw; events arrive in the wrong state. Uncaught errors leave the actor in an undefined condition.
@@ -77,4 +86,3 @@ On the [documentation page](https://filasieno.github.io/ihsm/reference), use the
 ```shell
 npm run test:examples -- --grep 'Tutorial 12'
 ```
-

@@ -5,42 +5,48 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2026-06-12
+## [0.1.0] - 2026-06-14
 
 ### Added
 
 - **`Config`** — single type bag (`context`, `services`, `notifications`, `internalServices`, `internalNotifications`, `port`) replacing v0.0.x positional `TopState<Context, Public, Internal, Port>` generics.
-- **Generated actor handles** — materialized prototypes per `(rootState, width)`; flat user method names (`conn.open()`, `await conn.fetchFrames(n)`). **No `Proxy`.**
-- **`makeActor` / `makeInternalActor` / `makeOwnerActor`** (`makeHsm` alias) — factories infer `Config` from `TopState`; protocol handler methods on state classes.
-- **`HandlerHsm` / `ActorHsm`** — machinery namespace behind **`this.hsm`** (handlers) and **`actor.hsm`** (clients): `transition`, `actor` / `immediate` / `defer`, `port`, `sleep`, trace.
-- **Promise services** — `Config.services` / `internalServices` members return `Promise<Reply>` on the client; handlers may return values or `Promise` (no `resolve`/`reject` injection).
+- **Faceted actor handles** — `notify`, `notifyNow`, and `call` facets on generated prototypes per embodiment kind; flat method names on each facet (`conn.notify.open()`, `await conn.call.fetchFrames(n)`). **No `Proxy`.**
+- **`makeActor` / `makeChildActor`** — factories infer `Config` from `TopState`; handler methods on state classes.
+- **Derived Hsm types** — `HandlerHsm`, `ActorHsm`, `ChildHsm`, `OwnerActorHsm`, `TestHsm` inferred from actor embodiment; machinery on **`this.hsm`**, client sync on **`actor.hsm`**.
+- **Unified dispatch strategy** — one run-to-completion queue for notifications and services; delivery mode chosen by facet (`notify` / `notifyNow` / `call`), not inferred from handler shape.
+- **Promise services** — `Config.services` / `internalServices` members return `T` or `Promise<T>`; clients receive `Promise<Reply>` (no `resolve`/`reject` injection).
+- **`hsm.port.defer(ms)`** — deferred self-notifications via the port timer service (`Port.setTimeout`).
 - **`RequestingPort`** — opt-in port base widening `port.actor` with `internalServices`.
 - **`SelfCallDeadlockError`** — debug-build guard when a service targets the machine currently dispatching (Node `AsyncLocalStorage`).
 - **`CallTimeoutError`** — optional `{ timeoutMs }` trailing arg on service client methods.
 - **`ProtocolCollisionError`**, **`ReservedNames`**, **`buildProtocolIndex`** — runtime + compile-time protocol collision guards.
+- **`RuntimeTransitionResolver`** — cached LCA transition paths keyed by `FromState=>ToState`.
+- **Explicit `index.ts` exports** — curated runtime surface plus `export type * from './types'` for protocol and actor types.
 - **`examples/00-config/`** — tutorial for the new model.
 
 ### Changed
 
-- **Breaking:** removed string dispatch **`post`**, **`call`**, **`send`**, **`postNow`**, **`deferredPost`** from the public actor surface (use generated methods and `hsm.actor` / `hsm.immediate` / `hsm.defer`).
+- **Breaking:** removed string dispatch from the public actor surface — use generated facet methods (`notify`, `notifyNow`, `call`).
 - **Breaking:** handler machinery moved behind **`this.hsm`** (`this.transition(…)` → `this.hsm.transition(…)`).
-- **Breaking:** removed **`ResolveCallback`** / **`RejectCallback`** service handler pattern.
-- All **`examples/`** and specs migrated to `Config` + generated handles.
+- **Breaking:** services use direct return values / `Promise<Reply>` instead of `resolve`/`reject` callback parameters.
+- **Breaking:** deferred self-notifications require **`this.hsm.port.defer(ms)`** (not a top-level `hsm.defer`).
+- All **`examples/`** and specs migrated to `Config` + faceted handles.
 - **`TestPort.send`** — forwards to `port.actor.<internalNotification>(…)` for deterministic inbound events.
+- **Documentation refresh** — reference manual, README, testing guide, and all tutorial READMEs updated for the faceted embodiment API.
 
 ### Migration (0.0.x → 0.1.0)
 
 | Before | After |
 | ------ | ----- |
-| `interface DoorProtocol { open(): void }` + `TopState<Ctx, Protocol>` | `interface DoorConfig extends Config { context; notifications: { open(): void } }` |
-| `door.post('open')` | `door.open()` |
-| `await wallet.call('getBalance')` | `await wallet.getBalance()` |
+| `interface DoorProtocol { open(): void }` + `TopState<Ctx, Protocol>` | `interface DoorConfig { context; notifications: { open(): void } }` + `TopState<DoorConfig>` |
+| `door.post('open')` | `door.notify.open()` |
+| `await wallet.call('getBalance')` | `await wallet.call.getBalance()` |
 | `this.transition(S)` | `this.hsm.transition(S)` |
-| `this.post('tick')` | `this.hsm.actor.tick()` |
+| `this.post('tick')` | `this.notify.tick()` |
 | `getBalance(resolve, reject)` handler | `getBalance(): Promise<number>` handler |
-| `makeHsm(Top, ctx)` | `makeOwnerActor(Top, ctx, new Port())` |
+| `this.hsm.defer(ms).event()` | `this.hsm.port.defer(ms).event()` |
 | `await door.sync()` | `await door.hsm.sync()` |
-| `port.send('onData', x)` (tests) | `port.actor!.onData(x)` or `port.send('onData', x)` on `TestPort` |
+| `port.send('onData', x)` (tests) | `port.actor.onData(x)` or `port.send('onData', x)` on `TestPort` |
 
 ## [0.0.22] - 2026-06-09
 

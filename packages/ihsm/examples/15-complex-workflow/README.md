@@ -1,5 +1,14 @@
 # Complex Workflow
 
+## What this presents
+
+Multi-step checkout: guards inline, `notifyNow` for critical steps, deferred side effects.
+
+## Why it's done this way
+
+Combines priority queues, transitions, and deferred notifications in one realistic workflow.
+
+
 ## Problem
 
 Production flows combine hierarchy, async validation, guards, services, and multiple outcomes — hard to keep correct with flags alone.

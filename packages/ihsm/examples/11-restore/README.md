@@ -1,5 +1,14 @@
 # Restore
 
+## What this presents
+
+`child.hsm.restore(state, ctx)` to rehydrate without running entry/exit.
+
+## Why it's done this way
+
+Persistence and snapshots need a fast path back to a known configuration without replaying lifecycle hooks.
+
+
 ## Problem
 
 After restart or loading from a database, you must resume at a specific mode with specific data — without replaying every event.
@@ -114,4 +123,3 @@ On the [documentation page](https://filasieno.github.io/ihsm/reference), use the
 ```shell
 npm run test:examples -- --grep 'Tutorial 11'
 ```
-

@@ -1,5 +1,14 @@
 # Testing 04 · Fault injection & seeded DST
 
+## What this presents
+
+Seeded PRNG faults in `@mock` `attempt` — reproducible retry logs and golden traces.
+
+## Why it's done this way
+
+Failure becomes a scripted input; same seed yields byte-identical `ctx.log` across runs.
+
+
 Deterministic Simulation Testing (DST) flips the usual goal of tests: instead of avoiding
 failure, you **manufacture** it — reproducibly. A worker retries a flaky operation; whether each
 attempt fails is decided by a **seeded** PRNG living inside the `Port`. Same seed ⇒

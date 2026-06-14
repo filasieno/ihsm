@@ -1,5 +1,14 @@
 # Async handler, then cross-stack transition
 
+## What this presents
+
+Async handler with `await` followed by a cross-stack `transition()`.
+
+## Why it's done this way
+
+Transition runs after the awaited work completes; `hsm.sync()` waits for handler, transition, and lifecycle hooks.
+
+
 ## Topology
 
 Same cross-stack move as case 07, but the handler is **`async`** — transition runs **after** `await`.

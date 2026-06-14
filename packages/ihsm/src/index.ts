@@ -1,8 +1,55 @@
 /**
  * ihsm — hierarchical state machines for TypeScript.
  *
- * Runtime values from {@link ./internal/runtime}; protocol types from {@link ./types}.
+ * Curated public runtime surface; protocol types live in {@link ./types}.
  */
-export * from './internal/runtime';
+export {
+	TraceLevel,
+	asError,
+	quoteUnknown,
+	quoteError,
+	getInitialState,
+	hasInitialState,
+	getTransitionKey,
+	defineStateName,
+	getStateName,
+	Port,
+	RequestingPort,
+	TopState,
+	HsmError,
+	RuntimeError,
+	TransitionError,
+	EventHandlerError,
+	UnhandledEventError,
+	InitialStateError,
+	FatalError,
+	InitializationError,
+	FatalErrorState,
+	InitialState,
+	registerStateNames,
+	ProtocolCollisionError,
+	ReservedNames,
+	buildProtocolIndex,
+	CallTimeoutError,
+	SelfCallDeadlockError,
+	TransitionTableError,
+	planTransitionClasses,
+	executeTransitionRoutine,
+	createTransitionTracer,
+	transitionTraceLines,
+	RuntimeTransitionResolver,
+	isRequestingPort,
+	isServiceCallOptions,
+	splitServiceArgs,
+	serviceCallWithTimeout,
+	defaultTraceWriter,
+	defaultInitialize,
+	defaultDispatchErrorCallback,
+	makeActor,
+	asParentActor,
+	makeChildActor,
+	kHandlerMachine,
+	kParentLink,
+} from './internal/runtime';
 export type * from './types';
 export type { Any, DispatchErrorCallback, Disposable, EventObserver, MachinePortInput, IPort, Properties, RandomService, TimerService, DomainPortOf, PortServices, ResultWithSubscription, StateClass, StateEvents, TraceWriter, TracedMessage } from './internal/types';

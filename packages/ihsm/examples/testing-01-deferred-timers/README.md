@@ -1,5 +1,14 @@
 # Testing 01 · Deferred timers & simulated time
 
+## What this presents
+
+`TestPort.advance(ms)` with `hsm.port.defer` — simulate 48 hours of heartbeat ticks without wall-clock sleep.
+
+## Why it's done this way
+
+DST foundation: virtual clock replaces real timers so CI is fast and deterministic.
+
+
 The foundation of deterministic testing: never wait on the wall clock. A `Heartbeat` machine emits
 one tick **every hour** using `hsm.port.defer(ms)`, which is backed by the machine's **standard port timer
 service**. In a test we substitute a controllable clock and simulate 48 hours in microseconds.

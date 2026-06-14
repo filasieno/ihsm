@@ -1,5 +1,14 @@
 # East-stack sibling
 
+## What this presents
+
+Sibling transition within the east stack.
+
+## Why it's done this way
+
+Mirrors west sibling case — validates symmetric LCA behavior on the opposite branch.
+
+
 ## Topology
 
 Leaf → sibling leaf on the **east stack**. **LCA = `MidEast`** — same rule as a west-stack sibling under `MidWest`.

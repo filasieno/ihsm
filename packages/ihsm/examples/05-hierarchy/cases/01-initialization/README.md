@@ -1,5 +1,14 @@
 # Initialization
 
+## What this presents
+
+Post-`makeActor` initialization: descending `@InitialState` chains from root to deepest leaf.
+
+## Why it's done this way
+
+Composites always land on an initial leaf, not a bare composite — outer `onEntry` runs before inner on the way in.
+
+
 ## Topology
 
 No external transition — ihsm walks the **initial chain** after `makeActor()`.

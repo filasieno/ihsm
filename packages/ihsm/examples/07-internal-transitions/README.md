@@ -1,5 +1,14 @@
 # Internal Transitions
 
+## What this presents
+
+Events handled in-place: update `ctx` without calling `this.hsm.transition()`.
+
+## Why it's done this way
+
+Avoids spurious exit/entry when the domain mode has not changed — the chart notation is in-state `event / action` text.
+
+
 ## Problem
 
 Not every event should change mode. Self-transitions or dummy states add noise and re-run lifecycle hooks unnecessarily.
@@ -69,4 +78,3 @@ On the [documentation page](https://filasieno.github.io/ihsm/reference), use the
 ```shell
 npm run test:examples -- --grep 'Tutorial 07'
 ```
-

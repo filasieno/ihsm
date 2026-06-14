@@ -1,5 +1,14 @@
 # Leaf → root (LCA = top)
 
+## What this presents
+
+Transition from a nested leaf back to the root composite.
+
+## Why it's done this way
+
+Root's own onExit/onEntry are skipped at the LCA; ihsm immediately descends the initial branch again.
+
+
 ## Topology
 
 Target is the **root state class** `DeepTop`. **LCA = `DeepTop`**.

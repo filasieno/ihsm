@@ -1,5 +1,14 @@
 # Hierarchy and transitions
 
+## What this presents
+
+Deep class hierarchy, LCA exit/entry, and thirteen transition kinds with expected traces.
+
+## Why it's done this way
+
+Inheritance defines the state tree; cached LCA paths make cross-branch transitions efficient while keeping entry/exit semantics predictable.
+
+
 ## Problem
 
 Hierarchy alone does not explain **when** `onEntry` and `onExit` run. Crossing branches requires cleanup and setup in **LCA order** — easy to get wrong by hand. You need a shallow example first, then a shared deep machine where every topological case is visible.
@@ -191,4 +200,3 @@ Shallow entry/exit chain:
 ```shell
 npm run test:examples -- --grep '05 · entry exit'
 ```
-

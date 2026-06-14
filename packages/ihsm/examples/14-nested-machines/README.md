@@ -1,5 +1,14 @@
 # Nested machines (parent actor + child actors)
 
+## What this presents
+
+Parent order actor with payment/shipping child regions wired by event bridges.
+
+## Why it's done this way
+
+Multiple full actors beat monolithic parallel regions — each child has its own queue, port, and restore surface.
+
+
 ## Problem
 
 Payment and shipping in one chart couples unrelated concerns — hard to test and evolve independently.

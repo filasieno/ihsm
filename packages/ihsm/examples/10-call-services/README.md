@@ -1,5 +1,14 @@
 # Call services
 
+## What this presents
+
+Typed request/response: `await actor.call.service()` with handlers returning values or `Promise<T>`.
+
+## Why it's done this way
+
+Services share the same run-to-completion queue as notifications — replies are typed without breaking actor serialization.
+
+
 ## Problem
 
 Sometimes the client needs a **typed reply** from the same actor that processes events — without breaking run-to-completion ordering.

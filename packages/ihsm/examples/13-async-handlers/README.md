@@ -1,5 +1,14 @@
 # Async Handlers
 
+## What this presents
+
+`async` handlers that `await` I/O pipelines inside one state before `transition()`.
+
+## Why it's done this way
+
+Classic tools need one state per await; ihsm serializes the mailbox so one handler can own an entire pipeline.
+
+
 ## Problem
 
 File and network work is naturally **sequential**: open → read → write → close. Classic statechart tools push you to model **each await as its own state** (`Opening`, `Reading`, `Writing`, `Closing`, …) because the handler must return immediately.
@@ -128,4 +137,3 @@ On the [documentation page](https://filasieno.github.io/ihsm/reference), use the
 ```shell
 npm run test:examples -- --grep 'Tutorial 13'
 ```
-

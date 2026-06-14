@@ -29,11 +29,6 @@ export type ActorPortOf<C extends ActorConfig> = C extends { port: infer P exten
 export type ActorMethodKeysOf<C extends ActorConfig> = keyof ActorServicesOf<C> | keyof ActorNotificationsOf<C> | keyof ActorInternalServicesOf<C> | keyof ActorInternalNotificationsOf<C>;
 export type ProtocolBucket = 'services' | 'notifications' | 'internalServices' | 'internalNotifications';
 
-/** Structural root state instance — merged with the runtime {@link TopState} class. */
-export interface TopState<C extends ActorConfig = ActorConfig> {
-	readonly ctx: ActorContextOf<C>;
-}
-
 export type StateClassOf<C extends ActorConfig = ActorConfig> = new (...args: any[]) => RuntimeTopState<C>;
 export type TopStateArg<C extends ActorConfig = ActorConfig> = StateClassOf<C>;
 
@@ -204,30 +199,49 @@ export type CallFacet<S extends object> = ServiceClient<S>;
 /** Faceted notification surface — `actor.notify.<event>(...)` / `actor.notifyNow.<event>(...)`. */
 export type NotifyFacet<N extends object> = NotificationClient<N>;
 
-export type ExternalHsm<C extends ActorConfig = ActorConfig> = ActorHsm<C>;
+export type ActorHsm<_C extends ActorConfig = ActorConfig> = {
+	sync(): Promise<void>;
+	currentStateName: string;
+	topStateName: string;
+	traceLevel: TraceLevel;
+	traceWriter: TraceWriter;
+	traceHeader: string;
+};
+
+export type TestActorHsm<C extends ActorConfig = ActorConfig> = ActorHsm<C> & {
+	currentState: StateClassOf<C>;
+	topState: StateClassOf<C>;
+};
+
+export type OwnerActorHsm<C extends ActorConfig = ActorConfig> = TestActorHsm<C> & {
+	restore(state: StateClassOf<C>, ctx: ActorContextOf<C>): void;
+	dispatchErrorCallback: DispatchErrorCallback<C>;
+};
 
 export type ExternalActor<C extends ActorConfig = ActorConfig> = ActorParentField & {
 	readonly notify: NotifyFacet<ActorNotificationsOf<C>>;
 	readonly notifyNow: NotifyFacet<ActorNotificationsOf<C>>;
 	readonly call: CallFacet<ActorServicesOf<C>>;
-	readonly hsm: ExternalHsm<C>;
+	readonly hsm: ActorHsm<C>;
 };
 
-export type InboundHsm<C extends ActorConfig = ActorConfig> = TestActorHsm<C>;
+export type ExternalHsm<C extends ActorConfig = ActorConfig> = ExternalActor<C>['hsm'];
 
 export type InboundActor<C extends ActorConfig = ActorConfig> = ActorParentField & {
 	readonly notify: NotifyFacet<ActorNotificationsOf<C> & ActorInternalNotificationsOf<C>>;
 	readonly notifyNow: NotifyFacet<ActorNotificationsOf<C> & ActorInternalNotificationsOf<C>>;
 	readonly call: CallFacet<ActorServicesOf<C>>;
-	readonly hsm: InboundHsm<C>;
+	readonly hsm: TestActorHsm<C>;
 };
 
-export type ChildHsm<C extends ActorConfig = ActorConfig> = OwnerActorHsm<C>;
+export type InboundHsm<C extends ActorConfig = ActorConfig> = InboundActor<C>['hsm'];
 
 export type ChildActor<C extends ActorConfig = ActorConfig> = Omit<InboundActor<C>, 'call' | 'hsm'> & {
 	readonly call: CallFacet<ActorServicesOf<C> & ActorInternalServicesOf<C>>;
-	readonly hsm: ChildHsm<C>;
+	readonly hsm: OwnerActorHsm<C>;
 };
+
+export type ChildHsm<C extends ActorConfig = ActorConfig> = ChildActor<C>['hsm'];
 
 export type SelfNotifications<C extends ActorConfig = ActorConfig> = NotificationClient<ActorNotificationsOf<C>> & NotificationClient<ActorInternalNotificationsOf<C>>;
 
@@ -264,32 +278,15 @@ export type HandlerHsm<C extends ActorConfig = ActorConfig> = {
 	dispatchErrorCallback: DispatchErrorCallback<C>;
 };
 
+/** Structural root state instance — merged with the runtime {@link TopState} class. */
 export interface TopState<C extends ActorConfig = ActorConfig> {
+	readonly ctx: ActorContextOf<C>;
 	readonly hsm: HandlerHsm<C>;
 	/** Self-directed default-queue notifications — `this.notify.x()`. */
 	readonly notify: SelfNotifications<C>;
 	/** Self-directed priority-queue notifications — `this.notifyNow.x()`. */
 	readonly notifyNow: SelfNotifications<C>;
 }
-
-export type ActorHsm<_C extends ActorConfig = ActorConfig> = {
-	sync(): Promise<void>;
-	currentStateName: string;
-	topStateName: string;
-	traceLevel: TraceLevel;
-	traceWriter: TraceWriter;
-	traceHeader: string;
-};
-
-export type TestActorHsm<C extends ActorConfig = ActorConfig> = ActorHsm<C> & {
-	currentState: StateClassOf<C>;
-	topState: StateClassOf<C>;
-};
-
-export type OwnerActorHsm<C extends ActorConfig = ActorConfig> = TestActorHsm<C> & {
-	restore(state: StateClassOf<C>, ctx: ActorContextOf<C>): void;
-	dispatchErrorCallback: DispatchErrorCallback<C>;
-};
 
 export type TestHsm<C extends ActorConfig = ActorConfig> = ChildHsm<C> & {
 	port: ActorPortOf<C>;
@@ -360,8 +357,6 @@ export interface HsmWithTracing<C extends ActorConfig = ActorConfig> extends Tra
 	restore(state: StateClassOf<C>, ctx: ActorContextOf<C>): void;
 	transition(nextState: StateClassOf<C>): void;
 	unhandled(): never;
-	_transitionCache: Map<string, Transition<C>>;
-	_createEventDispatchTask: <DispatchC extends ActorConfig>(hsm: HsmWithTracing<DispatchC>, eventName: string, ...eventPayload: unknown[]) => Task;
 	_instance: Instance<C>;
 	_transitionState?: StateClassOf<C>;
 	_currentEventName?: string;

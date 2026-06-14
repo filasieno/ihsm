@@ -125,10 +125,10 @@ what that state knows about the world.
 
 Each machine declares one **`Config`** interface: `context`, `notifications`,
 `services`, `internalNotifications`, `internalServices`, and optional `port`.
-Protocol keys are discovered from handler methods on state classes (`async` → services, sync → notifications).
+Config bucket keys are discovered from handler methods on state classes (`async` → services, sync → notifications).
 
 Client handles use **`actor.notify`**, **`actor.notifyNow`**, and **`await actor.call`**.
-Handler machinery (`transition`, `port.defer`, `sync`) lives on **`this.hsm`**.
+Handler machinery (`transition`, `port`, `sync`) lives on **`this.hsm`**; deferred self-notifications use **`this.hsm.port.defer(ms)`**.
 
 See [§3 Static type checking](#_3-static-type-checking) and
 [`examples/00-config/`](../examples/00-config/README.md).
@@ -196,12 +196,13 @@ unless you replace it in `restore()`.
 
 <!-- @example:03-context -->
 
-### Protocol
+### Config vocabulary
 
-Declares the **vocabulary** of the machine. Event names must match method names
-on state classes (or inherited from parents). The typing strategy — events vs
-services, payload inference, reserved names — is documented in
-[§3 Advanced: Protocol typing](#advanced-protocol-typing-and-compile-time-safety).
+Declares the **vocabulary** of the machine in typed buckets (`notifications`,
+`services`, and optional internal buckets). Event and service names must match
+method names on state classes (or inherited from parents). The typing strategy —
+events vs services, payload inference, reserved names — is documented in
+[§3 Advanced: compile-time safety](#advanced-protocol-typing-and-compile-time-safety).
 
 
 ### Hierarchical states
@@ -346,7 +347,7 @@ The bullets below describe TypeScript mechanisms in the runtime.
 
 | Library / style | Event names | Payload types | `call` return type | Same run-to-completion dispatch for events + services |
 | --------------- | ----------- | ------------- | -------------------- | ---------------------------------- |
-| **ihsm** | `keyof Protocol` literals | inferred from method params | `Promise<T>` from `resolve` arg | Yes |
+| **ihsm** | `keyof` bucket literals | inferred from method params | `Promise<T>` from handler return | Yes |
 | **XState v5** | string `type` on objects | `setup().types` maps | snapshot / spawned actors / `waitFor` | No unified typed `call` |
 | **JavaScript FSMs** (e.g. vanilla `switch`) | runtime strings | none | callbacks / manual | N/A |
 | **Robot / SCXML ports** | strings or enums | manual validation | ad hoc | No |
@@ -355,44 +356,45 @@ Concrete gaps elsewhere:
 
 1. **Stringly-typed events** — `send({ type: 'setTargt' })` compiles unless you
    maintain a separate union and exhaustiveness checks; ihsm rejects
-   `notify.setTargt(, …)` because `'setTargt'` is not `keyof Protocol`.
+   `notify.setTargt(…)` because `'setTargt'` is not a key on the notifications bucket.
 2. **Untyped payloads** — object events decouple payload shape from handler
-   signature; ihsm derives the rest parameters of `notify.setTarget(, …)` from
-   `Protocol['setTarget']`.
+   signature; ihsm derives the rest parameters of `notify.setTarget(…)` from
+   the `setTarget` handler on `Config.notifications`.
 3. **No typed request/response on the actor** — XState and peers use
    `getSnapshot()`, child actors, or external promises; ihsm’s `call.getBalance()`
-   returns `Promise<number>` inferred from the service method’s `resolve` callback.
+   returns `Promise<number>` inferred from the service handler return type.
 4. **Runtime-only vocabulary** — dynamic `send(eventName, data)` in untyped JS
    cannot catch refactors; ihsm’s vocabulary is checked when TypeScript compiles
-   callers and when state classes `implement Protocol`.
+   callers and when state classes declare handler methods on `Config` buckets.
 
-ihsm is safe at compile time because **the Protocol interface is the single
+ihsm is safe at compile time because **`Config` buckets are the single
 source of truth** for both state handler signatures and external
 `notify` / `call` / `hsm.port.defer(ms)` call sites.
 
 #### Adopted typing strategy
 
-Five rules define how a `Protocol` interface maps to the runtime dispatch:
+Five rules define how a `Config` interface maps to the runtime dispatch:
 
 | Rule | Meaning |
 | ---- | ------- |
-| **1. Two type parameters everywhere** | `Context` (domain data) and `Protocol` (vocabulary) flow through `makeActor`, `TopState`, `Hsm`, and errors. |
-| **2. Events are void handlers** | A **event** is a `Protocol` method whose return type is `void` or `Promise<void>`. Payload types are everything before that return. |
-| **3. Services are resolve/reject handlers** | A **service** (for `call`) is a method whose **first two parameters** are `resolve: (result: T) => void` and `reject: (error: Error) => void`. Request args follow; `Promise` return type is `T`. |
+| **1. One `Config` type parameter** | `ActorConfig` (your `Config` bag) flows through `makeActor`, `TopState`, actor handles, and errors. |
+| **2. Events are void handlers** | A **notification** is a bucket method whose return type is `void` or `Promise<void>`. Payload types are everything before that return. |
+| **3. Services return `Promise<Reply>`** | A **service** (for `call`) is a method that returns `T` or `Promise<T>`. The client method returns `Promise<T>`. |
 | **4. Reserved names are excluded** | Keys reserved on `State` / handlers (e.g. `transition`, `notify`, `ctx`, `hsm`) cannot be protocol keys — they become `never` at the type level. |
 | **5. Disjoint protocol buckets** | `notifications`, `internalNotifications`, `services`, and `internalServices` must not share keys — enforced at compile time via `Config`. |
 
-State classes declare handler methods on the `Config` buckets; `TopState<YourConfig>` binds typing for `makeActor`, `notify`, and `call`:
+State classes declare handler methods matching the `Config` buckets; `TopState<YourConfig>` binds typing for `makeActor`, `notify`, and `call`:
 
 ```typescript
-export interface WalletProtocol {
-  deposit(amount: number): void;
-  getBalance(resolve: ResolveCallback<number>, reject: RejectCallback): void;
+interface WalletConfig {
+  context: WalletCtx;
+  notifications: { deposit(amount: number): void };
+  services: { getBalance(): Promise<number> };
 }
 
-export class WalletTop extends TopState<WalletCtxConfig> {
+export class WalletTop extends TopState<WalletConfig> {
   deposit(amount: number): void { /* … */ }
-  getBalance(resolve: ResolveCallback<number>, reject: RejectCallback): void { /* … */ }
+  getBalance(): number { return this.ctx.balance; }
 }
 ```
 
@@ -422,12 +424,12 @@ export abstract class TopState<C extends ActorConfig = ActorConfig> { /* … */ 
 ##### 2. Generic constraints (`extends`)
 
 ```typescript
-Protocol extends {} | undefined
-EventName extends keyof Protocol
+C extends ActorConfig
+EventName extends string
 ```
 
-**Effect:** `Protocol` must be an object type (your interface) or `undefined`
-for untyped mode. Event names must be keys of that interface.
+**Effect:** `ActorConfig` is your structural `Config` bag. Event names are
+string literals discovered from bucket keys and handler methods.
 
 ##### 3. `keyof` and literal event names
 
@@ -441,7 +443,7 @@ Autocomplete in the IDE lists valid event names.
 ##### 4. Indexed access types
 
 ```typescript
-Protocol[EventName]
+Notifications[K]  // or Services[K] for call facet
 ```
 
 Used inside conditional types to read the method signature for a given event or
@@ -449,72 +451,59 @@ service name.
 
 ##### 5. Conditional types
 
-Every helper type branches on `Protocol extends undefined` (untyped fallback)
-and on whether a member is a valid event or service:
+Every helper type branches on bucket membership and whether a member is a valid
+notification or service:
 
 ```typescript
-export type PostedEvent<Protocol, EventName extends keyof Protocol> =
-  Protocol extends undefined ? string
-  : EventName extends keyof State<any, any> ? never
-  : EventName;
+export type NotificationArgs<N, K extends keyof N> =
+  N[K] extends (...args: infer A) => void | Promise<void> ? A : never;
 
-export type EventPayload<Protocol, EventName extends keyof Protocol> =
-  Protocol extends undefined ? any[]
-  : Protocol[EventName] extends (...payload: infer Payload) => Promise<void> | void
-    ? (Payload extends any[] ? Payload : never)
-    : never;
+export type ServiceReply<S> =
+  S extends (...args: never[]) => Promise<infer R> ? R
+  : S extends (...args: never[]) => infer R ? R
+  : never;
 ```
 
 **Effect:**
 
-- Unknown protocol → permissive `string` / `any[]`.
-- Names on `State` → `never` (compile error if used as event).
-- Non-void-return methods that are not services → payload becomes `never`
-  (usually means “not a valid event shape”; prefer `void` handlers for events).
+- Unknown or mismatched bucket keys → compile error at the facet call site.
+- Names on `State` machinery → excluded via `FilterReservedKeys`.
+- Non-void-return methods in the notifications bucket → payload becomes `never`
+  (prefer `void` handlers for notifications).
 
 ##### 6. `infer` — extract parameter tuples and return types
 
 **Event payloads** — rest parameters after the event name:
 
 ```typescript
-Protocol[EventName] extends (...payload: infer Payload) => Promise<void> | void
+Notifications[K] extends (...args: infer Payload) => Promise<void> | void
   ? Payload
   : never
 ```
 
 For `setTarget(celsius: number): void`, `infer Payload` is `[celsius: number]`,
-so `notify.setTarget(, 22)` is valid and `notify.setTarget(, 'hot')` is not.
+so `notify.setTarget(22)` is valid and `notify.setTarget('hot')` is not.
 
-**Service request args** — everything after `resolve` and `reject`:
-
-```typescript
-export type ServiceRequest<Protocol, EventName extends keyof Protocol> =
-  Protocol extends undefined ? any[]
-  : Protocol[EventName] extends (
-      resolve: (result: infer Reply) => void,
-      reject: (error: infer Error) => void,
-      ...payload: infer Payload
-    ) => Promise<void> | void
-    ? (Payload extends any[] ? Payload : never)
-    : never;
-```
-
-**Service response** — type passed to `resolve`:
+**Service request args** — handler parameters before the return type:
 
 ```typescript
-export type ServiceResponse<Protocol, EventName extends keyof Protocol> =
-  Protocol extends undefined ? any
-  : Protocol[EventName] extends (
-      resolve: infer Reply,
-      reject: infer Error,
-      ...payload: infer Payload
-    ) => Promise<void> | void
-    ? Reply
-    : never;
+export type ServiceArgs<S> =
+  S extends (...args: infer A) => Promise<unknown> ? A
+  : S extends (...args: infer A) => unknown ? A
+  : never;
 ```
 
-For `getBalance(resolve: (n: number) => void, reject: …): void`, `Reply` is
-`number`, so `call.getBalance()` is `Promise<number>`.
+**Service response** — handler return type (unwrapped from `Promise`):
+
+```typescript
+export type ServiceReply<S> =
+  S extends (...args: never[]) => Promise<infer R> ? R
+  : S extends (...args: never[]) => infer R ? R
+  : never;
+```
+
+For `getBalance(): Promise<number>`, `ServiceReply` is `number`, so
+`call.getBalance()` is `Promise<number>`.
 
 ##### 7. `never` — reject invalid names at compile time
 
@@ -528,7 +517,7 @@ handler machinery and become `never`, producing a type error at call sites.
 Payload `never` also blocks wrong arity:
 
 ```typescript
-// Protocol: setTarget(celsius: number): void
+// notifications: { setTarget(celsius: number): void }
 wallet.notify.setTarget();        // ✗ missing argument
 wallet.notify.setTarget(1, 2);  // ✗ too many arguments
 ```
@@ -544,7 +533,7 @@ await actor.call.getBalance();
 
 // HandlerHsm — inside state methods
 this.notify.tick();
-await this.call.lookup(id);
+this.notifyNow.lockInventory();
 ```
 
 **Effect:** each call site gets a **specialized** check for the method name;
@@ -561,15 +550,11 @@ Declare a plain `interface` with `context`, `notifications`, `services`, and opt
 ##### 11. Separate aliases for services vs events
 
 ```typescript
-export type ServiceName<Protocol, EventName> =
-  Protocol extends undefined ? string
-  : EventName extends keyof State<any, any> ? never
-  : EventName;
+export type FilterReservedKeys<T> =
+  { [K in keyof T]: IsReservedName<K> extends true ? never : K }[keyof T];
 ```
 
-`call` uses service names + request args; `notify` uses notification names + payloads. Same key set,
-different signature rules — a method is typed for `call` only if it matches the
-resolve/reject pattern.
+`call` uses service names + request args; `notify` uses notification names + payloads. Buckets are disjoint — a key appears in `services` or `notifications`, not both.
 
 ##### 12. Typed error hierarchy
 
@@ -578,33 +563,22 @@ and payloads in `onError` / `onUnhandled`:
 
 ```typescript
 export abstract class RuntimeError<
-  Context,
-  Protocol extends {} | undefined,
-  EventName extends keyof Protocol
-> extends HsmError<Context, Protocol> {
-  eventName: PostedEvent<Protocol, EventName>;
-  eventPayload: EventPayload<Protocol, EventName>;
+  C extends ActorConfig = ActorConfig,
+  EventName extends string = string
+> extends HsmError<C> {
+  eventName: EventName;
+  eventPayload: unknown[];
 }
 ```
 
-**Effect:** `onError(error)` inside a state can treat `error.eventName` and
-`error.eventPayload` as correlated with `Protocol`.
-
-##### 13. Helper aliases for service callbacks
-
-```typescript
-export type ResolveCallback<Reply> = (result: Reply) => void;
-export type RejectCallback = (error: Error) => void;
-```
-
-These document the expected resolve/reject shapes and match what `infer Reply`
-extracts from service methods.
+**Effect:** `onError(error)` inside a state can inspect `error.eventName` and
+`error.eventPayload` from the dispatch that failed.
 
 #### Compile-time checks (summary table)
 
 | Mistake | TypeScript error |
 | ------- | ---------------- |
-| Typo in event name | `Argument of type '"setTargt"' is not assignable to parameter of type 'keyof Protocol'` (or `never`) |
+| Typo in event name | Method missing on `notify` facet (compile error on unknown key) |
 | Wrong payload type | `Argument of type 'string' is not assignable to parameter of type 'number'` |
 | Wrong payload count | Tuple arity mismatch on rest parameters |
 | Calling service with `notify` | Service-shaped method may yield `never` payload or wrong inference — use `call` |
@@ -617,16 +591,16 @@ extracts from service methods.
 ```plantuml
 @startuml
 left to right direction
-rectangle "Protocol interface" as P
-rectangle "State class\nextends TopState<Ctx, Protocol>" as S
+rectangle "Config bag" as C
+rectangle "State class\nextends TopState<Config>" as S
 rectangle "makeActor\n(TopState, ctx)" as F
-rectangle "Hsm instance" as H
-rectangle "post / `hsm.port.defer(ms)`" as post
+rectangle "Actor handle" as H
+rectangle "notify / notifyNow /\n`hsm.port.defer(ms)`" as post
 rectangle "call" as call
 queue "Event queue" as Q
 rectangle "Dispatch to\nstate method" as D
-P --> S
-P --> F
+C --> S
+C --> F
 F --> H
 H --> post
 H --> call
@@ -637,11 +611,11 @@ S --> D
 @enduml
 ```
 
-1. You define `Protocol` and `Context`.
-2. State classes **implement** `Protocol` (handlers).
-3. `makeActor(TopState, ctx)` infers `Context` and `Protocol` from the top state class.
-4. External code calls `notify.event(, …)` / `call.service(, …)` — TypeScript
-   validates against the same `Protocol` the handlers implement.
+1. You define `Config` with `context` and protocol buckets.
+2. State classes declare handler methods matching those buckets.
+3. `makeActor(TopState, ctx)` infers `Config` from the top state class.
+4. External code calls `notify.event(…)` / `call.service(…)` — TypeScript
+   validates against the same `Config` the handlers implement.
 5. At runtime, ihsm dispatches to the method on the **current state** prototype
    chain; compile-time checks ensure the vocabulary and arity are valid at every
    call site.
@@ -764,13 +738,13 @@ service calls use a **different** actor handle (`child.call…`, `parent…`).
 Schedule an event after a delay via the machine's **port timer service**, then enqueue
 normally. A machine without a custom port is always backed by a `Port` whose
 `setTimeout`-based timer is used here. Available **inside handlers only**
-(`this.hsm.defer(ms)`) — it is not exposed on the external actor surface.
+(`this.hsm.port.defer(ms)`) — it is not exposed on the external actor surface.
 
 **Handler:**
 
 ```typescript
 scheduleReminder(text: string): void {
-  this.hsm.defer(50).deliver(text); // returns immediately
+  this.hsm.port.defer(50).deliver(text); // returns immediately
 }
 
 deliver(text: string): void {
@@ -874,7 +848,7 @@ States are classes; inheritance is the hierarchy. To transition from `src` to
    follow each `@InitialState` until the deepest initial leaf.
 5. Set `currentState` to that final leaf class.
 
-Paths are **cached** per `FromState=>ToState` in `_transitionCache`.
+Paths are **cached** per `FromState=>ToState` in the `RuntimeTransitionResolver` cache.
 
 ### Sync vs async with transitions
 
@@ -1285,14 +1259,15 @@ makeTestActor(topState, ctx, port?, options?): TestActor<Config>  // ihsm/testin
 | Member | Description |
 | ------ | ----------- |
 | `transition(next)` | Schedule state change |
-| `port` | Outbound boundary (`defer(ms)` for timed self-notifications) |
-| `sleep(ms)` | Promise delay via port timer |
-| `sync()` | Drain queue (tests / internal) |
+| `port` | Outbound boundary — `defer(ms)` for timed self-notifications; `setTimeout` / `setInterval` for delays |
 | `currentState` / `currentStateName` | Active state |
+| `ctx` | Domain context (also on `this.ctx`) |
+
+For promise delays inside handlers: `await new Promise(r => this.hsm.port.setTimeout(r, ms))`.
 
 Handler **`this.notify`** / **`this.notifyNow`** enqueue self-notifications (normal / hi-priority).
 
-### `ChildActorHsm` (clients: `child.hsm`)
+### `ChildHsm` (clients: `child.hsm`)
 
 | Member | Description |
 | ------ | ----------- |

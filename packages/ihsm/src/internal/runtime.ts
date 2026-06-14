@@ -939,8 +939,10 @@ class RuntimeTransitionRoutine<C extends ActorConfig> implements Transition<C> {
 	constructor(private readonly plan: ReturnType<typeof planTransitionClasses<C>>) {}
 
 	async execute(hsm: HsmWithTracing<C>, srcState: StateClass<C>, dstState: StateClass<C>): Promise<void> {
+		const style: TransitionRoutineStyle = hsm.traceLevel === TraceLevel.PRODUCTION ? 'production' : hsm.traceLevel === TraceLevel.DEBUG ? 'debug' : 'verbose';
 		await executeTransitionRoutine(hsm, hsm._instance, this.plan, srcState, dstState, {
-			style: 'production',
+			style,
+			...(style !== 'production' ? { tracer: createTransitionTracer(hsm) } : {}),
 			setCurrentState: state => {
 				hsm.currentState = state;
 			},
@@ -950,6 +952,10 @@ class RuntimeTransitionRoutine<C extends ActorConfig> implements Transition<C> {
 
 export class RuntimeTransitionResolver<C extends ActorConfig = ActorConfig> implements TransitionResolver<C> {
 	private readonly cache = new Map<string, Transition<C>>();
+
+	hasCached(src: StateClass<C>, dest: StateClass<C>): boolean {
+		return this.cache.has(getTransitionKey(src, dest));
+	}
 
 	resolve(src: StateClass<C>, dest: StateClass<C>): Transition<C> {
 		const key = getTransitionKey(src, dest);
@@ -964,10 +970,24 @@ export class RuntimeTransitionResolver<C extends ActorConfig = ActorConfig> impl
 
 /** @internal */
 export async function executePendingTransition<C extends ActorConfig>(host: HsmWithTracing<C>, resolver: TransitionResolver<C>): Promise<void> {
-	if (host._transitionState === undefined) return;
+	if (host._transitionState === undefined) {
+		if (host.traceLevel === TraceLevel.VERBOSE_DEBUG) {
+			host._traceWrite('no transition requested');
+		}
+		return;
+	}
 	try {
 		const srcState = host.currentState;
 		const destState = host._transitionState;
+		if (host.traceLevel === TraceLevel.VERBOSE_DEBUG) {
+			host._traceWrite(`requested transition from ${getStateName(srcState)} to ${getStateName(destState)} `);
+			const runtimeResolver = resolver as RuntimeTransitionResolver<C>;
+			if (runtimeResolver.hasCached(srcState, destState)) {
+				host._traceWrite(`transition cache hit for ${getStateName(srcState)} to ${getStateName(destState)} `);
+			} else {
+				host._traceWrite(`transition cache miss for ${getStateName(srcState)} to ${getStateName(destState)} `);
+			}
+		}
 		try {
 			await resolver.resolve(srcState, destState).execute(host, srcState, destState);
 		} catch (transitionError) {
@@ -1022,61 +1042,519 @@ async function doUnhandledEvent<C extends ActorConfig>(host: HsmWithTracing<C>, 
 	}
 }
 
-async function invokeHandler<C extends ActorConfig>(host: HsmWithTracing<C>, resolver: TransitionResolver<C>, name: string, args: readonly unknown[]): Promise<unknown> {
+async function invokeHandler<C extends ActorConfig>(host: HsmWithTracing<C>, resolver: TransitionResolver<C>, name: string, args: readonly unknown[], options: { recover?: boolean } = {}): Promise<unknown> {
+	const recover = options.recover ?? false;
+	const finishEvent = (): void => {
+		host._currentEventName = undefined;
+		host._currentEventPayload = undefined;
+	};
 	host._currentEventName = name;
 	host._currentEventPayload = [...args];
 	try {
 		const eventHandler = lookupEventHandler(host, name);
 		if (!eventHandler) {
-			await doUnhandledEvent(host, resolver, new UnhandledEventError(host), () => {
-				host._currentEventName = undefined;
-				host._currentEventPayload = undefined;
-			});
+			await doUnhandledEvent(host, resolver, new UnhandledEventError(host), finishEvent);
 			return undefined;
 		}
 		try {
 			const result = eventHandler.call(host._instance, ...args);
 			const settled = result instanceof Promise ? await result : result;
-			await completePendingTransitions(host, resolver, () => {
-				host._currentEventName = undefined;
-				host._currentEventPayload = undefined;
-			});
+			await completePendingTransitions(host, resolver, finishEvent);
 			return settled;
 		} catch (recoveryErr) {
 			if (recoveryErr instanceof UnhandledEventError) {
-				await doUnhandledEvent(host, resolver, recoveryErr, () => {
-					host._currentEventName = undefined;
-					host._currentEventPayload = undefined;
-				});
+				await doUnhandledEvent(host, resolver, recoveryErr, finishEvent);
 				return undefined;
 			}
 			if (recoveryErr instanceof TransitionError) {
-				host._currentEventName = undefined;
-				host._currentEventPayload = undefined;
+				finishEvent();
 				throw recoveryErr;
 			}
-			host._currentEventName = undefined;
-			host._currentEventPayload = undefined;
+			if (recover) {
+				await doError(host, resolver, asError(recoveryErr), finishEvent);
+				return undefined;
+			}
+			finishEvent();
 			throw asError(recoveryErr);
 		}
 	} catch (err) {
-		host._currentEventName = undefined;
-		host._currentEventPayload = undefined;
+		finishEvent();
 		throw err;
 	}
 }
 
+//#region DispatchStrategy
+
+type DispatchStrategy<C extends ActorConfig> = {
+	executeInit(hsm: HsmWithTracing<C>): Promise<void>;
+	dispatchEvent(hsm: HsmWithTracing<C>, resolver: TransitionResolver<C>, eventName: string, ...eventPayload: unknown[]): Promise<void>;
+};
+
+async function executeInitProduction<C extends ActorConfig>(hsm: HsmWithTracing<C>): Promise<void> {
+	let currState: StateClass<C> = hsm.topState;
+	try {
+		while (true) {
+			const proto = currState.prototype;
+			if (proto.hasOwnProperty('onEntry')) {
+				proto.onEntry.call(hsm._instance);
+			}
+			if (hasInitialState(currState)) {
+				currState = getInitialState(currState);
+			} else break;
+		}
+		hsm.currentState = currState;
+	} catch (cause) {
+		if (cause instanceof TransitionError) {
+			throw cause;
+		}
+		hsm.currentState = FatalErrorState as unknown as StateClass<C>;
+		throw new InitializationError(hsm, currState, asError(cause));
+	}
+}
+
+async function executeInitDebug<C extends ActorConfig>(hsm: HsmWithTracing<C>): Promise<void> {
+	hsm._traceWrite('begin initialization');
+	try {
+		let currState: StateClass<C> = hsm.topState;
+		hsm._tracePush(`initialize`, `started initialization from ${getStateName(hsm.topState)}`);
+		try {
+			while (true) {
+				if (Object.prototype.hasOwnProperty.call(currState.prototype, 'onEntry')) {
+					currState.prototype['onEntry'].call(hsm._instance);
+				}
+				if (hasInitialState(currState)) {
+					currState = getInitialState(currState);
+				} else {
+					break;
+				}
+			}
+			hsm._tracePopDone(`final state is ${getStateName(currState)}`);
+			hsm.currentState = currState;
+		} catch (cause) {
+			if (cause instanceof TransitionError) {
+				throw cause;
+			}
+			hsm._tracePopError(`initialization failed from top state '${getStateName(hsm.topState)}' as ${getStateName(currState)}.onEntry() handler has raised ${quoteUnknown(cause)}; final state is ${getStateName(FatalErrorState)}`);
+			hsm.currentState = FatalErrorState as unknown as StateClass<C>;
+			throw new InitializationError(hsm, currState, asError(cause));
+		}
+	} finally {
+		hsm._traceWrite('end initialization');
+	}
+}
+
+async function executeInitVerbose<C extends ActorConfig>(hsm: HsmWithTracing<C>): Promise<void> {
+	hsm._traceWrite('begin initialization');
+	try {
+		let currState: StateClass<C> = hsm.topState;
+		hsm._tracePush(`initialize`, `started initialization from ${getStateName(hsm.topState)}`);
+		try {
+			while (true) {
+				if (Object.prototype.hasOwnProperty.call(currState.prototype, 'onEntry')) {
+					currState.prototype['onEntry'].call(hsm._instance);
+					hsm._traceWrite(`${getStateName(currState)}.onEntry() done`);
+				} else {
+					hsm._traceWrite(`skip ${getStateName(currState)}.onEntry(): default empty implementation`);
+				}
+
+				if (hasInitialState(currState)) {
+					const newInitialState = getInitialState(currState);
+					hsm._traceWrite(`${getStateName(currState)} initial state is ${getStateName(newInitialState)}`);
+					currState = newInitialState;
+				} else {
+					hsm._traceWrite(`${getStateName(currState)} has no initial state; final state is ${getStateName(currState)}`);
+					break;
+				}
+			}
+			hsm._tracePopDone(`final state is ${getStateName(currState)}`);
+			hsm.currentState = currState;
+		} catch (cause) {
+			if (cause instanceof TransitionError) {
+				throw cause;
+			}
+			hsm._tracePopError(`initialization failed from top state '${getStateName(hsm.topState)}' as ${getStateName(currState)}.onEntry() handler has raised ${quoteUnknown(cause)}; final state is ${getStateName(FatalErrorState)}`);
+			hsm.currentState = FatalErrorState as unknown as StateClass<C>;
+			throw new InitializationError(hsm, currState, asError(cause));
+		}
+	} finally {
+		hsm._traceWrite('end initialization');
+	}
+}
+
+async function dispatchEventProduction<C extends ActorConfig>(hsm: HsmWithTracing<C>, resolver: TransitionResolver<C>, eventName: string, ...eventPayload: unknown[]): Promise<void> {
+	await invokeHandler(hsm, resolver, eventName, eventPayload, { recover: true });
+}
+
+function debugFinishEventDispatch<C extends ActorConfig>(hsm: HsmWithTracing<C>): void {
+	hsm._traceWrite(`end event dispatch`);
+	hsm._currentEventName = undefined;
+	hsm._currentEventPayload = undefined;
+}
+
+async function debugDoError<C extends ActorConfig>(hsm: HsmWithTracing<C>, resolver: TransitionResolver<C>, err: Error, onComplete: () => void): Promise<void> {
+	hsm._transitionState = undefined;
+	hsm._tracePush(`error recovery`, `started error recovery`);
+	try {
+		hsm._tracePush('execute', 'started #onError handler execution');
+		const result = hsm.currentState.prototype.onError.call(hsm._instance, new EventHandlerError(hsm, err));
+		if (result) {
+			await result;
+		}
+		hsm._tracePopDone('error handler execution successful');
+		await completePendingTransitions(hsm, resolver, () => {
+			hsm._tracePopDone('error recovery successful');
+			onComplete();
+		});
+	} catch (recoveryErr) {
+		hsm._tracePopError(`error handler execution failure: ${quoteUnknown(recoveryErr)}`);
+		if (recoveryErr instanceof TransitionError) {
+			hsm._tracePopError(`error recovery failure: ${quoteUnknown(recoveryErr)}`);
+			throw new FatalError(hsm, recoveryErr);
+		}
+		const recoveryError = asError(recoveryErr);
+		hsm.transition(FatalErrorState as unknown as StateClass<C>);
+		await completePendingTransitions(hsm, resolver, () => {
+			hsm._tracePopError(`error recovery failure: ${quoteUnknown(recoveryError)}`);
+			onComplete();
+		});
+		throw new FatalError(hsm, recoveryError);
+	}
+}
+
+async function debugDoUnhandledEvent<C extends ActorConfig>(hsm: HsmWithTracing<C>, resolver: TransitionResolver<C>, error: UnhandledEventError<C>, onComplete: () => void): Promise<void> {
+	hsm._tracePush('unhandled recovery', `started unhandled event recovery`);
+	try {
+		hsm._tracePush('execute', 'started #onUnhandled handler execution');
+		const result = hsm.currentState.prototype.onUnhandled.call(hsm._instance, error);
+		if (result) {
+			await result;
+		}
+		hsm._tracePopDone('unhandled handler execution successful');
+		await completePendingTransitions(hsm, resolver, () => {
+			hsm._tracePopDone('unhandled event recovery successful');
+			onComplete();
+		});
+	} catch (recoveryErr) {
+		hsm._tracePopError(`unhandled event recovery failure: ${quoteUnknown(recoveryErr)}`);
+
+		if (recoveryErr instanceof TransitionError) {
+			hsm.currentState = FatalErrorState as unknown as StateClass<C>;
+			hsm._tracePopError(`unhandled event recovery failure: ${quoteUnknown(recoveryErr)}`);
+			throw recoveryErr;
+		}
+
+		try {
+			await debugDoError(hsm, resolver, asError(recoveryErr), () => {
+				hsm._tracePopDone('unhandled event recovery successful');
+				onComplete();
+			});
+		} catch (nestedErr) {
+			hsm._tracePopError(`unhandled event recovery failure: ${quoteUnknown(nestedErr)}`);
+			throw nestedErr;
+		}
+	}
+}
+
+async function dispatchEventDebug<C extends ActorConfig>(hsm: HsmWithTracing<C>, resolver: TransitionResolver<C>, eventName: string, ...eventPayload: unknown[]): Promise<void> {
+	const eventLabel = String(eventName);
+	hsm._traceWrite(`begin event dispatch of #${eventLabel}`);
+	hsm._tracePush(`#${eventLabel}`, `started event dispatch`);
+	hsm._currentEventName = eventLabel;
+	hsm._currentEventPayload = eventPayload;
+	try {
+		const eventHandler = lookupEventHandler(hsm, eventName);
+
+		if (!eventHandler) {
+			try {
+				await debugDoUnhandledEvent(hsm, resolver, new UnhandledEventError(hsm), () => {
+					hsm._tracePopDone('event dispatch successful');
+					debugFinishEventDispatch(hsm);
+				});
+				return;
+			} catch (recoveryErr) {
+				hsm._tracePopError(`event dispatch failed: ${quoteUnknown(recoveryErr)}`);
+				debugFinishEventDispatch(hsm);
+				throw recoveryErr;
+			}
+		}
+
+		try {
+			hsm._tracePush('execute', 'started event handler execution');
+			const result = eventHandler.call(hsm._instance, ...eventPayload);
+			if (result) {
+				await result;
+			}
+			hsm._tracePopDone('event handler execution successful');
+			await completePendingTransitions(hsm, resolver, () => {
+				hsm._tracePopDone(`event dispatch successful`);
+				debugFinishEventDispatch(hsm);
+			});
+		} catch (recoveryErr) {
+			hsm._tracePopError(quoteUnknown(recoveryErr));
+			if (recoveryErr instanceof UnhandledEventError) {
+				try {
+					await debugDoUnhandledEvent(hsm, resolver, recoveryErr, () => {
+						hsm._tracePopDone('event dispatch successful');
+						debugFinishEventDispatch(hsm);
+					});
+					return;
+				} catch (nestedErr) {
+					hsm._tracePopError(`event dispatch failed: ${quoteUnknown(nestedErr)}`);
+					debugFinishEventDispatch(hsm);
+					throw nestedErr;
+				}
+			} else if (recoveryErr instanceof TransitionError) {
+				hsm._tracePopError(`event dispatch failed: ${quoteUnknown(recoveryErr)}`);
+				debugFinishEventDispatch(hsm);
+				throw recoveryErr;
+			} else {
+				try {
+					await debugDoError(hsm, resolver, asError(recoveryErr), () => {
+						hsm._tracePopDone('event dispatch successful');
+						debugFinishEventDispatch(hsm);
+					});
+				} catch (nestedErr) {
+					hsm._tracePopError(`event dispatch failed: ${quoteUnknown(nestedErr)}`);
+					debugFinishEventDispatch(hsm);
+					throw nestedErr;
+				}
+			}
+		}
+	} catch (err) {
+		debugFinishEventDispatch(hsm);
+		throw err;
+	}
+}
+
+function verboseFinishEventDispatch<C extends ActorConfig>(hsm: HsmWithTracing<C>): void {
+	hsm._traceWrite(`end event dispatch`);
+	hsm._currentEventName = undefined;
+	hsm._currentEventPayload = undefined;
+}
+
+async function verboseDoError<C extends ActorConfig>(hsm: HsmWithTracing<C>, resolver: TransitionResolver<C>, err: Error, onComplete: () => void): Promise<void> {
+	hsm._transitionState = undefined;
+	hsm._tracePush(`error recovery`, `started error recovery`);
+	hsm._tracePush(`lookup`, `started lookup of #onError event handler`);
+	let errorLookupState = hsm.currentState;
+	let messageHandler: ((error: RuntimeError<C>) => Promise<void> | void) | undefined;
+	while (errorLookupState != TopState) {
+		const errorPrototype = errorLookupState.prototype;
+		if (Object.prototype.hasOwnProperty.call(errorPrototype, 'onError')) {
+			hsm._tracePopDone(`found in state ${getStateName(errorLookupState)}`);
+			messageHandler = errorPrototype['onError'];
+			break;
+		}
+		hsm._traceWrite(`not found in state ${getStateName(errorLookupState)}`);
+		errorLookupState = Object.getPrototypeOf(errorLookupState);
+	}
+	if (messageHandler === undefined) {
+		hsm._tracePopDone(`found in state ${getStateName(TopState as StateClass)}`);
+		messageHandler = TopState.prototype.onError as (error: RuntimeError<C>) => void | Promise<void>;
+	}
+	try {
+		hsm._tracePush('execute', 'started #onError handler execution');
+		const result = messageHandler.call(hsm._instance, new EventHandlerError(hsm, err));
+		if (result) {
+			await result;
+		}
+		hsm._tracePopDone('error handler execution successful');
+		await completePendingTransitions(hsm, resolver, () => {
+			hsm._tracePopDone('error recovery successful');
+			onComplete();
+		});
+	} catch (recoveryErr) {
+		hsm._tracePopError(`error handler execution failure: ${quoteUnknown(recoveryErr)}`);
+		if (recoveryErr instanceof TransitionError) {
+			hsm._tracePopError(`error recovery failure: ${quoteUnknown(recoveryErr)}`);
+			throw recoveryErr;
+		}
+		const recoveryError = asError(recoveryErr);
+		hsm.transition(FatalErrorState as unknown as StateClass<C>);
+		await completePendingTransitions(hsm, resolver, () => {
+			hsm._tracePopError(`error recovery failure: ${quoteUnknown(recoveryError)}`);
+			onComplete();
+		});
+		throw new FatalError(hsm, recoveryError);
+	}
+}
+
+async function verboseDoUnhandledEvent<C extends ActorConfig>(hsm: HsmWithTracing<C>, resolver: TransitionResolver<C>, error: UnhandledEventError<C>, onComplete: () => void): Promise<void> {
+	hsm._tracePush('unhandled recovery', `started unhandled event recovery`);
+	let unhandledLookupState = hsm.currentState;
+	hsm._tracePush(`lookup`, `started lookup of #onUnhandled event handler`);
+	let messageHandler: (error: UnhandledEventError<C>) => Promise<void> | void;
+	while (true) {
+		const unhandledPrototype = unhandledLookupState.prototype;
+		if (Object.prototype.hasOwnProperty.call(unhandledPrototype, 'onUnhandled')) {
+			hsm._tracePopDone(`found in state ${getStateName(unhandledLookupState)}`);
+			messageHandler = unhandledPrototype.onUnhandled;
+			break;
+		}
+		hsm._traceWrite(`not found in state ${getStateName(unhandledLookupState)}`);
+		unhandledLookupState = Object.getPrototypeOf(unhandledLookupState);
+		if (unhandledLookupState == TopState) {
+			hsm._tracePopDone(`found in state ${getStateName(unhandledLookupState)}`);
+			messageHandler = unhandledPrototype.onUnhandled;
+			break;
+		}
+	}
+	try {
+		hsm._tracePush('execute', 'started #onUnhandled handler execution');
+		const result = messageHandler.call(hsm._instance, error);
+		if (result) {
+			await result;
+		}
+		hsm._tracePopDone('unhandled handler execution successful');
+		await completePendingTransitions(hsm, resolver, () => {
+			hsm._tracePopDone('unhandled event recovery successful');
+			onComplete();
+		});
+	} catch (recoveryErr) {
+		hsm._tracePopError(`unhandled event recovery failure: ${quoteUnknown(recoveryErr)}`);
+
+		if (recoveryErr instanceof TransitionError) {
+			hsm.currentState = FatalErrorState as unknown as StateClass<C>;
+			hsm._tracePopError(`unhandled event recovery failure: ${quoteUnknown(recoveryErr)}`);
+			throw recoveryErr;
+		}
+
+		try {
+			await verboseDoError(hsm, resolver, asError(recoveryErr), () => {
+				hsm._tracePopDone('unhandled event recovery successful');
+				onComplete();
+			});
+		} catch (nestedErr) {
+			hsm._tracePopError(`unhandled event recovery failure: ${quoteUnknown(nestedErr)}`);
+			throw nestedErr;
+		}
+	}
+}
+
+async function dispatchEventVerbose<C extends ActorConfig>(hsm: HsmWithTracing<C>, resolver: TransitionResolver<C>, eventName: string, ...eventPayload: unknown[]): Promise<void> {
+	const eventLabel = String(eventName);
+	hsm._traceWrite(`begin event dispatch of #${eventLabel}`);
+	hsm._tracePush(`#${eventLabel}`, `started event dispatch`);
+	hsm._currentEventName = eventLabel;
+	hsm._currentEventPayload = eventPayload;
+	try {
+		const eventHandler = lookupEventHandler(hsm, eventName);
+
+		if (!eventHandler) {
+			hsm._traceWrite(`event #${eventLabel} is unhandled in state ${hsm.currentStateName}`);
+			try {
+				await verboseDoUnhandledEvent(hsm, resolver, new UnhandledEventError(hsm), () => {
+					hsm._tracePopDone('event dispatch successful');
+					verboseFinishEventDispatch(hsm);
+				});
+				return;
+			} catch (recoveryErr) {
+				hsm._tracePopError(`event dispatch failed: ${quoteUnknown(recoveryErr)}`);
+				verboseFinishEventDispatch(hsm);
+				throw recoveryErr;
+			}
+		}
+
+		try {
+			hsm._tracePush('execute', 'started event handler execution');
+			const result = eventHandler.call(hsm._instance, ...eventPayload);
+			if (result) {
+				await result;
+			}
+			hsm._tracePopDone('event handler execution successful');
+			await completePendingTransitions(hsm, resolver, () => {
+				hsm._tracePopDone(`event dispatch successful`);
+				verboseFinishEventDispatch(hsm);
+			});
+		} catch (recoveryErr) {
+			hsm._tracePopError(quoteUnknown(recoveryErr));
+			if (recoveryErr instanceof UnhandledEventError) {
+				hsm._traceWrite(`event #${eventLabel} is unhandled in state ${hsm.currentStateName}`);
+				try {
+					await verboseDoUnhandledEvent(hsm, resolver, recoveryErr, () => {
+						hsm._tracePopDone('event dispatch successful');
+						verboseFinishEventDispatch(hsm);
+					});
+					return;
+				} catch (nestedErr) {
+					hsm._tracePopError(`event dispatch failed: ${quoteUnknown(nestedErr)}`);
+					verboseFinishEventDispatch(hsm);
+					throw nestedErr;
+				}
+			} else if (recoveryErr instanceof TransitionError) {
+				hsm._tracePopError(`event dispatch failed: ${quoteUnknown(recoveryErr)}`);
+				verboseFinishEventDispatch(hsm);
+				throw recoveryErr;
+			} else {
+				try {
+					await verboseDoError(hsm, resolver, asError(recoveryErr), () => {
+						hsm._tracePopDone('event dispatch successful');
+						verboseFinishEventDispatch(hsm);
+					});
+				} catch (nestedErr) {
+					hsm._tracePopError(`event dispatch failed: ${quoteUnknown(nestedErr)}`);
+					verboseFinishEventDispatch(hsm);
+					throw nestedErr;
+				}
+			}
+		}
+	} catch (err) {
+		verboseFinishEventDispatch(hsm);
+		throw err;
+	}
+}
+
+const productionDispatchStrategy: DispatchStrategy<ActorConfig> = {
+	executeInit: executeInitProduction,
+	dispatchEvent: dispatchEventProduction,
+};
+
+const debugDispatchStrategy: DispatchStrategy<ActorConfig> = {
+	executeInit: executeInitDebug,
+	dispatchEvent: dispatchEventDebug,
+};
+
+const verboseDispatchStrategy: DispatchStrategy<ActorConfig> = {
+	executeInit: executeInitVerbose,
+	dispatchEvent: dispatchEventVerbose,
+};
+
+function dispatchStrategyFor<C extends ActorConfig>(traceLevel: TraceLevel): DispatchStrategy<C> {
+	switch (traceLevel) {
+		case TraceLevel.PRODUCTION:
+			return productionDispatchStrategy as DispatchStrategy<C>;
+		case TraceLevel.DEBUG:
+			return debugDispatchStrategy as DispatchStrategy<C>;
+		case TraceLevel.VERBOSE_DEBUG:
+			return verboseDispatchStrategy as DispatchStrategy<C>;
+	}
+}
+
+//#endregion
+
 /** @internal */
 export function createInitTask<C extends ActorConfig>(host: HsmWithTracing<C>, resolver: TransitionResolver<C>): Task {
-	const runInit = host.traceLevel === TraceLevel.PRODUCTION ? executeInitProduction : host.traceLevel === TraceLevel.DEBUG ? executeInitDebug : executeInitVerbose;
+	const strategy = dispatchStrategyFor(host.traceLevel);
 	return (done: DoneCallback): void => {
-		runInit(host)
+		strategy
+			.executeInit(host)
 			.then(() => executePendingTransition(host, resolver))
 			.then(() => done())
 			.catch((err: unknown) => {
 				host.dispatchErrorCallback(host, asError(err));
 				done();
 			});
+	};
+}
+
+/** @internal */
+export function createNotificationTask<C extends ActorConfig>(host: HsmWithTracing<C>, resolver: TransitionResolver<C>, name: string, args: readonly unknown[]): Task {
+	const strategy = dispatchStrategyFor(host.traceLevel);
+	return (done: DoneCallback): void => {
+		strategy
+			.dispatchEvent(host, resolver, name, ...args)
+			.catch((err: unknown) => host.dispatchErrorCallback(host, asError(err)))
+			.finally(() => done());
 	};
 }
 
@@ -1105,27 +1583,9 @@ export function createServiceTask<C extends ActorConfig>(host: HsmWithTracing<C>
 	};
 }
 
-/** @internal */
-export function createNotificationTask<C extends ActorConfig>(host: HsmWithTracing<C>, _resolver: TransitionResolver<C>, name: string, args: readonly unknown[]): Task {
-	return (done: DoneCallback): void => {
-		host._createEventDispatchTask(host, name, ...args)(done);
-	};
-}
-
 //#endregion
 
 //#region hsm
-
-function mapEventDispatchTaskFactory(traceLevel: TraceLevel): <DispatchC extends ActorConfig>(hsm: HsmWithTracing<DispatchC>, eventName: string, ...eventPayload: unknown[]) => Task {
-	switch (traceLevel) {
-		case TraceLevel.PRODUCTION:
-			return createEventDispatchTaskProduction;
-		case TraceLevel.DEBUG:
-			return createEventDispatchTaskDebug;
-		case TraceLevel.VERBOSE_DEBUG:
-			return createEventDispatchTaskVerbose;
-	}
-}
 
 /** @internal */
 export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
@@ -1136,8 +1596,6 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 
 	/** @internal */
 	public _instance: Instance<C>;
-	/** @internal */
-	public _transitionCache: Map<string, Transition<C>> = new Map();
 	/** @internal */
 	public _jobs: Task[];
 	/** @internal */
@@ -1151,17 +1609,14 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 	public dispatchErrorCallback: DispatchErrorCallback<C>;
 	private _traceLevel: TraceLevel;
 	private _traceDomainStack: string[];
-	public _createEventDispatchTask: <DispatchC extends ActorConfig>(hsm: HsmWithTracing<DispatchC>, eventName: string, ...eventPayload: unknown[]) => Task;
 
 	constructor(TopState: StateClass<C>, instance: Instance<C>, traceWriter: TraceWriter, traceLevel: TraceLevel, dispatchErrorCallback: DispatchErrorCallback<C>) {
 		this._instance = instance;
 		this._transitionState = undefined;
-		this._transitionCache = new Map();
 		this._traceLevel = traceLevel;
 		this._currentEventName = undefined;
 		this._currentEventPayload = undefined;
 		this._traceDomainStack = [];
-		this._createEventDispatchTask = mapEventDispatchTaskFactory(traceLevel);
 		this._jobs = [];
 		this._hiPriorityJobs = [];
 		this._isRunning = false;
@@ -1234,7 +1689,6 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 	}
 
 	set traceLevel(traceLevel: TraceLevel) {
-		this._createEventDispatchTask = mapEventDispatchTaskFactory(traceLevel);
 		this._traceLevel = traceLevel;
 	}
 
@@ -1331,6 +1785,7 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 
 export class Machine<C extends ActorConfig> extends HsmObject<C> {
 	readonly transitionResolver: TransitionResolver<C>;
+	private _dispatchStrategy: DispatchStrategy<C>;
 	private readonly protocolIndex: ProtocolIndex;
 	private readonly handlerFacade: HandlerHsm<C>;
 	private readonly selfActor: SelfNotifications<C>;
@@ -1343,6 +1798,7 @@ export class Machine<C extends ActorConfig> extends HsmObject<C> {
 		this.protocolIndex = protocolIndex;
 		cacheProtocolIndex(topState, protocolIndex);
 		this.transitionResolver = transitionResolver ?? new RuntimeTransitionResolver();
+		this._dispatchStrategy = dispatchStrategyFor(traceLevel);
 		this.selfActor = createSelfNotifications(this, topState, protocolIndex, 'default') as SelfNotifications<C>;
 		this.selfImmediate = createSelfNotifications(this, topState, protocolIndex, 'priority') as SelfNotifications<C>;
 		this.handlerFacade = this.buildHandlerFacade(instance);
@@ -1353,6 +1809,15 @@ export class Machine<C extends ActorConfig> extends HsmObject<C> {
 		if (initialize) {
 			this.pushTask(createInitTask(this, this.transitionResolver));
 		}
+	}
+
+	override get traceLevel(): TraceLevel {
+		return super.traceLevel;
+	}
+
+	override set traceLevel(traceLevel: TraceLevel) {
+		super.traceLevel = traceLevel;
+		this._dispatchStrategy = dispatchStrategyFor(traceLevel);
 	}
 
 	dispatchService(name: string, args: unknown[]): Promise<unknown> {
@@ -1482,65 +1947,9 @@ export class Machine<C extends ActorConfig> extends HsmObject<C> {
 
 	private buildActorHsm(kind: EmbodimentKind): ExternalHsm<C> | InboundHsm<C> | ChildHsm<C> {
 		const machine = this;
-		if (kind === 'root') {
-			return {
-				sync: () => machine.sync(),
-				get currentStateName(): string {
-					return machine.currentStateName;
-				},
-				get topStateName(): string {
-					return machine.topStateName;
-				},
-				get traceLevel(): TraceLevel {
-					return machine.traceLevel;
-				},
-				set traceLevel(level: TraceLevel) {
-					machine.traceLevel = level;
-				},
-				get traceWriter(): TraceWriter {
-					return machine.traceWriter;
-				},
-				set traceWriter(writer: TraceWriter) {
-					machine.traceWriter = writer;
-				},
-				get traceHeader(): string {
-					return machine.traceHeader;
-				},
-			} as ExternalHsm<C>;
-		}
-		if (kind === 'inbound') {
-			return {
-				sync: () => machine.sync(),
-				get currentStateName(): string {
-					return machine.currentStateName;
-				},
-				get topStateName(): string {
-					return machine.topStateName;
-				},
-				get traceLevel(): TraceLevel {
-					return machine.traceLevel;
-				},
-				set traceLevel(level: TraceLevel) {
-					machine.traceLevel = level;
-				},
-				get traceWriter(): TraceWriter {
-					return machine.traceWriter;
-				},
-				set traceWriter(writer: TraceWriter) {
-					machine.traceWriter = writer;
-				},
-				get traceHeader(): string {
-					return machine.traceHeader;
-				},
-				get currentState(): StateClass<C> {
-					return machine.currentState as StateClass<C>;
-				},
-				get topState(): StateClass<C> {
-					return machine.topState as StateClass<C>;
-				},
-			} as InboundHsm<C>;
-		}
-		return {
+		const includeState = kind !== 'root';
+		const includeOwner = kind === 'child' || kind === 'test';
+		const facade: Record<string, unknown> = {
 			sync: () => machine.sync(),
 			get currentStateName(): string {
 				return machine.currentStateName;
@@ -1563,20 +1972,41 @@ export class Machine<C extends ActorConfig> extends HsmObject<C> {
 			get traceHeader(): string {
 				return machine.traceHeader;
 			},
-			get currentState(): StateClass<C> {
-				return machine.currentState as StateClass<C>;
-			},
-			get topState(): StateClass<C> {
-				return machine.topState as StateClass<C>;
-			},
-			restore: (state: StateClass<C>, ctx: ActorContextOf<C>) => machine.restore(state as never, ctx),
-			get dispatchErrorCallback(): (hsm: unknown, err: Error) => void {
-				return machine.dispatchErrorCallback as (hsm: unknown, err: Error) => void;
-			},
-			set dispatchErrorCallback(cb: (hsm: unknown, err: Error) => void) {
-				machine.dispatchErrorCallback = cb as DispatchErrorCallback<C>;
-			},
-		} as ChildHsm<C>;
+		};
+		if (includeState) {
+			Object.defineProperties(facade, {
+				currentState: {
+					enumerable: true,
+					get(): StateClass<C> {
+						return machine.currentState as StateClass<C>;
+					},
+				},
+				topState: {
+					enumerable: true,
+					get(): StateClass<C> {
+						return machine.topState as StateClass<C>;
+					},
+				},
+			});
+		}
+		if (includeOwner) {
+			Object.defineProperties(facade, {
+				restore: {
+					enumerable: true,
+					value: (state: StateClass<C>, ctx: ActorContextOf<C>) => machine.restore(state as never, ctx),
+				},
+				dispatchErrorCallback: {
+					enumerable: true,
+					get(): (hsm: unknown, err: Error) => void {
+						return machine.dispatchErrorCallback as (hsm: unknown, err: Error) => void;
+					},
+					set(cb: (hsm: unknown, err: Error) => void) {
+						machine.dispatchErrorCallback = cb as DispatchErrorCallback<C>;
+					},
+				},
+			});
+		}
+		return facade as ExternalHsm<C> | InboundHsm<C> | ChildHsm<C>;
 	}
 }
 
@@ -1666,668 +2096,3 @@ export function makeChildActor<ParentT extends TopStateArg<ActorConfig>, ChildT 
 }
 
 export { kHandlerMachine, kParentLink } from './types';
-
-//#region dispatch
-
-//#region production
-
-class prod_ProductionTransition<C extends ActorConfig> implements Transition<C> {
-	constructor(
-		private plan: ReturnType<typeof planTransitionClasses<C>>,
-		private srcState: StateClass<C>,
-		private dstState: StateClass<C>
-	) {}
-
-	async execute(hsm: HsmWithTracing<C>, srcState: StateClass<C>, dstState: StateClass<C>): Promise<void> {
-		await executeTransitionRoutine(hsm, hsm._instance, this.plan, srcState, dstState, {
-			style: 'production',
-			setCurrentState: state => {
-				hsm.currentState = state;
-			},
-		});
-	}
-}
-
-async function prod_doTransition<C extends ActorConfig>(hsm: HsmWithTracing<C>): Promise<void> {
-	if (hsm._transitionState) {
-		try {
-			const srcState = hsm.currentState;
-			const destState = hsm._transitionState;
-			const transitionKey = getTransitionKey(srcState, destState);
-			let tr: Transition<C> | undefined = hsm._transitionCache.get(transitionKey);
-			if (!tr) {
-				tr = new prod_ProductionTransition(planTransitionClasses(srcState, destState), srcState, destState);
-				hsm._transitionCache.set(transitionKey, tr);
-			}
-			try {
-				await tr.execute(hsm, srcState, destState);
-			} catch (transitionError) {
-				hsm.currentState = FatalErrorState as unknown as StateClass<C>;
-				throw transitionError;
-			}
-		} finally {
-			hsm._transitionState = undefined;
-		}
-	}
-}
-
-async function prod_completePendingTransitions<C extends ActorConfig>(hsm: HsmWithTracing<C>, onComplete: () => void): Promise<void> {
-	await prod_doTransition(hsm);
-	onComplete();
-}
-
-async function prod_doError<C extends ActorConfig>(hsm: HsmWithTracing<C>, err: Error, onComplete: () => void): Promise<void> {
-	hsm._transitionState = undefined; // clear next state
-	const messageHandler = hsm.currentState.prototype.onError;
-	try {
-		const result = messageHandler.call(hsm._instance, new EventHandlerError(hsm, err));
-		if (result) {
-			await result;
-		}
-		await prod_completePendingTransitions(hsm, onComplete);
-	} catch (recoveryErr) {
-		if (recoveryErr instanceof TransitionError) {
-			throw new FatalError(hsm, recoveryErr);
-		}
-		const err = asError(recoveryErr);
-		hsm.transition(FatalErrorState as unknown as StateClass<C>);
-		await prod_completePendingTransitions(hsm, onComplete);
-		throw new FatalError(hsm, err);
-	}
-}
-
-async function prod_doUnhandledEvent<C extends ActorConfig>(hsm: HsmWithTracing<C>, error: UnhandledEventError<C>, onComplete: () => void): Promise<void> {
-	try {
-		const result = hsm.currentState.prototype.onUnhandled.call(hsm._instance, error);
-		if (result) {
-			await result;
-		}
-		await prod_completePendingTransitions(hsm, onComplete);
-	} catch (recoveryErr) {
-		if (recoveryErr instanceof TransitionError) {
-			hsm.currentState = FatalErrorState as unknown as StateClass<C>;
-			throw recoveryErr;
-		}
-		await prod_doError(hsm, asError(recoveryErr), onComplete);
-	}
-}
-
-/** @internal */
-export async function executeInitProduction<C extends ActorConfig>(hsm: HsmWithTracing<C>): Promise<void> {
-	let currState: StateClass<C> = hsm.topState;
-	try {
-		while (true) {
-			const proto = currState.prototype;
-			if (proto.hasOwnProperty('onEntry')) {
-				proto.onEntry.call(hsm._instance);
-			}
-			if (hasInitialState(currState)) {
-				currState = getInitialState(currState);
-			} else break;
-		}
-		hsm.currentState = currState;
-	} catch (cause) {
-		if (cause instanceof TransitionError) {
-			throw cause;
-		}
-		hsm.currentState = FatalErrorState as unknown as StateClass<C>;
-		throw new InitializationError(hsm, currState, asError(cause));
-	}
-}
-
-function prod_finishEventDispatch<C extends ActorConfig>(hsm: HsmWithTracing<C>): void {
-	hsm._currentEventName = undefined;
-	hsm._currentEventPayload = undefined;
-}
-
-async function prod_dispatchEvent<C extends ActorConfig>(hsm: HsmWithTracing<C>, eventName: string, ...eventPayload: unknown[]): Promise<void> {
-	hsm._currentEventName = String(eventName);
-	hsm._currentEventPayload = eventPayload;
-	try {
-		const eventHandler = lookupEventHandler(hsm, eventName);
-		if (!eventHandler) {
-			await prod_doUnhandledEvent(hsm, new UnhandledEventError(hsm), () => prod_finishEventDispatch(hsm));
-			return;
-		}
-		try {
-			const result = eventHandler.call(hsm._instance, ...eventPayload);
-			if (result) await result;
-			await prod_completePendingTransitions(hsm, () => prod_finishEventDispatch(hsm));
-		} catch (recoveryErr) {
-			if (recoveryErr instanceof UnhandledEventError) {
-				await prod_doUnhandledEvent(hsm, recoveryErr, () => prod_finishEventDispatch(hsm));
-			} else if (recoveryErr instanceof TransitionError) {
-				prod_finishEventDispatch(hsm);
-				throw recoveryErr;
-			} else {
-				await prod_doError(hsm, asError(recoveryErr), () => prod_finishEventDispatch(hsm));
-			}
-		}
-	} catch (err) {
-		prod_finishEventDispatch(hsm);
-		throw err;
-	}
-}
-
-//#region Export: _createEventDispatchTask
-
-/** @internal */
-export function createEventDispatchTaskProduction<DispatchC extends ActorConfig>(hsm: HsmWithTracing<DispatchC>, eventName: string, ...eventPayload: unknown[]): Task {
-	return (done: DoneCallback): void => {
-		prod_dispatchEvent(hsm, eventName, ...eventPayload)
-			.catch((err: unknown) => hsm.dispatchErrorCallback(hsm, asError(err)))
-			.finally(() => done());
-	};
-}
-
-//#endregion
-
-//#region debug
-
-function debug_finishEventDispatch<C extends ActorConfig>(hsm: HsmWithTracing<C>): void {
-	hsm._traceWrite(`end event dispatch`);
-	hsm._currentEventName = undefined;
-	hsm._currentEventPayload = undefined;
-}
-
-async function debug_completePendingTransitions<C extends ActorConfig>(hsm: HsmWithTracing<C>, onComplete: () => void): Promise<void> {
-	await debug_doTransition(hsm);
-	onComplete();
-}
-
-/** @internal */
-class debug_DebugTransition<C extends ActorConfig> implements Transition<C> {
-	constructor(private plan: ReturnType<typeof planTransitionClasses<C>>) {}
-
-	async execute(hsm: HsmWithTracing<C>, srcState: StateClass<C>, dstState: StateClass<C>): Promise<void> {
-		await executeTransitionRoutine(hsm, hsm._instance, this.plan, srcState, dstState, {
-			style: 'debug',
-			tracer: createTransitionTracer(hsm),
-			setCurrentState: state => {
-				hsm.currentState = state;
-			},
-		});
-	}
-}
-
-/** @internal */
-async function debug_doTransition<C extends ActorConfig>(hsm: HsmWithTracing<C>): Promise<void> {
-	if (hsm._transitionState) {
-		try {
-			const srcState = hsm.currentState;
-			const destState = hsm._transitionState;
-			const transitionKey = getTransitionKey(srcState, destState);
-			let tr: Transition<C> | undefined = hsm._transitionCache.get(transitionKey);
-			if (!tr) {
-				tr = new debug_DebugTransition(planTransitionClasses(srcState, destState));
-				hsm._transitionCache.set(transitionKey, tr);
-			}
-			try {
-				await tr.execute(hsm, srcState, destState);
-			} catch (transitionError) {
-				hsm.currentState = FatalErrorState as unknown as StateClass<C>;
-				throw transitionError;
-			}
-		} finally {
-			hsm._transitionState = undefined;
-		}
-	}
-}
-
-/** @internal */
-async function debug_doError<C extends ActorConfig>(hsm: HsmWithTracing<C>, err: Error, onComplete: () => void): Promise<void> {
-	hsm._transitionState = undefined;
-	hsm._tracePush(`error recovery`, `started error recovery`);
-	try {
-		hsm._tracePush('execute', 'started #onError handler execution');
-		const result = hsm.currentState.prototype.onError.call(hsm._instance, new EventHandlerError(hsm, err));
-		if (result) {
-			await result;
-		}
-		hsm._tracePopDone('error handler execution successful');
-		await debug_completePendingTransitions(hsm, () => {
-			hsm._tracePopDone('error recovery successful');
-			onComplete();
-		});
-	} catch (recoveryErr) {
-		hsm._tracePopError(`error handler execution failure: ${quoteUnknown(recoveryErr)}`);
-		if (recoveryErr instanceof TransitionError) {
-			hsm._tracePopError(`error recovery failure: ${quoteUnknown(recoveryErr)}`);
-			throw new FatalError(hsm, recoveryErr);
-		}
-		const err = asError(recoveryErr);
-		hsm.transition(FatalErrorState as unknown as StateClass<C>);
-		await debug_completePendingTransitions(hsm, () => {
-			hsm._tracePopError(`error recovery failure: ${quoteUnknown(err)}`);
-			onComplete();
-		});
-		throw new FatalError(hsm, err);
-	}
-}
-
-/** @internal */
-async function debug_doUnhandledEvent<C extends ActorConfig>(hsm: HsmWithTracing<C>, error: UnhandledEventError<C>, onComplete: () => void): Promise<void> {
-	hsm._tracePush('unhandled recovery', `started unhandled event recovery`);
-	try {
-		hsm._tracePush('execute', 'started #onUnhandled handler execution');
-		const result = hsm.currentState.prototype.onUnhandled.call(hsm._instance, error);
-		if (result) {
-			await result;
-		}
-		hsm._tracePopDone('unhandled handler execution successful');
-		await debug_completePendingTransitions(hsm, () => {
-			hsm._tracePopDone('unhandled event recovery successful');
-			onComplete();
-		});
-	} catch (recoveryErr) {
-		hsm._tracePopError(`unhandled event recovery failure: ${quoteUnknown(recoveryErr)}`);
-
-		if (recoveryErr instanceof TransitionError) {
-			hsm.currentState = FatalErrorState as unknown as StateClass<C>;
-			hsm._tracePopError(`unhandled event recovery failure: ${quoteUnknown(recoveryErr)}`);
-			throw recoveryErr;
-		}
-
-		try {
-			await debug_doError(hsm, asError(recoveryErr), () => {
-				hsm._tracePopDone('unhandled event recovery successful');
-				onComplete();
-			});
-		} catch (nestedErr) {
-			hsm._tracePopError(`unhandled event recovery failure: ${quoteUnknown(nestedErr)}`);
-			throw nestedErr;
-		}
-	}
-}
-
-/** @internal */
-export async function executeInitDebug<C extends ActorConfig>(hsm: HsmWithTracing<C>): Promise<void> {
-	hsm._traceWrite('begin initialization');
-	try {
-		let currState: StateClass<C> = hsm.topState;
-		hsm._tracePush(`initialize`, `started initialization from ${getStateName(hsm.topState)}`);
-		try {
-			while (true) {
-				if (Object.prototype.hasOwnProperty.call(currState.prototype, 'onEntry')) {
-					currState.prototype['onEntry'].call(hsm._instance);
-				}
-				if (hasInitialState(currState)) {
-					currState = getInitialState(currState);
-				} else {
-					break;
-				}
-			}
-			hsm._tracePopDone(`final state is ${getStateName(currState)}`);
-			hsm.currentState = currState;
-		} catch (cause) {
-			if (cause instanceof TransitionError) {
-				throw cause;
-			}
-			hsm._tracePopError(`initialization failed from top state '${getStateName(hsm.topState)}' as ${getStateName(currState)}.onEntry() handler has raised ${quoteUnknown(cause)}; final state is ${getStateName(FatalErrorState)}`);
-			hsm.currentState = FatalErrorState as unknown as StateClass<C>;
-			throw new InitializationError(hsm, currState, asError(cause));
-		}
-	} finally {
-		hsm._traceWrite('end initialization');
-	}
-}
-
-/** @internal */
-async function debug_dispatchEvent<C extends ActorConfig>(hsm: HsmWithTracing<C>, eventName: string, ...eventPayload: unknown[]): Promise<void> {
-	const eventLabel = String(eventName);
-	hsm._traceWrite(`begin event dispatch of #${eventLabel}`);
-	hsm._tracePush(`#${eventLabel}`, `started event dispatch`);
-	hsm._currentEventName = eventLabel;
-	hsm._currentEventPayload = eventPayload;
-	try {
-		const eventHandler = lookupEventHandler(hsm, eventName);
-
-		if (!eventHandler) {
-			try {
-				await debug_doUnhandledEvent(hsm, new UnhandledEventError(hsm), () => {
-					hsm._tracePopDone('event dispatch successful');
-					debug_finishEventDispatch(hsm);
-				});
-				return;
-			} catch (recoveryErr) {
-				hsm._tracePopError(`event dispatch failed: ${quoteUnknown(recoveryErr)}`);
-				debug_finishEventDispatch(hsm);
-				throw recoveryErr;
-			}
-		}
-
-		try {
-			hsm._tracePush('execute', 'started event handler execution');
-			const result = eventHandler.call(hsm._instance, ...eventPayload);
-			if (result) {
-				await result;
-			}
-			hsm._tracePopDone('event handler execution successful');
-			await debug_completePendingTransitions(hsm, () => {
-				hsm._tracePopDone(`event dispatch successful`);
-				debug_finishEventDispatch(hsm);
-			});
-		} catch (recoveryErr) {
-			hsm._tracePopError(quoteUnknown(recoveryErr));
-			if (recoveryErr instanceof UnhandledEventError) {
-				try {
-					await debug_doUnhandledEvent(hsm, recoveryErr, () => {
-						hsm._tracePopDone('event dispatch successful');
-						debug_finishEventDispatch(hsm);
-					});
-					return;
-				} catch (nestedErr) {
-					hsm._tracePopError(`event dispatch failed: ${quoteUnknown(nestedErr)}`);
-					debug_finishEventDispatch(hsm);
-					throw nestedErr;
-				}
-			} else if (recoveryErr instanceof TransitionError) {
-				hsm._tracePopError(`event dispatch failed: ${quoteUnknown(recoveryErr)}`);
-				debug_finishEventDispatch(hsm);
-				throw recoveryErr;
-			} else {
-				try {
-					await debug_doError(hsm, asError(recoveryErr), () => {
-						hsm._tracePopDone('event dispatch successful');
-						debug_finishEventDispatch(hsm);
-					});
-				} catch (nestedErr) {
-					hsm._tracePopError(`event dispatch failed: ${quoteUnknown(nestedErr)}`);
-					debug_finishEventDispatch(hsm);
-					throw nestedErr;
-				}
-			}
-		}
-	} catch (err) {
-		debug_finishEventDispatch(hsm);
-		throw err;
-	}
-}
-
-export function createEventDispatchTaskDebug<DispatchC extends ActorConfig>(hsm: HsmWithTracing<DispatchC>, eventName: string, ...eventPayload: unknown[]): Task {
-	return (done: DoneCallback): void => {
-		debug_dispatchEvent(hsm, eventName, ...eventPayload)
-			.catch((err: unknown) => hsm.dispatchErrorCallback(hsm, asError(err)))
-			.finally(() => done());
-	};
-}
-
-//#region verbose
-
-function verbose_finishEventDispatch<C extends ActorConfig>(hsm: HsmWithTracing<C>): void {
-	hsm._traceWrite(`end event dispatch`);
-	hsm._currentEventName = undefined;
-	hsm._currentEventPayload = undefined;
-}
-
-async function verbose_completePendingTransitions<C extends ActorConfig>(hsm: HsmWithTracing<C>, onComplete: () => void): Promise<void> {
-	await verbose_doTransition(hsm);
-	onComplete();
-}
-
-/** @internal */
-class verbose_TraceTransition<C extends ActorConfig> implements Transition<C> {
-	constructor(private plan: ReturnType<typeof planTransitionClasses<C>>) {}
-
-	async execute(hsm: HsmWithTracing<C>, srcState: StateClass<C>, dstState: StateClass<C>): Promise<void> {
-		await executeTransitionRoutine(hsm, hsm._instance, this.plan, srcState, dstState, {
-			style: 'verbose',
-			tracer: createTransitionTracer(hsm),
-			setCurrentState: state => {
-				hsm.currentState = state;
-			},
-		});
-	}
-}
-
-/** @internal */
-async function verbose_doTransition<C extends ActorConfig>(hsm: HsmWithTracing<C>): Promise<void> {
-	if (hsm._transitionState) {
-		try {
-			const srcState = hsm.currentState;
-			const destState = hsm._transitionState;
-			hsm._traceWrite(`requested transition from ${getStateName(srcState)} to ${getStateName(destState)} `);
-			const transitionKey = getTransitionKey(srcState, destState);
-			let tr: Transition<C> | undefined = hsm._transitionCache.get(transitionKey);
-			if (tr) {
-				hsm._traceWrite(`transition cache hit for ${getStateName(srcState)} to ${getStateName(destState)} `);
-			} else {
-				hsm._traceWrite(`transition cache miss for ${getStateName(srcState)} to ${getStateName(destState)} `);
-				tr = new verbose_TraceTransition(planTransitionClasses(srcState, destState));
-				hsm._transitionCache.set(transitionKey, tr);
-			}
-			try {
-				await tr.execute(hsm, srcState, destState);
-			} catch (transitionError) {
-				hsm.currentState = FatalErrorState as unknown as StateClass<C>;
-				throw transitionError;
-			}
-		} finally {
-			hsm._transitionState = undefined;
-		}
-	} else {
-		hsm._traceWrite('no transition requested');
-	}
-}
-
-/** @internal */
-async function verbose_doError<C extends ActorConfig>(hsm: HsmWithTracing<C>, err: Error, onComplete: () => void): Promise<void> {
-	hsm._transitionState = undefined;
-	hsm._tracePush(`error recovery`, `started error recovery`);
-	hsm._tracePush(`lookup`, `started lookup of #onError event handler`);
-	let errorLookupState = hsm.currentState;
-	let messageHandler: ((error: RuntimeError<C>) => Promise<void> | void) | undefined;
-	while (errorLookupState != TopState) {
-		const errorPrototype = errorLookupState.prototype;
-		if (Object.prototype.hasOwnProperty.call(errorPrototype, 'onError')) {
-			hsm._tracePopDone(`found in state ${getStateName(errorLookupState)}`);
-			messageHandler = errorPrototype['onError'];
-			break;
-		}
-		hsm._traceWrite(`not found in state ${getStateName(errorLookupState)}`);
-		errorLookupState = Object.getPrototypeOf(errorLookupState);
-	}
-	if (messageHandler === undefined) {
-		hsm._tracePopDone(`found in state ${getStateName(TopState as StateClass)}`);
-		messageHandler = TopState.prototype.onError as (error: RuntimeError<C>) => void | Promise<void>;
-	}
-	try {
-		hsm._tracePush('execute', 'started #onError handler execution');
-		const result = messageHandler.call(hsm._instance, new EventHandlerError(hsm, err));
-		if (result) {
-			await result;
-		}
-		hsm._tracePopDone('error handler execution successful');
-		await verbose_completePendingTransitions(hsm, () => {
-			hsm._tracePopDone('error recovery successful');
-			onComplete();
-		});
-	} catch (recoveryErr) {
-		hsm._tracePopError(`error handler execution failure: ${quoteUnknown(recoveryErr)}`);
-		if (recoveryErr instanceof TransitionError) {
-			hsm._tracePopError(`error recovery failure: ${quoteUnknown(recoveryErr)}`);
-			throw recoveryErr;
-		}
-		const err = asError(recoveryErr);
-		hsm.transition(FatalErrorState as unknown as StateClass<C>);
-		await verbose_completePendingTransitions(hsm, () => {
-			hsm._tracePopError(`error recovery failure: ${quoteUnknown(err)}`);
-			onComplete();
-		});
-		throw new FatalError(hsm, err);
-	}
-}
-
-/** @internal */
-async function verbose_doUnhandledEvent<C extends ActorConfig>(hsm: HsmWithTracing<C>, error: UnhandledEventError<C>, onComplete: () => void): Promise<void> {
-	hsm._tracePush('unhandled recovery', `started unhandled event recovery`);
-	let unhandledLookupState = hsm.currentState;
-	hsm._tracePush(`lookup`, `started lookup of #onUnhandled event handler`);
-	let messageHandler: (error: UnhandledEventError<C>) => Promise<void> | void;
-	while (true) {
-		const unhandledPrototype = unhandledLookupState.prototype;
-		if (Object.prototype.hasOwnProperty.call(unhandledPrototype, 'onUnhandled')) {
-			hsm._tracePopDone(`found in state ${getStateName(unhandledLookupState)}`);
-			messageHandler = unhandledPrototype.onUnhandled;
-			break;
-		}
-		hsm._traceWrite(`not found in state ${getStateName(unhandledLookupState)}`);
-		unhandledLookupState = Object.getPrototypeOf(unhandledLookupState);
-		if (unhandledLookupState == TopState) {
-			hsm._tracePopDone(`found in state ${getStateName(unhandledLookupState)}`);
-			messageHandler = unhandledPrototype.onUnhandled;
-			break;
-		}
-	}
-	try {
-		hsm._tracePush('execute', 'started #onUnhandled handler execution');
-		const result = messageHandler.call(hsm._instance, error);
-		if (result) {
-			await result;
-		}
-		hsm._tracePopDone('unhandled handler execution successful');
-		await verbose_completePendingTransitions(hsm, () => {
-			hsm._tracePopDone('unhandled event recovery successful');
-			onComplete();
-		});
-	} catch (recoveryErr) {
-		hsm._tracePopError(`unhandled event recovery failure: ${quoteUnknown(recoveryErr)}`);
-
-		if (recoveryErr instanceof TransitionError) {
-			hsm.currentState = FatalErrorState as unknown as StateClass<C>;
-			hsm._tracePopError(`unhandled event recovery failure: ${quoteUnknown(recoveryErr)}`);
-			throw recoveryErr;
-		}
-
-		try {
-			await verbose_doError(hsm, asError(recoveryErr), () => {
-				hsm._tracePopDone('unhandled event recovery successful');
-				onComplete();
-			});
-		} catch (nestedErr) {
-			hsm._tracePopError(`unhandled event recovery failure: ${quoteUnknown(nestedErr)}`);
-			throw nestedErr;
-		}
-	}
-}
-
-/** @internal */
-export async function executeInitVerbose<C extends ActorConfig>(hsm: HsmWithTracing<C>): Promise<void> {
-	hsm._traceWrite('begin initialization');
-	try {
-		let currState: StateClass<C> = hsm.topState;
-		hsm._tracePush(`initialize`, `started initialization from ${getStateName(hsm.topState)}`);
-		try {
-			while (true) {
-				if (Object.prototype.hasOwnProperty.call(currState.prototype, 'onEntry')) {
-					currState.prototype['onEntry'].call(hsm._instance);
-					hsm._traceWrite(`${getStateName(currState)}.onEntry() done`);
-				} else {
-					hsm._traceWrite(`skip ${getStateName(currState)}.onEntry(): default empty implementation`);
-				}
-
-				if (hasInitialState(currState)) {
-					const newInitialState = getInitialState(currState);
-					hsm._traceWrite(`${getStateName(currState)} initial state is ${getStateName(newInitialState)}`);
-					currState = newInitialState;
-				} else {
-					hsm._traceWrite(`${getStateName(currState)} has no initial state; final state is ${getStateName(currState)}`);
-					break;
-				}
-			}
-			hsm._tracePopDone(`final state is ${getStateName(currState)}`);
-			hsm.currentState = currState;
-		} catch (cause) {
-			if (cause instanceof TransitionError) {
-				throw cause;
-			}
-			hsm._tracePopError(`initialization failed from top state '${getStateName(hsm.topState)}' as ${getStateName(currState)}.onEntry() handler has raised ${quoteUnknown(cause)}; final state is ${getStateName(FatalErrorState)}`);
-			hsm.currentState = FatalErrorState as unknown as StateClass<C>;
-			throw new InitializationError(hsm, currState, asError(cause));
-		}
-	} finally {
-		hsm._traceWrite('end initialization');
-	}
-}
-
-/** @internal */
-async function verbose_dispatchEvent<C extends ActorConfig>(hsm: HsmWithTracing<C>, eventName: string, ...eventPayload: unknown[]): Promise<void> {
-	const eventLabel = String(eventName);
-	hsm._traceWrite(`begin event dispatch of #${eventLabel}`);
-	hsm._tracePush(`#${eventLabel}`, `started event dispatch`);
-	hsm._currentEventName = eventLabel;
-	hsm._currentEventPayload = eventPayload;
-	try {
-		const eventHandler = lookupEventHandler(hsm, eventName);
-
-		if (!eventHandler) {
-			hsm._traceWrite(`event #${eventLabel} is unhandled in state ${hsm.currentStateName}`);
-			try {
-				await verbose_doUnhandledEvent(hsm, new UnhandledEventError(hsm), () => {
-					hsm._tracePopDone('event dispatch successful');
-					verbose_finishEventDispatch(hsm);
-				});
-				return;
-			} catch (recoveryErr) {
-				hsm._tracePopError(`event dispatch failed: ${quoteUnknown(recoveryErr)}`);
-				verbose_finishEventDispatch(hsm);
-				throw recoveryErr;
-			}
-		}
-
-		try {
-			hsm._tracePush('execute', 'started event handler execution');
-			const result = eventHandler.call(hsm._instance, ...eventPayload);
-			if (result) {
-				await result;
-			}
-			hsm._tracePopDone('event handler execution successful');
-			await verbose_completePendingTransitions(hsm, () => {
-				hsm._tracePopDone(`event dispatch successful`);
-				verbose_finishEventDispatch(hsm);
-			});
-		} catch (recoveryErr) {
-			hsm._tracePopError(quoteUnknown(recoveryErr));
-			if (recoveryErr instanceof UnhandledEventError) {
-				hsm._traceWrite(`event #${eventLabel} is unhandled in state ${hsm.currentStateName}`);
-				try {
-					await verbose_doUnhandledEvent(hsm, recoveryErr, () => {
-						hsm._tracePopDone('event dispatch successful');
-						verbose_finishEventDispatch(hsm);
-					});
-					return;
-				} catch (nestedErr) {
-					hsm._tracePopError(`event dispatch failed: ${quoteUnknown(nestedErr)}`);
-					verbose_finishEventDispatch(hsm);
-					throw nestedErr;
-				}
-			} else if (recoveryErr instanceof TransitionError) {
-				hsm._tracePopError(`event dispatch failed: ${quoteUnknown(recoveryErr)}`);
-				verbose_finishEventDispatch(hsm);
-				throw recoveryErr;
-			} else {
-				try {
-					await verbose_doError(hsm, asError(recoveryErr), () => {
-						hsm._tracePopDone('event dispatch successful');
-						verbose_finishEventDispatch(hsm);
-					});
-				} catch (nestedErr) {
-					hsm._tracePopError(`event dispatch failed: ${quoteUnknown(nestedErr)}`);
-					verbose_finishEventDispatch(hsm);
-					throw nestedErr;
-				}
-			}
-		}
-	} catch (err) {
-		verbose_finishEventDispatch(hsm);
-		throw err;
-	}
-}
-
-export function createEventDispatchTaskVerbose<DispatchC extends ActorConfig>(hsm: HsmWithTracing<DispatchC>, eventName: string, ...eventPayload: unknown[]): Task {
-	return (done: DoneCallback): void => {
-		verbose_dispatchEvent(hsm, eventName, ...eventPayload)
-			.catch((err: unknown) => hsm.dispatchErrorCallback(hsm, asError(err)))
-			.finally(() => done());
-	};
-}

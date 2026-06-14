@@ -1,5 +1,14 @@
 # Self-transition
 
+## What this presents
+
+Self-transition on the same leaf state class.
+
+## Why it's done this way
+
+When source equals destination and initial descent is unchanged, no exit/entry runs.
+
+
 ## Topology
 
 Source and target leaf class are **identical**. No lifecycle change.

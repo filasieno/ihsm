@@ -1,5 +1,14 @@
 # Leaf → ancestor composite
 
+## What this presents
+
+Transition from deep leaf to a non-parent ancestor composite.
+
+## Why it's done this way
+
+Exit up to the LCA, then enter down the target's initial chain; states above the LCA are untouched.
+
+
 ## Topology
 
 Target is a **grandparent** (or higher ancestor), not the root. **LCA = that ancestor** (`StackWest`).

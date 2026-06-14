@@ -1,5 +1,14 @@
 # Hi-priority notifications (`notifyNow`)
 
+## What this presents
+
+Hi-priority `notifyNow` / `this.notifyNow` — drains before normal `notify` from the same handler turn.
+
+## Why it's done this way
+
+Inventory locks and payment capture must run before deferred cancel side effects in the same dispatch.
+
+
 ## Problem
 
 Sometimes a handler must run **follow-up protocol steps before** normal-priority notifications scheduled in the same turn — extended transitions, pseudo-states, inventory locks.

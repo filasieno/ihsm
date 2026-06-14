@@ -1,5 +1,14 @@
 # Cross-stack: leaf → mid composite
 
+## What this presents
+
+Cross-stack transition into a mid-level composite.
+
+## Why it's done this way
+
+Same LCA rules as branch targets; initial descent may match another cross-branch case when chains align.
+
+
 ## Topology
 
 Target is **`MidEast`** — a composite **inside** the east stack, not the branch root. **LCA = `DeepTop`**.

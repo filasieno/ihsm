@@ -1,5 +1,14 @@
 # Cross-stack: leaf → leaf
 
+## What this presents
+
+Cross-stack transition between leaves in different branches.
+
+## Why it's done this way
+
+LCA is the common ancestor (here the root); full exit of source stack then entry into target leaf.
+
+
 ## Topology
 
 Source and target are **leaves in different stacks**. **LCA = `DeepTop`** (only shared ancestor).

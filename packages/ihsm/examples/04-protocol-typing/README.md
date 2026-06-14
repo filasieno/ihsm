@@ -1,5 +1,14 @@
 # Protocol Typing
 
+## What this presents
+
+Compile-time checks on `Config` buckets: notification names, payload types, and service return types on `notify` / `call`.
+
+## Why it's done this way
+
+Method signatures on state classes are the single source of truth — typos and wrong arity fail at compile time instead of at first production dispatch.
+
+
 ## Problem
 
 String event names and untyped payloads fail at runtime after refactors — a typo in an event name compiles until the first dispatch in production.
@@ -74,4 +83,3 @@ On the [documentation page](https://filasieno.github.io/ihsm/reference), use the
 ```shell
 npm run test:examples -- --grep 'Tutorial 04'
 ```
-

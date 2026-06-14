@@ -1,5 +1,14 @@
 # Tutorial 00 — config, handles, and `hsm`
 
+## What this presents
+
+The `Config` bag, `TopState<YourConfig>`, faceted actor handles (`notify`, `notifyNow`, `call`), and handler machinery on `this.hsm`.
+
+## Why it's done this way
+
+One structural config type replaces positional generics; protocol keys are discovered from state handler methods so typing stays aligned with runtime dispatch.
+
+
 Start here for the protocol model.
 
 ## What you learn

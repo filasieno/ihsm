@@ -1,5 +1,14 @@
 # Cross-stack: leaf → branch composite
 
+## What this presents
+
+Cross-stack transition into a branch composite (not a leaf).
+
+## Why it's done this way
+
+Target composite's `@InitialState` chain runs after entry — you land on the initial leaf.
+
+
 ## Topology
 
 Target is the **branch composite** `StackEast`, not a leaf. **LCA = `DeepTop`**.

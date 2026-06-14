@@ -1,5 +1,14 @@
 # Internal transition
 
+## What this presents
+
+Internal transition: handler runs without `transition()` — no exit/entry.
+
+## Why it's done this way
+
+Use when the event updates data but the active state class should not change.
+
+
 ## Topology
 
 Handler runs; **no** `this.hsm.transition()`. State class unchanged — no `onExit` / `onEntry`.

@@ -1,5 +1,14 @@
 # Hello state machine
 
+## What this presents
+
+A minimal door machine: state classes, `@InitialState`, `this.hsm.transition()`, and client `notify` + `hsm.sync()`.
+
+## Why it's done this way
+
+Class-per-state keeps hierarchy natural in TypeScript; separating client notifications from handler transitions makes run-to-completion ordering explicit.
+
+
 ## Problem
 
 Model each mode as a **state class**. Events are methods; crossing a mode boundary calls `this.hsm.transition(NextState)`.

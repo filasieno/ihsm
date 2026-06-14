@@ -1,5 +1,14 @@
 # Deferred notifications (`hsm.port.defer`)
 
+## What this presents
+
+Timer-driven self-notifications via `this.hsm.port.defer(ms).event(…)`.
+
+## Why it's done this way
+
+Deferred work goes through the port timer service so tests can advance virtual time instead of sleeping.
+
+
 ## Problem
 
 Handlers sometimes need to schedule follow-up work after a delay without blocking the current handler.

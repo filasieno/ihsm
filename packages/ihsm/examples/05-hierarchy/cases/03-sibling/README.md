@@ -1,5 +1,14 @@
 # Leaf → sibling leaf
 
+## What this presents
+
+Sibling leaf-to-leaf transition under the same parent composite.
+
+## Why it's done this way
+
+LCA is the shared parent; only the source leaf exits and the target leaf enters.
+
+
 ## Topology
 
 Two leaves share the same parent composite. **LCA = parent** (`MidWest`).

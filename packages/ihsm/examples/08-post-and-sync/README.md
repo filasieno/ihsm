@@ -1,5 +1,14 @@
 # Notifications and sync
 
+## What this presents
+
+Fire-and-forget `notify`, blocking `call`, and `await actor.hsm.sync()` to drain the queue.
+
+## Why it's done this way
+
+Clients return immediately from notifications; `sync()` is the deterministic barrier for tests and orchestration.
+
+
 ## Problem
 
 If handlers could be re-entered mid-flight, invariants break. You need deterministic ordering when one handler schedules follow-up work — and a clear way to **wait** (or not) from outside the actor.

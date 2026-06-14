@@ -1,5 +1,14 @@
 # Leaf → parent composite
 
+## What this presents
+
+Transition from child leaf to immediate parent composite.
+
+## Why it's done this way
+
+LCA is that parent; ihsm re-enters the parent's initial substate chain.
+
+
 ## Topology
 
 Target is the **immediate parent** composite. **LCA = that parent** (`MidWest`).

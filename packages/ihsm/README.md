@@ -243,7 +243,7 @@ await door.hsm.sync();
 const id = await account.call.lookup('user-42');
 ```
 
-Inside handlers use `this.hsm.transition()`, `this.hsm.sleep()`, `this.notify`, and `this.notifyNow`.
+Inside handlers use `this.hsm.transition()`, `this.notify`, and `this.notifyNow`. For delays, `await new Promise(r => this.hsm.port.setTimeout(r, ms))`; for timer-driven self-notifications, `this.hsm.port.defer(ms).event(…)`.
 
 See [Messaging](https://filasieno.github.io/ihsm/reference#_4-messaging-notifications-services-sync) in the reference.
 
@@ -277,7 +277,7 @@ Two rules: **never perform I/O outside a port**, and **never `sleep()` on wall-c
 
 ### Virtual clock — simulate days of timers in microseconds
 
-`this.hsm.defer(ms).onTick()` arms timers through the port. Replace the real clock with `TestPort` and call `advance(ms)` by hand:
+`this.hsm.port.defer(ms).onTick()` arms timers through the port. Replace the real clock with `TestPort` and call `advance(ms)` by hand:
 
 ```ts
 import { InitialState, TopState } from 'ihsm';
@@ -297,11 +297,11 @@ class HeartbeatTop extends TopState<HeartbeatConfig> {
 @InitialState
 class Running extends HeartbeatTop {
   start(): void {
-    this.hsm.defer(HOUR_MS).onTick();
+    this.hsm.port.defer(HOUR_MS).onTick();
   }
   onTick(): void {
     this.ctx.ticks += 1;
-    this.hsm.defer(HOUR_MS).onTick();
+    this.hsm.port.defer(HOUR_MS).onTick();
   }
 }
 

@@ -1,5 +1,14 @@
 # Chained Child Actors (Parallel States as Child Actors)
 
+## What this presents
+
+`makeChildActor` in parent `onEntry`, drive with `child.notify`, clear in `onExit`.
+
+## Why it's done this way
+
+Owned child actors get isolated queues and protocols — composition without passive parallel regions.
+
+
 ## Why ihsm rejects UML parallel states
 
 Statechart tools (SCXML, XState, UML) offer **`type: 'parallel'`** regions: several

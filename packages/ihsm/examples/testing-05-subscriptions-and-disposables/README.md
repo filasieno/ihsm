@@ -1,5 +1,14 @@
 # Testing 05 · Subscriptions & disposables
 
+## What this presents
+
+`ResultWithSubscription`, context-owned handles, and idempotent `dispose()` on teardown.
+
+## Why it's done this way
+
+Long-lived subscriptions need explicit ownership — golden `port.trace` proves cleanup exactly once.
+
+
 > **New here?** This chapter assumes you can read TypeScript but have never thought hard about
 > *subscription lifetimes*. We go slowly. By the end you will know what a `Disposable` is, why every
 > subscription needs one, and how ihsm lets you **prove** — deterministically — that your machine

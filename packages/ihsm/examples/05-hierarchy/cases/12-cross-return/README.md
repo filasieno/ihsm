@@ -1,5 +1,14 @@
 # Cross-stack return (east → west)
 
+## What this presents
+
+Cross-stack transition that returns to a previously visited leaf.
+
+## Why it's done this way
+
+Exercises exit/entry on the return path; trace confirms full stack walk.
+
+
 ## Topology
 
 Reverse of [case 07](./07-cross-leaf/README.md): east leaf to west leaf. **LCA = `DeepTop`**.

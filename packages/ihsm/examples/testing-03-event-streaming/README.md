@@ -1,5 +1,14 @@
 # Testing 03 · Event streaming behind a port
 
+## What this presents
+
+Push source behind a port; subscription lifecycle with `Disposable`.
+
+## Why it's done this way
+
+Device state stays in the mock; the actor only sees events while subscribed — no race-prone live polling.
+
+
 A push source — OS input, a file watcher, a network socket, a WebSocket/SSE feed — emits
 events on its own schedule, which is exactly what makes naive code flaky. Put the source behind
 a `Port` and the machine becomes pure and deterministically testable.

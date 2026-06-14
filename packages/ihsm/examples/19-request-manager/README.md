@@ -1,5 +1,14 @@
 # Request Manager
 
+## What this presents
+
+Manager with request table, per-command child actors, and cancellable deferred work.
+
+## Why it's done this way
+
+Many in-flight commands need per-request children and internal events — not one giant state product.
+
+
 ## Problem
 
 A front-end submits heterogeneous commands (different state machines) that must be tracked,

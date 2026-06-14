@@ -1,5 +1,14 @@
 # Testing 02 · Network fetch behind a port
 
+## What this presents
+
+Network I/O behind an `@mock` port — script responses and push `onResponse` / `onFailure` inward.
+
+## Why it's done this way
+
+Separates outbound `request` from inbound settlement so in-flight states are observable without sockets.
+
+
 Network calls are the textbook source of flaky tests: real latency, real failures, real DNS.
 Put `fetch()` behind a `Port` and the machine becomes pure — a test decides what the
 response is **and when it arrives**, with no sockets and no timers.

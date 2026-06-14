@@ -1,5 +1,14 @@
 # Tracing
 
+## What this presents
+
+Trace levels (`PRODUCTION`, `DEBUG`, `VERBOSE_DEBUG`) and custom `TraceWriter` output during dispatch.
+
+## Why it's done this way
+
+Swappable trace implementations let you observe transitions without changing machine logic; level changes apply immediately on a live actor.
+
+
 ## Problem
 
 You need visibility into dispatch and transitions in development, without paying that cost in production — and you need a **shared vocabulary** to read dispatch traces consistently across examples.
