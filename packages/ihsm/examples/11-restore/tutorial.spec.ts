@@ -19,7 +19,7 @@ describe('Tutorial 11: restore', () => {
 			lastPage: 'settings',
 			entryLog: live.ctx.entryLog,
 		});
-		live.navigate('billing');
+		live.notify.navigate('billing');
 		await live.hsm.sync();
 		expect(live.ctx.lastPage).equals('billing');
 
@@ -40,7 +40,7 @@ describe('Tutorial 11: restore', () => {
 		expect(resumed.ctx.lastPage).equals('billing');
 		expect(resumed.ctx.entryLog).deep.equals(['Anonymous']);
 
-		resumed.navigate('profile');
+		resumed.notify.navigate('profile');
 		await resumed.hsm.sync();
 		expect(resumed.ctx.lastPage).equals('profile');
 	});

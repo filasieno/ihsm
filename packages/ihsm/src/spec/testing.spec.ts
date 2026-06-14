@@ -117,30 +117,34 @@ describe('ihsm/testing', () => {
 			});
 		});
 
+		it('makeTestPort rejects undecorated port classes', () => {
+			expect(() => makeTestPort(UndecoratedPort)).to.throw(/makeTestPort requires a class decorated with @ihsm\.mock/);
+		});
+
 		it('drives a port-mediated open and settles it inward with onOpened()', async () => {
 			const sm = makeTestActor(DeviceTop, freshCtx(), port);
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(Idle);
 			expect(sm.hsm.port).equals(port);
 
-			expect(port.actor).to.exist;
+			expect(port.actor).to.not.equal(undefined);
 
-			sm.open('tty0');
+			sm.notify.open('tty0');
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(Connecting);
 			expect(port.trace).eqls(['connect:tty0']);
 			expect(port.connect.calls).eqls([['tty0']]);
 
-			port.actor!.onOpened(42);
+			port.actor!.notify.onOpened(42);
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(Open);
-			expect(await sm.lastHandle()).equals(42);
+			expect(await sm.call.lastHandle()).equals(42);
 		});
 
 		it('records messages and exposes last/count/clear', async () => {
 			const sm = makeTestActor(DeviceTop, freshCtx(), port);
 			await sm.hsm.sync();
-			sm.open('tty1');
+			sm.notify.open('tty1');
 			await sm.hsm.sync();
 			expect(port.count).equals(1);
 			expect(port.last).to.deep.include({ event: 'connect' });
@@ -157,8 +161,8 @@ describe('ihsm/testing', () => {
 			port.noop.default(() => void seen.push('default'));
 			port.noop.once(() => void seen.push('once'));
 
-			sm.poke();
-			sm.poke();
+			sm.notify.poke();
+			sm.notify.poke();
 			await sm.hsm.sync();
 
 			expect(seen).eqls(['once', 'default']);
@@ -184,7 +188,7 @@ describe('ihsm/testing', () => {
 
 	it('port.actor throws when the actor has not been bound yet', () => {
 		const port = makeTestPort(MockDevicePort);
-		expect(() => port.actor!.onOpened(1)).to.throw();
+		expect(() => port.actor!.notify.onOpened(1)).to.throw();
 	});
 
 	it('subscribe → TestPort.record traces events until the subscription is disposed', async () => {
@@ -195,13 +199,13 @@ describe('ihsm/testing', () => {
 		const sub = traceActorOnPort(sm, trace);
 		await sm.hsm.sync();
 
-		sm.open('a');
+		sm.notify.open('a');
 		await sm.hsm.sync();
 		expect(trace.events).eqls(['open']);
 		expect(trace.trace).eqls(['open:a']);
 
 		sub.dispose();
-		sm.cancel();
+		sm.notify.cancel();
 		await sm.hsm.sync();
 		expect(trace.events).eqls(['open']);
 	});
@@ -329,12 +333,17 @@ describe('ihsm/testing', () => {
 		expect(bytes.some(b => b !== 0)).equals(true);
 	});
 
+	it('Port<T> is branded by the root state constructor', () => {
+		const port = new Port<typeof DeviceTop>();
+		expect(port).to.be.instanceOf(Port);
+	});
+
 	it('defer falls back to global setTimeout when the port omits setTimeout', async () => {
 		class BarePort extends Port<typeof DeviceTop> {}
 		const port = new BarePort();
 		const sm = makeTestActor(Connecting, freshCtx(), port, { initialize: false });
 		await sm.hsm.sync();
-		sm.scheduleOnOpened(0, 5);
+		sm.notify.scheduleOnOpened(0, 5);
 		await new Promise(resolve => setTimeout(resolve, 20));
 		await sm.hsm.sync();
 		expect(sm.hsm.currentState).equals(Open);
@@ -346,7 +355,7 @@ describe('ihsm/testing', () => {
 		port.connect.default(() => ({ value: 7, subscription: { dispose: () => undefined } }));
 		const sm = makeTestActor(Connecting, freshCtx(), port, { initialize: false });
 		await sm.hsm.sync();
-		sm.scheduleOnOpened(0, 5);
+		sm.notify.scheduleOnOpened(0, 5);
 		await sm.hsm.sync();
 		port.advance(0);
 		await sm.hsm.sync();
@@ -448,7 +457,7 @@ describe('ihsm/testing', () => {
 			expect(sm.hsm.subscribe).to.be.a('function');
 			const events: string[] = [];
 			const sub = sm.hsm.subscribe(msg => events.push(msg.event));
-			sm.open('usb0');
+			sm.notify.open('usb0');
 			await sm.hsm.sync();
 			sub.dispose();
 			expect(events).includes('open');
@@ -460,15 +469,15 @@ describe('ihsm/testing', () => {
 			expect(sm.hsm.dispatchErrorCallback).equals(cb);
 			sm.hsm.dispatchErrorCallback = cb;
 
-			sm.open('usb0');
+			sm.notify.open('usb0');
 			await sm.hsm.sync();
 			expect(sm.hsm.currentStateName).equals('Connecting');
 			sm.hsm.restore(Idle, freshCtx());
 			await sm.hsm.sync();
-			sm.open('usb1');
+			sm.notify.open('usb1');
 			await sm.hsm.sync();
 			expect(sm.ctx.target).equals('usb1');
-			expect(await sm.lastHandle()).equals(9);
+			expect(await sm.call.lastHandle()).equals(9);
 		});
 
 		it('applies option defaults when options are omitted, and honours all provided options', async () => {
@@ -514,10 +523,10 @@ describe('ihsm/testing', () => {
 			expect(actor.hsm.traceWriter).equals(defaultTraceWriter);
 			actor.hsm.traceWriter = defaultTraceWriter;
 
-			actor.open('usb0');
+			actor.notify.open('usb0');
 			await actor.hsm.sync();
 			expect(actor.hsm.currentStateName).equals('Connecting');
-			expect(await actor.lastHandle()).equals(9);
+			expect(await actor.call.lastHandle()).equals(9);
 		});
 	});
 });

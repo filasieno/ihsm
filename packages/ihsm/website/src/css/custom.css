@@ -272,6 +272,77 @@ body {
 	border-top: 1px solid var(--ihsm-border);
 }
 
+/* Home hero + cards */
+.ihsm-hero {
+	margin-bottom: 2rem;
+}
+
+.ihsm-hero h1 {
+	margin-bottom: 0.75rem;
+}
+
+.ihsm-badges {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-top: 1rem;
+}
+
+.ihsm-badge {
+	display: inline-block;
+	font-size: 0.8rem;
+	font-weight: 600;
+	padding: 0.35rem 0.75rem;
+	border-radius: 999px;
+	border: 1px solid var(--ihsm-border);
+	background: rgba(99, 102, 241, 0.1);
+	color: var(--ihsm-fg);
+}
+
+.ihsm-cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+	gap: 1rem;
+	margin: 1.25rem 0 2rem;
+}
+
+.ihsm-card {
+	padding: 1rem 1.15rem;
+	border: 1px solid var(--ihsm-border);
+	border-radius: var(--ihsm-radius-lg);
+	background: rgba(9, 9, 11, 0.45);
+}
+
+[data-theme='light'] .ihsm-card {
+	background: #fafafa;
+}
+
+.ihsm-card h3 {
+	margin-top: 0;
+	font-size: 1rem;
+}
+
+/* Reference playgrounds — spacing after headings */
+.markdown h3 + section[aria-label*='Tutorial playground'] {
+	margin-top: 0.5rem;
+}
+
+/* Table of contents — long reference page */
+.theme-doc-toc-desktop .table-of-contents__link {
+	font-size: 0.82rem;
+}
+
+.theme-doc-toc-desktop .table-of-contents__link--active {
+	color: var(--ifm-color-primary);
+	font-weight: 600;
+}
+
+/* Admonitions */
+.theme-admonition {
+	border-radius: var(--ihsm-radius-lg);
+	border-width: 1px;
+}
+
 /* Home / intro hero */
 article header h1 {
 	font-size: clamp(2rem, 4vw, 2.75rem);

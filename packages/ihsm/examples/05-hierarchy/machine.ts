@@ -18,7 +18,7 @@ export interface DeepCtx {
 
 export interface DeepConfig {
 	context: DeepCtx;
-notifications: {
+	notifications: {
 		tick(): void;
 		goSiblingWest(): void;
 		goParentWest(): void;
@@ -35,14 +35,12 @@ notifications: {
 	};
 }
 
-
 function pushTrace(ctx: DeepCtx, line: string): void {
 	ctx.trace.push(line);
 }
 
 /** Root — LCA for every cross-stack transition. */
 export class DeepTop extends PlaygroundTopState<DeepConfig> {
-
 	onEntry(): void {
 		pushTrace(this.ctx, 'enter:DeepTop');
 	}

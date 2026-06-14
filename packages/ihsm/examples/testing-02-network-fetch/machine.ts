@@ -28,7 +28,7 @@ export interface FetchCtx {
 
 export interface FetchConfig {
 	context: FetchCtx;
-notifications: {
+	notifications: {
 		fetch(url: string): void;
 		cancel(): void;
 	};
@@ -44,13 +44,8 @@ notifications: {
 	};
 }
 
-export type FetchPublic = ihsm.ActorNotificationsOf<FetchConfig>;
-
-export type FetchInternal = ihsm.ActorInternalNotificationsOf<FetchConfig>;
-
 /** Outbound boundary to the (impure) network. */
 export type FetchPort = ihsm.DomainPortOf<FetchConfig>;
-
 
 /**
  * Root state. `fetch` (start a request) is the shared behaviour of every *resting* state —
@@ -59,7 +54,6 @@ export type FetchPort = ihsm.DomainPortOf<FetchConfig>;
  * Late settled-events (`onResponse` / `onFailure` after a `cancel`) are safe no-ops here.
  */
 export class FetchTop extends ihsm.TopState<FetchConfig> {
-
 	fetch(url: string): void {
 		this.ctx.url = url;
 		this.ctx.error = '';

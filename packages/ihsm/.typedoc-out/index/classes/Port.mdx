@@ -1,8 +1,9 @@
-Runtime port binding — `actor` is set synchronously before factory return.
+Runtime port — timers, randomness, deferred notifications, and [IPort.actor](../interfaces/IPort.mdx#actor).
 
-## Extends
+## Extended by
 
-- [`BasePort`](BasePort.mdx)\<`T`\>
+- [`TestPort`](../../testing/classes/TestPort.mdx)
+- [`RequestingPort`](RequestingPort.mdx)
 
 ## Type Parameters
 
@@ -12,6 +13,7 @@ Runtime port binding — `actor` is set synchronously before factory return.
 
 ## Implements
 
+- [`IPort`](../interfaces/IPort.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`T`\>\>
 - [`RandomService`](../interfaces/RandomService.mdx)
 
 ## Constructors
@@ -24,19 +26,11 @@ Runtime port binding — `actor` is set synchronously before factory return.
 
 `Port`\<`T`\>
 
-#### Inherited from
-
-[`BasePort`](BasePort.mdx).[`constructor`](BasePort.mdx#constructor)
-
 ## Properties
 
 ### \_\_topState
 
 > `readonly` **\_\_topState**: `T`
-
-#### Inherited from
-
-[`BasePort`](BasePort.mdx).[`__topState`](BasePort.mdx#__topstate)
 
 ***
 
@@ -44,15 +38,55 @@ Runtime port binding — `actor` is set synchronously before factory return.
 
 > **actor**: [`InboundActor`](../type-aliases/InboundActor.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`T`\>\> \| [`ChildActor`](../type-aliases/ChildActor.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`T`\>\>
 
-#### Inherited from
+#### Implementation of
 
-[`BasePort`](BasePort.mdx).[`actor`](BasePort.mdx#actor)
+[`IPort`](../interfaces/IPort.mdx).[`actor`](../interfaces/IPort.mdx#actor)
+
+***
+
+### \_timerSeq
+
+> `protected` **\_timerSeq**: `number` = `0`
+
+***
+
+### \_timeoutHandles
+
+> `protected` `readonly` **\_timeoutHandles**: `Map`\<`number`, `Timeout`\>
+
+***
+
+### \_intervalHandles
+
+> `protected` `readonly` **\_intervalHandles**: `Map`\<`number`, `Timeout`\>
 
 ## Methods
+
+### defer()
+
+> **defer**(`ms`): [`SelfNotifications`](../type-aliases/SelfNotifications.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`T`\>\>
+
+#### Parameters
+
+##### ms
+
+`number`
+
+#### Returns
+
+[`SelfNotifications`](../type-aliases/SelfNotifications.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`T`\>\>
+
+#### Implementation of
+
+[`IPort`](../interfaces/IPort.mdx).[`defer`](../interfaces/IPort.mdx#defer)
+
+***
 
 ### setTimeout()
 
 > **setTimeout**(`callback`, `millis?`): `number`
+
+Schedule a one-shot callback after `millis` milliseconds (platform timer).
 
 #### Parameters
 
@@ -67,6 +101,10 @@ Runtime port binding — `actor` is set synchronously before factory return.
 #### Returns
 
 `number`
+
+#### Implementation of
+
+[`IPort`](../interfaces/IPort.mdx).[`setTimeout`](../interfaces/IPort.mdx#settimeout)
 
 ***
 
@@ -74,6 +112,8 @@ Runtime port binding — `actor` is set synchronously before factory return.
 
 > **clearTimeout**(`id`): `void`
 
+Cancel a timer previously returned by [Port.setTimeout](#settimeout).
+
 #### Parameters
 
 ##### id
@@ -84,11 +124,17 @@ Runtime port binding — `actor` is set synchronously before factory return.
 
 `void`
 
+#### Implementation of
+
+[`IPort`](../interfaces/IPort.mdx).[`clearTimeout`](../interfaces/IPort.mdx#cleartimeout)
+
 ***
 
 ### setInterval()
 
 > **setInterval**(`callback`, `millis?`): `number`
+
+Schedule a repeating callback every `millis` milliseconds.
 
 #### Parameters
 
@@ -104,11 +150,17 @@ Runtime port binding — `actor` is set synchronously before factory return.
 
 `number`
 
+#### Implementation of
+
+[`IPort`](../interfaces/IPort.mdx).[`setInterval`](../interfaces/IPort.mdx#setinterval)
+
 ***
 
 ### clearInterval()
 
 > **clearInterval**(`id`): `void`
+
+Cancel an interval previously returned by [Port.setInterval](#setinterval).
 
 #### Parameters
 
@@ -120,11 +172,17 @@ Runtime port binding — `actor` is set synchronously before factory return.
 
 `void`
 
+#### Implementation of
+
+[`IPort`](../interfaces/IPort.mdx).[`clearInterval`](../interfaces/IPort.mdx#clearinterval)
+
 ***
 
 ### random()
 
 > **random**(): `number`
+
+Pseudorandom number in `[0, 1)` — delegates to `Math.random()`.
 
 #### Returns
 
@@ -140,6 +198,8 @@ Runtime port binding — `actor` is set synchronously before factory return.
 
 > **cryptoRandom**(): `number`
 
+Cryptographic-quality random in `[0, 1)` when the platform provides it.
+
 #### Returns
 
 `number`
@@ -154,6 +214,8 @@ Runtime port binding — `actor` is set synchronously before factory return.
 
 > **randomUUID**(): `string`
 
+Generate a UUID v4 string via `crypto.randomUUID()`.
+
 #### Returns
 
 `string`
@@ -167,6 +229,8 @@ Runtime port binding — `actor` is set synchronously before factory return.
 ### getRandomValues()
 
 > **getRandomValues**\<`T`\>(`array`): `T`
+
+Fill `array` with cryptographically strong random bytes.
 
 #### Type Parameters
 

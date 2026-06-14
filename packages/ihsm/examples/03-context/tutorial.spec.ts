@@ -8,15 +8,15 @@ describe('Tutorial 03: context', () => {
 		const counter = createCounter(10, 5);
 		await counter.hsm.sync();
 
-		counter.increment();
+		counter.notify.increment();
 		await counter.hsm.sync();
 		expect(counter.ctx.value).equals(15);
 
-		counter.decrement();
+		counter.notify.decrement();
 		await counter.hsm.sync();
 		expect(counter.ctx.value).equals(10);
 
-		counter.reset();
+		counter.notify.reset();
 		await counter.hsm.sync();
 		expect(counter.ctx.value).equals(0);
 	});

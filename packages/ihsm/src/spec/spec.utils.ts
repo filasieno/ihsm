@@ -1,4 +1,4 @@
-import { Disposable, EventObserver, Properties, TraceLevel, TracedMessage, type ActorConfig } from '../';
+import { Disposable, EventObserver, Properties, TraceLevel, type ActorConfig } from '../';
 import { kMachine } from '../internal/runtime';
 import type { HandleOwn } from '../internal/runtime';
 import { registerStateNamesFromExports } from '../../examples/shared/state-names';
@@ -46,11 +46,8 @@ export function clearLastError(): void {
 export function traceActorOnPort(
 	/** Generated actor handle (`TestActor`, …) — carries `kMachine` at runtime. */
 	actor: object,
-	port: { record(event: string, ...payload: unknown[]): void },
+	port: { record(event: string, ...payload: unknown[]): void }
 ): Disposable {
-	const subscribable =
-		'subscribe' in actor && typeof (actor as { subscribe?: unknown }).subscribe === 'function'
-			? (actor as { subscribe(observer: EventObserver): Disposable })
-			: ((actor as unknown as HandleOwn)[kMachine] as unknown as { subscribe(observer: EventObserver): Disposable });
+	const subscribable = 'subscribe' in actor && typeof (actor as { subscribe?: unknown }).subscribe === 'function' ? (actor as { subscribe(observer: EventObserver): Disposable }) : ((actor as unknown as HandleOwn)[kMachine] as unknown as { subscribe(observer: EventObserver): Disposable });
 	return subscribable.subscribe(message => port.record(message.event, ...message.payload));
 }

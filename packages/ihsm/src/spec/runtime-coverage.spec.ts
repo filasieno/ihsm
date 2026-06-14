@@ -224,7 +224,7 @@ describe('runtime-coverage', function (): void {
 		const ctx = { n: 0 };
 		const actor = makeActor(RuntimeCoverageTop, ctx, port);
 		await actor.hsm.sync();
-		expect(port.actor).to.exist;
+		expect(port.actor).to.not.equal(undefined);
 		await port.actor!.hsm.sync();
 		expect(port.actor!.hsm.currentState).equals(RuntimeCoverageLeaf);
 		expect(port.actor!.hsm.currentStateName).equals('RuntimeCoverageLeaf');
@@ -235,8 +235,8 @@ describe('runtime-coverage', function (): void {
 		expect(port.actor!.hsm.traceLevel).equals(TraceLevel.VERBOSE_DEBUG);
 		port.actor!.hsm.traceWriter = defaultTraceWriter;
 		expect(port.actor!.hsm.traceWriter).equals(defaultTraceWriter);
-		(port.actor as InboundActor<RuntimeCoverageConfig>).tick();
-		actor.ping();
+		(port.actor as InboundActor<RuntimeCoverageConfig>).notify.tick();
+		actor.notify.ping();
 		await actor.hsm.sync();
 		expect(ctx.n).equals(1);
 	});
@@ -260,7 +260,7 @@ describe('runtime-coverage', function (): void {
 		});
 		await actor.hsm.sync();
 		try {
-			await actor.throwTransition();
+			await actor.call.throwTransition();
 			expect.fail('expected throw');
 		} catch (err) {
 			expect(err).instanceOf(TransitionError);
@@ -333,7 +333,7 @@ describe('runtime-coverage', function (): void {
 	it('service handler can surface UnhandledEventError through invokeHandler', async () => {
 		const actor = makeTestActor(UnhandledTop, {}, new Port(), { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 		await actor.hsm.sync();
-		const result = await actor.bail();
+		const result = await actor.call.bail();
 		expect(result).equals(undefined);
 		expect(actor.hsm.currentState).equals(UnhandledLeaf);
 	});
@@ -351,7 +351,7 @@ describe('runtime-coverage', function (): void {
 		const actor = makeTestActor(TransitionFailTop, {}, new Port(), { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 		await actor.hsm.sync();
 		try {
-			await actor.go();
+			await actor.call.go();
 		} catch {
 			// expected
 		}
@@ -384,13 +384,13 @@ describe('runtime-coverage', function (): void {
 	it('async onUnhandled and onUnhandled recovery errors', async () => {
 		const actor = makeTestActor(AsyncUnhandledTop, {}, new Port(), { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 		await actor.hsm.sync();
-		await actor.go();
+		await actor.call.go();
 		expect(actor.hsm.currentState).equals(AsyncUnhandledLeaf);
 
 		const actor2 = makeTestActor(TransitionUnhandledTop, {}, new Port(), { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 		await actor2.hsm.sync();
 		try {
-			await actor2.go();
+			await actor2.call.go();
 		} catch (err) {
 			expect(err).instanceOf(TransitionError);
 		}
@@ -399,7 +399,7 @@ describe('runtime-coverage', function (): void {
 		const actor3 = makeTestActor(ErrorUnhandledTop, {}, new Port(), { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 		await actor3.hsm.sync();
 		try {
-			await actor3.go();
+			await actor3.call.go();
 		} catch (err) {
 			expect(err).instanceOf(FatalError);
 		}
@@ -413,7 +413,7 @@ describe('runtime-coverage', function (): void {
 			dispatchErrorCallback: createTestDispatchErrorCallback(true),
 		});
 		await actor.hsm.sync();
-		expect(getLastError()).to.exist;
+		expect(getLastError()).to.not.equal(undefined);
 	});
 
 	it('Machine binds a default port for deferred notifications', async function (this: Mocha.Context): Promise<void> {
@@ -425,7 +425,7 @@ describe('runtime-coverage', function (): void {
 			portRef: port,
 		};
 		const machine = new Machine(PortlessTop, instance, buildProtocolIndex(PortlessTop), defaultTraceWriter, TraceLevel.DEBUG, defaultDispatchErrorCallback, true);
-		expect(machine.port).to.exist;
+		expect(machine.port).to.not.equal(undefined);
 		instance.hsm.port.defer(0).later();
 		await machine.sync();
 		expect(machine.currentState).equals(PortlessLeaf);

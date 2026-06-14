@@ -12,8 +12,7 @@ interface InitConfig {
 	context: Record<string, never>;
 }
 
-export class HsmTop extends TopState<InitConfig> {
-}
+export class HsmTop extends TopState<InitConfig> {}
 
 @InitialState
 export class A extends HsmTop {}

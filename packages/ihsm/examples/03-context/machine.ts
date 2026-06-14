@@ -16,16 +16,14 @@ export interface CounterCtx {
 
 export interface CounterConfig {
 	context: CounterCtx;
-notifications: {
+	notifications: {
 		increment(): void;
 		decrement(): void;
 		reset(): void;
 	};
 }
 
-
 export class CounterTop extends PlaygroundTopState<CounterConfig> {
-
 	increment(): void {
 		this.ctx.value += this.ctx.step;
 		// No transition() → internal transition; Running stays active.

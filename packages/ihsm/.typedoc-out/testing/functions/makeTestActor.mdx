@@ -3,9 +3,8 @@
 Creates a **full-access** actor for deterministic tests: merged protocol + typed `port`.
 
 Identical construction to [makeActor](../../index/functions/makeActor.mdx) (same three mandatory arguments + [ActorOptions](../../index/interfaces/ActorOptions.mdx)),
-but the returned [TestActor](../type-aliases/TestActor.mdx) exposes the merged Dispatch protocol — so tests can
-drive internal events directly (no live port required) — and grants typed access to `port` for
-asserting outbound interactions or pushing observations.
+but the returned [TestActor](../type-aliases/TestActor.mdx) exposes the full child protocol (including internal buckets) and
+grants typed access to `port` for asserting outbound interactions or pushing observations.
 
 Unlike [makeActor](../../index/functions/makeActor.mdx), `traceLevel` defaults to [TraceLevel.VERBOSE\_DEBUG](../../index/enumerations/TraceLevel.mdx#verbose_debug) so a failing
 test is fully readable; opt down explicitly via `options.traceLevel` only when you need a quiet run.
@@ -20,7 +19,7 @@ test is fully readable; opt down explicitly via `options.traceLevel` only when y
 
 ### topState
 
-`ValidatedTopStateArg`\<`T`\>
+[`ValidatedTopStateArg`](../../index/type-aliases/ValidatedTopStateArg.mdx)\<`T`\>
 
 Root state class; `Context` / `Public` / `Internal` are inferred from it (see [TopStateArg](../../index/type-aliases/TopStateArg.mdx))
 
@@ -32,7 +31,7 @@ Mutable domain object shared by all states
 
 ### port?
 
-[`TestPort`](../classes/TestPort.mdx)\<[`Any`](../../index/type-aliases/Any.mdx)\> \| [`MachinePortInput`](../../index/type-aliases/MachinePortInput.mdx)\<[`ActorConfigOf`](../../index/type-aliases/ActorConfigOf.mdx)\<`T`\>\>
+[`Port`](../../index/classes/Port.mdx)\<[`Any`](../../index/type-aliases/Any.mdx)\> \| [`TestPort`](../classes/TestPort.mdx)\<[`Any`](../../index/type-aliases/Any.mdx)\>
 
 Outbound [Port](../../index/classes/Port.mdx) instance (its `actor` is bound by the factory)
 

@@ -25,7 +25,6 @@ interface CoverageConfig {
 }
 
 export class Top extends TopState<CoverageConfig> {
-
 	trigger(): void {}
 	boom(): void {}
 }
@@ -56,8 +55,7 @@ export class OnUnhandledRethrowsTransition extends Top {
 	}
 }
 
-export class InitTransitionTop extends TopState<CoverageConfig> {
-}
+export class InitTransitionTop extends TopState<CoverageConfig> {}
 
 @InitialState
 export class InitOnEntryThrowsTransition extends InitTransitionTop {
@@ -89,7 +87,6 @@ export class AsyncOnUnhandledRecovery extends Top {
 }
 
 export class MissingHandlerTop extends TopState<CoverageConfig> {
-
 	onUnhandled(_error: UnhandledEventError<CoverageConfig, never>): void {
 		throw new Error('onUnhandled failed');
 	}
@@ -135,7 +132,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			const sm = makeTestActor(HandlerThrowsTransition, {}, port, { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			traceActorOnPort(sm, port);
 			await sm.hsm.sync();
-			sm.trigger();
+			sm.notify.trigger();
 			await sm.hsm.sync();
 			expect(getLastError()).instanceOf(TransitionError);
 			expect(port.events).eqls(['trigger']);
@@ -150,9 +147,9 @@ for (const traceLevel of TRACE_LEVELS) {
 		it('does not recover', async () => {
 			const sm = makeTestActor(OnErrorRethrowsTransition, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			await sm.hsm.sync();
-			sm.trigger();
+			sm.notify.trigger();
 			await sm.hsm.sync();
-			expect(getLastError()).to.exist;
+			expect(getLastError()).to.not.equal(undefined);
 		});
 	});
 }
@@ -164,7 +161,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		it('moves to fatal state', async () => {
 			const sm = makeTestActor(OnUnhandledRethrowsTransition, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			await sm.hsm.sync();
-			sm.trigger();
+			sm.notify.trigger();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(FatalErrorState);
 		});
@@ -188,7 +185,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		it('awaits the onError promise', async () => {
 			const sm = makeTestActor(AsyncOnErrorRecovery, {}, new TestPort(), { traceLevel });
 			await sm.hsm.sync();
-			sm.trigger();
+			sm.notify.trigger();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentStateName).equals('AsyncOnErrorRecovery');
 		});
@@ -200,7 +197,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		it('awaits the onUnhandled promise', async () => {
 			const sm = makeTestActor(AsyncOnUnhandledRecovery, {}, new TestPort(), { traceLevel });
 			await sm.hsm.sync();
-			sm.trigger();
+			sm.notify.trigger();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentStateName).equals('AsyncOnUnhandledRecovery');
 		});
@@ -228,7 +225,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		it('reports nested dispatch failure', async () => {
 			const sm = makeTestActor(BoomUnhandled, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 			await sm.hsm.sync();
-			sm.boom();
+			sm.notify.boom();
 			await sm.hsm.sync();
 			expect(getLastError()).instanceOf(Error);
 		});

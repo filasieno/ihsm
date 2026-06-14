@@ -1,4 +1,4 @@
-> **ActorPortOf**\<`C`\> = `C` *extends* `object` ? `Port` : `undefined`
+> **ActorPortOf**\<`C`\> = `C` *extends* `object` ? `P` & [`PortServices`](PortServices.mdx)\<`C`\> : [`IPort`](../interfaces/IPort.mdx)\<`C`\>
 
 Type-only public surface — erased at compile time; no runtime JS from this module.
 

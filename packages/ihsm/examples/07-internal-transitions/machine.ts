@@ -16,15 +16,13 @@ export interface LampCtx {
 
 export interface LampConfig {
 	context: LampCtx;
-notifications: {
+	notifications: {
 		dim(delta: number): void;
 		brighten(delta: number): void;
 	};
 }
 
-
 export class LampTop extends PlaygroundTopState<LampConfig> {
-
 	onEntry(): void {
 		this.ctx.entryCount += 1;
 	}

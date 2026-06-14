@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import 'mocha';
 import { InitialState, TopState, Port } from '../';
 import { makeTestActor } from '../testing';
-import * as self from './makeHsm.spec';
+import * as self from './makeActor.spec';
 import { registerSpecStateNames } from './spec.utils';
 
 //#region ThisTestSpec
@@ -11,8 +11,7 @@ interface MakeHsmConfig {
 	context: { initialized: boolean };
 }
 
-export class HsmTop extends TopState<MakeHsmConfig> {
-}
+export class HsmTop extends TopState<MakeHsmConfig> {}
 
 @InitialState
 export class Ready extends HsmTop {

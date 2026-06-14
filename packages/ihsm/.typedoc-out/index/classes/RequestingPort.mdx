@@ -1,8 +1,8 @@
-Runtime port binding — `actor` is set synchronously before factory return.
+Runtime port — timers, randomness, deferred notifications, and [IPort.actor](../interfaces/IPort.mdx#actor).
 
 ## Extends
 
-- [`BasePort`](BasePort.mdx)\<`T`\>
+- [`Port`](Port.mdx)\<`T`\>
 
 ## Type Parameters
 
@@ -22,7 +22,7 @@ Runtime port binding — `actor` is set synchronously before factory return.
 
 #### Inherited from
 
-[`BasePort`](BasePort.mdx).[`constructor`](BasePort.mdx#constructor)
+[`Port`](Port.mdx).[`constructor`](Port.mdx#constructor)
 
 ## Properties
 
@@ -32,7 +32,37 @@ Runtime port binding — `actor` is set synchronously before factory return.
 
 #### Inherited from
 
-[`BasePort`](BasePort.mdx).[`__topState`](BasePort.mdx#__topstate)
+[`Port`](Port.mdx).[`__topState`](Port.mdx#__topstate)
+
+***
+
+### \_timerSeq
+
+> `protected` **\_timerSeq**: `number` = `0`
+
+#### Inherited from
+
+[`Port`](Port.mdx).[`_timerSeq`](Port.mdx#_timerseq)
+
+***
+
+### \_timeoutHandles
+
+> `protected` `readonly` **\_timeoutHandles**: `Map`\<`number`, `Timeout`\>
+
+#### Inherited from
+
+[`Port`](Port.mdx).[`_timeoutHandles`](Port.mdx#_timeouthandles)
+
+***
+
+### \_intervalHandles
+
+> `protected` `readonly` **\_intervalHandles**: `Map`\<`number`, `Timeout`\>
+
+#### Inherited from
+
+[`Port`](Port.mdx).[`_intervalHandles`](Port.mdx#_intervalhandles)
 
 ***
 
@@ -42,4 +72,196 @@ Runtime port binding — `actor` is set synchronously before factory return.
 
 #### Overrides
 
-[`BasePort`](BasePort.mdx).[`actor`](BasePort.mdx#actor)
+[`Port`](Port.mdx).[`actor`](Port.mdx#actor)
+
+## Methods
+
+### defer()
+
+> **defer**(`ms`): [`SelfNotifications`](../type-aliases/SelfNotifications.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`T`\>\>
+
+#### Parameters
+
+##### ms
+
+`number`
+
+#### Returns
+
+[`SelfNotifications`](../type-aliases/SelfNotifications.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`T`\>\>
+
+#### Inherited from
+
+[`Port`](Port.mdx).[`defer`](Port.mdx#defer)
+
+***
+
+### setTimeout()
+
+> **setTimeout**(`callback`, `millis?`): `number`
+
+Schedule a one-shot callback after `millis` milliseconds (platform timer).
+
+#### Parameters
+
+##### callback
+
+() => `void`
+
+##### millis?
+
+`number`
+
+#### Returns
+
+`number`
+
+#### Inherited from
+
+[`Port`](Port.mdx).[`setTimeout`](Port.mdx#settimeout)
+
+***
+
+### clearTimeout()
+
+> **clearTimeout**(`id`): `void`
+
+Cancel a timer previously returned by [Port.setTimeout](Port.mdx#settimeout).
+
+#### Parameters
+
+##### id
+
+`number` \| `undefined`
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+[`Port`](Port.mdx).[`clearTimeout`](Port.mdx#cleartimeout)
+
+***
+
+### setInterval()
+
+> **setInterval**(`callback`, `millis?`): `number`
+
+Schedule a repeating callback every `millis` milliseconds.
+
+#### Parameters
+
+##### callback
+
+() => `void`
+
+##### millis?
+
+`number`
+
+#### Returns
+
+`number`
+
+#### Inherited from
+
+[`Port`](Port.mdx).[`setInterval`](Port.mdx#setinterval)
+
+***
+
+### clearInterval()
+
+> **clearInterval**(`id`): `void`
+
+Cancel an interval previously returned by [Port.setInterval](Port.mdx#setinterval).
+
+#### Parameters
+
+##### id
+
+`number` \| `undefined`
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+[`Port`](Port.mdx).[`clearInterval`](Port.mdx#clearinterval)
+
+***
+
+### random()
+
+> **random**(): `number`
+
+Pseudorandom number in `[0, 1)` — delegates to `Math.random()`.
+
+#### Returns
+
+`number`
+
+#### Inherited from
+
+[`Port`](Port.mdx).[`random`](Port.mdx#random)
+
+***
+
+### cryptoRandom()
+
+> **cryptoRandom**(): `number`
+
+Cryptographic-quality random in `[0, 1)` when the platform provides it.
+
+#### Returns
+
+`number`
+
+#### Inherited from
+
+[`Port`](Port.mdx).[`cryptoRandom`](Port.mdx#cryptorandom)
+
+***
+
+### randomUUID()
+
+> **randomUUID**(): `string`
+
+Generate a UUID v4 string via `crypto.randomUUID()`.
+
+#### Returns
+
+`string`
+
+#### Inherited from
+
+[`Port`](Port.mdx).[`randomUUID`](Port.mdx#randomuuid)
+
+***
+
+### getRandomValues()
+
+> **getRandomValues**\<`T`\>(`array`): `T`
+
+Fill `array` with cryptographically strong random bytes.
+
+#### Type Parameters
+
+##### T
+
+`T` *extends* `ArrayBufferView`\<`ArrayBufferLike`\>
+
+#### Parameters
+
+##### array
+
+`T`
+
+#### Returns
+
+`T`
+
+#### Inherited from
+
+[`Port`](Port.mdx).[`getRandomValues`](Port.mdx#getrandomvalues)

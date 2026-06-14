@@ -20,11 +20,9 @@ It uses event-driven programming, class-based hierarchical statecharts, and the 
 
 📖 [Read the documentation](https://filasieno.github.io/ihsm/)
 
-📑 [API reference](https://filasieno.github.io/ihsm/api)
-
 📖 [Reference](https://filasieno.github.io/ihsm/reference)
 
-🧪 [Deterministic Testing chapter](https://filasieno.github.io/ihsm/testing)
+🧪 [Deterministic Testing](https://filasieno.github.io/ihsm/testing)
 
 💬 [Open an issue](https://github.com/filasieno/ihsm/issues)
 
@@ -88,7 +86,7 @@ class Open extends DoorTop {
 const door = makeActor(DoorTop, { openCount: 0 }, new Port());
 await door.hsm.sync();
 
-door.open();
+door.notify.open();
 await door.hsm.sync();
 
 console.log(door.hsm.currentStateName); // 'Open'
@@ -104,7 +102,7 @@ See **[examples/00-config/](examples/00-config/README.md)** for the full protoco
 Services are declared on the protocol's `services` bucket. The generated client method **always** returns `Promise<Reply>` — callers must `await`, so RTC ordering is explicit.
 
 ```ts
-import { InitialState, makeOwnerActor, Port, TopState } from 'ihsm';
+import { InitialState, makeActor, Port, TopState } from 'ihsm';
 
 interface WalletCtx {
   balance: number;
@@ -142,23 +140,23 @@ class WalletTop extends TopState<WalletConfig> {
 @InitialState
 class Open extends WalletTop {}
 
-const wallet = makeOwnerActor(WalletTop, { balance: 100 }, new Port());
+const wallet = makeActor(WalletTop, { balance: 100 }, new Port());
 await wallet.hsm.sync();
 
-wallet.deposit(50);
+wallet.notify.deposit(50);
 
-const balance = await wallet.getBalance();
+const balance = await wallet.call.getBalance();
 
 try {
-  await wallet.withdraw(200);
+  await wallet.call.withdraw(200);
 } catch {
   // handler throw → rejected Promise
 }
 
-const left = await wallet.getBalance(); // 150
+const left = await wallet.call.getBalance(); // 150
 ```
 
-**Notifications** → `wallet.deposit(50)` (void). **Services** → `await wallet.getBalance()` (Promise). The split is **nominal** via `Config.notifications` vs `Config.services`.
+**Notifications** → `wallet.notify.deposit(50)` (void). **Services** → `await wallet.call.getBalance()` (Promise). The split is **nominal** via `Config.notifications` vs `Config.services`.
 
 See [Tutorial 00 — Config](examples/00-config/README.md) and the [reference](https://filasieno.github.io/ihsm/reference).
 
@@ -172,7 +170,7 @@ Also not that all states are stateless classes.
 All state is stored in the actor context available at `this.ctx`.
 
 ```ts
-import { InitialState, makeOwnerActor, Port, TopState } from 'ihsm';
+import { InitialState, makeActor, Port, TopState } from 'ihsm';
 
 interface PlayerCtx {
   track: string;
@@ -214,10 +212,10 @@ class Stopped extends PlayerTop {
   }
 }
 
-const player = makeOwnerActor(PlayerTop, { track: '' }, new Port());
+const player = makeActor(PlayerTop, { track: '' }, new Port());
 await player.hsm.sync();
 
-player.play();
+player.notify.play();
 await player.hsm.sync();
 // active leaf: Playing — inherits stop() from Active
 ```
@@ -232,19 +230,20 @@ Every machine is an actor with **single-threaded, run-to-completion dispatch**. 
 
 | API | Role | Returns |
 | --- | ---- | ------- |
-| `actor.event(…)` | Fire-and-forget notification | `void` (use `hsm.sync()` to wait) |
-| `await actor.service(…)` | Typed request/response | `Promise<T>` |
-| `this.hsm.defer(ms).event(…)` | Timer then notification | handler-only |
+| `actor.notify.event(…)` | Fire-and-forget notification | `void` (use `hsm.sync()` to wait) |
+| `actor.notifyNow.event(…)` | Hi-priority notification | `void` |
+| `await actor.call.service(…)` | Typed request/response | `Promise<T>` |
+| `this.hsm.port.defer(ms).event(…)` | Timer then self-notification | handler-only |
 | `await actor.hsm.sync()` | Drain queue up to marker | `Promise<void>` |
 
 ```ts
-door.open();
+door.notify.open();
 await door.hsm.sync();
 
-const id = await account.lookup('user-42');
+const id = await account.call.lookup('user-42');
 ```
 
-Inside handlers use `this.hsm.transition()`, `this.hsm.sleep()`, `this.hsm.actor`, and `this.hsm.immediate`.
+Inside handlers use `this.hsm.transition()`, `this.hsm.sleep()`, `this.notify`, and `this.notifyNow`.
 
 See [Messaging](https://filasieno.github.io/ihsm/reference#_4-messaging-notifications-services-sync) in the reference.
 
@@ -306,7 +305,7 @@ class Running extends HeartbeatTop {
   }
 }
 
-const clock = new TestPort<HeartbeatTop>();
+const clock = new TestPort<typeof HeartbeatTop>();
 const test = makeTestActor(HeartbeatTop, new HeartbeatCtx(), clock);
 await test.hsm.sync();
 
@@ -331,7 +330,7 @@ Put `fetch()` behind a port. The mock records outbound calls but does **not** au
 import { mock, makeTestActor, makeTestPort, TestPort } from 'ihsm/testing';
 
 @mock
-abstract class MockFetchPort extends TestPort<FetchTop> {
+abstract class MockFetchPort extends TestPort<typeof FetchTop> {
   abstract request(url: string): { value: number; subscription: { dispose(): void } };
 }
 
@@ -359,7 +358,7 @@ await fetcher.hsm.sync();
 Wire `subscribe` to the port message log for a byte-identical transcript across runs:
 
 ```ts
-const port = new TestPort<HeartbeatTop>();
+const port = new TestPort<typeof HeartbeatTop>();
 const test = makeTestActor(HeartbeatTop, new HeartbeatCtx(), port);
 const sub = test.subscribe(m => port.record(m.event, ...m.payload));
 
@@ -389,11 +388,11 @@ version:
 
 | Import | Contents | Ships in production? |
 | ------ | -------- | -------------------- |
-| `ihsm` | The runtime: `makeOwnerActor` / `makeActor`, `TopState`, ports, tracing | **yes** |
+| `ihsm` | The runtime: `makeActor` / `makeActor`, `TopState`, ports, tracing | **yes** |
 | `ihsm/testing` or `@ihsm/core/testing` | Deterministic-testing utilities: `makeTestActor`, `@mock` / `makeTestPort`, `TestPort` (re-exports the core API too) | **no** — test-only |
 
 ```ts
-import { makeOwnerActor, TopState } from 'ihsm';                 // production code
+import { makeActor, TopState } from 'ihsm';                 // production code
 import { makeTestActor, mock, TestPort } from 'ihsm/testing'; // tests only
 ```
 
@@ -423,7 +422,7 @@ Measured with `esbuild` bundling `lib/esm/index.js` for the browser (full runtim
 | **Published package** | `lib/` only (~46 KB npm tarball) |
 | **Minified bundle** | **~22 KB** (21.7 KiB; single-file ESM/IIFE) |
 | **Gzip** | **~4.6 KB** (typical CDN / HTTP transfer size) |
-| **Tree-shaking** | `"sideEffects": false` — runtime is one cohesive module (~22 KB even when importing only `makeOwnerActor`) |
+| **Tree-shaking** | `"sideEffects": false` — runtime is one cohesive module (~22 KB even when importing only `makeActor`) |
 
 Node loads the unminified `lib/` files directly (~18 KB entry, ~62 KB total); minify numbers apply to browser bundles.
 
@@ -455,12 +454,11 @@ Inspired by Harel statecharts and the SCXML family of notations.
 | **Documentation site** | [filasieno.github.io/ihsm](https://filasieno.github.io/ihsm/) |
 | Deterministic Simulation Testing | [/testing](https://filasieno.github.io/ihsm/testing) |
 | Reference (concepts + interactive examples) | [/reference](https://filasieno.github.io/ihsm/reference) |
-| API reference (TSDoc) | [/api](https://filasieno.github.io/ihsm/api) |
 | Source: DST chapter | [reference/TESTING.md](./reference/TESTING.md) |
 | Source: reference | [reference/REFERENCE.md](./reference/REFERENCE.md) |
 | Source: example machines | [examples/](./examples/) |
 
-The reference page combines the full manual with embedded playgrounds; the API is generated from TSDoc.
+The reference page combines the manual with embedded playgrounds. The testing chapter runs five DST examples first, then the full technique.
 
 ---
 

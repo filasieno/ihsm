@@ -327,7 +327,7 @@
               echo "  bash scripts/verify-reproducible.sh .#docs" >&2
               echo "" >&2
               echo "Docs:" >&2
-              echo "  nix build .#docs       Docusaurus site (reference + API)" >&2
+              echo "  nix build .#docs       Docusaurus site (reference + testing)" >&2
               echo "" >&2
               echo "Dev (uses the same npm lockfile as nix build):" >&2
               echo "  npm run test:all         Node + minified browser (unit + examples)" >&2

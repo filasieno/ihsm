@@ -26,7 +26,7 @@ function mulberry32(seed: number): () => number {
  * no-op so the test can drive `onResult` by hand.
  */
 @ihsm.mock('attempt')
-abstract class FaultMock extends ihsm.TestPort<WorkerTop> {
+abstract class FaultMock extends ihsm.TestPort<typeof WorkerTop> {
 	abstract attempt(n: number): void;
 }
 
@@ -54,7 +54,7 @@ describe('Testing 04: fault injection & seeded DST', () => {
 
 			const worker = ihsm.makeTestActor(WorkerTop, freshCtx(5), port);
 			await worker.hsm.sync();
-			worker.run();
+			worker.notify.run();
 			await runToCompletion(worker);
 			return { state: worker.hsm.currentState, calls: [...port.trace], log: worker.ctx.log };
 		};
@@ -73,7 +73,7 @@ describe('Testing 04: fault injection & seeded DST', () => {
 
 		const worker = ihsm.makeTestActor(WorkerTop, freshCtx(3), port);
 		await worker.hsm.sync();
-		worker.run();
+		worker.notify.run();
 		await runToCompletion(worker);
 
 		expect(worker.hsm.currentState).equals(Failed);
@@ -88,7 +88,7 @@ describe('Testing 04: fault injection & seeded DST', () => {
 
 		const worker = ihsm.makeTestActor(WorkerTop, freshCtx(3), port);
 		await worker.hsm.sync();
-		worker.run();
+		worker.notify.run();
 		await runToCompletion(worker);
 
 		expect(worker.hsm.currentState).equals(Succeeded);
@@ -102,16 +102,16 @@ describe('Testing 04: fault injection & seeded DST', () => {
 		const test = ihsm.makeTestActor(WorkerTop, freshCtx(2), port);
 		await test.hsm.sync();
 
-		test.run();
+		test.notify.run();
 		await test.hsm.sync();
 		expect(test.hsm.currentState).equals(Working);
 
-		test.onResult(false); // inject a fault → retry
+		test.notify.onResult(false); // inject a fault → retry
 		await test.hsm.sync();
 		expect(test.hsm.currentState).equals(Working);
 		expect(test.ctx.attempts).equals(2);
 
-		test.onResult(false); // fault again → budget exhausted
+		test.notify.onResult(false); // fault again → budget exhausted
 		await test.hsm.sync();
 		expect(test.hsm.currentState).equals(Failed);
 		expect(port.trace).to.deep.equal(['attempt:1', 'attempt:2']); // the recorded retries
@@ -124,18 +124,20 @@ describe('Testing 04: fault injection & seeded DST', () => {
 		// Validated by `tsc` (the examples project is type-checked); the body never runs. The
 		// production `makeActor` surface here is what demonstrates the public/internal boundary.
 		const _typeChecks = (): void => {
-			const worker = makeTestActor(WorkerTop, freshCtx(), ihsm.makeTestPort(FaultMock));
+			const worker = ihsm.makeTestActor(WorkerTop, freshCtx(), ihsm.makeTestPort(FaultMock));
 
 			// @ts-expect-error 'onResult' is internal — not callable on the public Actor surface.
-			worker.onResult(true);
-			worker.run(); // valid public event
+			worker.notify.onResult(true);
+			worker.notify.run(); // valid public event
 
-			interface CollidingInternal {
-				// Collides with WorkerPublic.run — must be rejected by the disjointness gate.
-				run(): void;
+			interface CollidingWorkerConfig {
+				context: ReturnType<typeof freshCtx>;
+				notifications: { run(): void };
+				internalNotifications: { run(): void };
 			}
+			class CollidingWorkerTop extends ihsm.TopState<CollidingWorkerConfig> {}
 			// @ts-expect-error public and internal protocols must not share keys ('run').
-			makeTestActor<ReturnType<typeof freshCtx>, { run(): void }, CollidingInternal>(WorkerTop, freshCtx(), ihsm.makeTestPort(FaultMock));
+			ihsm.makeTestActor(CollidingWorkerTop, freshCtx(), ihsm.makeTestPort(FaultMock));
 		};
 
 		expect(typeof _typeChecks).to.equal('function');

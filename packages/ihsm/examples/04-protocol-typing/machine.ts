@@ -14,7 +14,7 @@ export interface ThermostatCtx {
 
 export interface ThermostatConfig {
 	context: ThermostatCtx;
-notifications: {
+	notifications: {
 		setTarget(celsius: number): void;
 	};
 	services: {
@@ -22,9 +22,7 @@ notifications: {
 	};
 }
 
-
 export class ThermostatTop extends PlaygroundTopState<ThermostatConfig> {
-
 	setTarget(celsius: number): void {
 		this.ctx.celsius = celsius;
 	}

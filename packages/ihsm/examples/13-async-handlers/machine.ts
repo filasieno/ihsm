@@ -17,11 +17,10 @@ export interface FileCtx {
 
 export interface FileConfig {
 	context: FileCtx;
-notifications: {
+	notifications: {
 		transfer(from: string, to: string): Promise<void>;
 	};
 }
-
 
 /** Simulated file API — each step returns a Promise like real I/O. */
 async function open(path: string, mode: 'r' | 'w'): Promise<number> {
@@ -43,8 +42,7 @@ async function close(_fd: number): Promise<void> {
 	await Promise.resolve();
 }
 
-export class FileTop extends PlaygroundTopState<FileConfig> {
-}
+export class FileTop extends PlaygroundTopState<FileConfig> {}
 
 @ihsm.InitialState
 export class Idle extends FileTop {
@@ -92,6 +90,6 @@ export function createFileActor() {
 			bytesWritten: 0,
 			steps: [],
 		},
-		new ihsm.Port(),
+		new ihsm.Port()
 	);
 }

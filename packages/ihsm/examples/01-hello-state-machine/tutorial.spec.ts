@@ -10,12 +10,12 @@ describe('Tutorial 01: hello state machine', () => {
 
 		expect(door.hsm.currentState).equals(Closed);
 
-		door.open();
+		door.notify.open();
 		await door.hsm.sync();
 		expect(door.hsm.currentState).equals(Open);
 		expect(door.ctx.openCount).equals(1);
 
-		door.close();
+		door.notify.close();
 		await door.hsm.sync();
 		expect(door.hsm.currentState).equals(Closed);
 	});

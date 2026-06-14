@@ -135,6 +135,10 @@ export default function InteractiveTutorial({ meta }: InteractiveTutorialProps):
 
 	return (
 		<section className={styles.panel} aria-label={`Tutorial playground: ${meta.title}`}>
+			<div className={styles.playgroundHeader}>
+				<span className={styles.playgroundBadge}>Interactive playground</span>
+				<span className={styles.playgroundTitle}>{meta.title}</span>
+			</div>
 			<div className={styles.toolbar}>
 				<div className={styles.fieldGroup}>
 					<label htmlFor={`${meta.title}-sender`}>Sender</label>
@@ -152,7 +156,7 @@ export default function InteractiveTutorial({ meta }: InteractiveTutorialProps):
 					<select id={`${meta.title}-message`} value={messageId} onChange={event => onMessageChange(event.target.value)} disabled={busy || messages.length === 0}>
 						{messages.map(message => (
 							<option key={message.id} value={message.id}>
-								{message.kind === 'service' ? `call ${message.label}` : `post ${message.label}`}
+								{message.kind === 'service' ? `call.${message.label}` : `notify.${message.label}`}
 							</option>
 						))}
 					</select>
@@ -166,7 +170,7 @@ export default function InteractiveTutorial({ meta }: InteractiveTutorialProps):
 				))}
 
 				<button type="button" className={styles.primaryButton} onClick={() => void runDispatch()} disabled={busy || !selectedMessage}>
-					Send
+					{selectedMessage ? (selectedMessage.kind === 'service' ? `Call ${selectedMessage.label}` : `Notify ${selectedMessage.label}`) : 'Send'}
 				</button>
 				<button type="button" className={styles.secondaryButton} onClick={onReset} disabled={busy}>
 					Reset

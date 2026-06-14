@@ -65,7 +65,7 @@ export class Busy extends DemoTop {}
 registerSpecStateNames(self);
 //#endregion
 
-//#region Type-level embodiment gating (load-bearing — see reference/EMBODIMENTS.md)
+//#region Type-level actor surface gating (load-bearing — compile-time checks for notify/call/hsm split)
 
 type Assert<T extends true> = T;
 type Has<O, K extends PropertyKey> = K extends keyof O ? true : false;
@@ -93,6 +93,19 @@ type _ChildCallHasInternal = Assert<Has<ChildActor<DemoConfig>['call'], 'secret'
 type _ChildCallHasPublic = Assert<Has<ChildActor<DemoConfig>['call'], 'fetch'>>;
 // @ts-expect-error inbound `call` must not expose internal services
 type _InboundCallNoInternal = Assert<Has<InboundActor<DemoConfig>['call'], 'secret'>>;
+
+// No flat protocol surface anywhere — every interaction goes through a facet,
+// so `actor.theEvent()` / `actor.theService()` is impossible by construction.
+// @ts-expect-error external actor must not expose a flat notification
+type _ExtNoFlatNotify = Assert<Has<ExternalActor<DemoConfig>, 'ping'>>;
+// @ts-expect-error external actor must not expose a flat service
+type _ExtNoFlatCall = Assert<Has<ExternalActor<DemoConfig>, 'fetch'>>;
+// @ts-expect-error inbound actor must not expose a flat notification
+type _InboundNoFlatNotify = Assert<Has<InboundActor<DemoConfig>, 'ping'>>;
+// @ts-expect-error child actor must not expose a flat service
+type _ChildNoFlatCall = Assert<Has<ChildActor<DemoConfig>, 'fetch'>>;
+// @ts-expect-error handler `this` must not expose a flat notification
+type _HandlerNoFlatNotify = Assert<Has<TopState<DemoConfig>, 'ping'>>;
 
 //#endregion
 

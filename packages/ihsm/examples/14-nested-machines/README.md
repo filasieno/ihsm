@@ -33,7 +33,7 @@ The `OrderCoordinator` owns both actors and orchestrates `fulfill()`.
 Payment region:
 
 ```typescript
-export class PaymentTop extends TopState<PaymentCtx, PaymentProtocol> {
+export class PaymentTop extends TopState<PaymentCtxConfig> {
 	markPaid(): void {
 		this.ctx.paid = true;
 		this.hsm.transition(PaymentDone); // ← payment actor only
@@ -44,7 +44,7 @@ export class PaymentTop extends TopState<PaymentCtx, PaymentProtocol> {
 Shipping region — independent queue and cache:
 
 ```typescript
-export class ShippingTop extends TopState<ShippingCtx, ShippingProtocol> {
+export class ShippingTop extends TopState<ShippingCtxConfig> {
 	markShipped(): void {
 		this.ctx.shipped = true;
 		this.hsm.transition(ShippingDone);

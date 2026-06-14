@@ -5,21 +5,4 @@
  */
 export * from './internal/runtime';
 export type * from './types';
-export type {
-	Any,
-	DispatchErrorCallback,
-	Disposable,
-	EventObserver,
-	MachinePortInput,
-	IPort,
-	Properties,
-	RandomService,
-	TimerService,
-	DomainPortOf,
-	PortServices,
-	ResultWithSubscription,
-	StateClass,
-	StateEvents,
-	TraceWriter,
-	TracedMessage,
-} from './internal/types';
+export type { Any, DispatchErrorCallback, Disposable, EventObserver, MachinePortInput, IPort, Properties, RandomService, TimerService, DomainPortOf, PortServices, ResultWithSubscription, StateClass, StateEvents, TraceWriter, TracedMessage } from './internal/types';

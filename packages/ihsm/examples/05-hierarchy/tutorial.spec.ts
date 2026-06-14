@@ -21,13 +21,13 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(A);
 
-			sm.goToB();
+			sm.notify.goToB();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(B);
 			expect(sm.ctx.log).includes('exit:A');
 			expect(sm.ctx.log).includes('enter:B');
 
-			sm.goToC();
+			sm.notify.goToC();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(C);
 			expect(sm.ctx.log).includes('exit:B');
@@ -51,7 +51,7 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 			await sm.hsm.sync();
 			const base = sm.ctx.trace.length;
 
-			sm.tick();
+			sm.notify.tick();
 			await sm.hsm.sync();
 
 			expect(sm.hsm.currentState).equals(LeafWestA);
@@ -66,7 +66,7 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 			await sm.hsm.sync();
 			const base = sm.ctx.trace.length;
 
-			sm.goSiblingWest();
+			sm.notify.goSiblingWest();
 			await sm.hsm.sync();
 
 			expect(sm.hsm.currentState).equals(LeafWestB);
@@ -80,7 +80,7 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 			await sm.hsm.sync();
 			const base = sm.ctx.trace.length;
 
-			sm.goParentWest();
+			sm.notify.goParentWest();
 			await sm.hsm.sync();
 
 			expect(sm.hsm.currentState).equals(LeafWestA);
@@ -92,11 +92,11 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 		it('LeafWestB → StackWest: LCA = StackWest, skips DeepTop', async () => {
 			const sm = createDeepMachine();
 			await sm.hsm.sync();
-			sm.goSiblingWest();
+			sm.notify.goSiblingWest();
 			await sm.hsm.sync();
 			const base = sm.ctx.trace.length;
 
-			sm.goAncestorWest();
+			sm.notify.goAncestorWest();
 			await sm.hsm.sync();
 
 			expect(sm.hsm.currentState).equals(LeafWestA);
@@ -110,7 +110,7 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 			await sm.hsm.sync();
 			const base = sm.ctx.trace.length;
 
-			sm.goRoot();
+			sm.notify.goRoot();
 			await sm.hsm.sync();
 
 			expect(sm.hsm.currentState).equals(LeafWestA);
@@ -124,7 +124,7 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 			await sm.hsm.sync();
 			const base = sm.ctx.trace.length;
 
-			sm.goCrossToLeafEastB();
+			sm.notify.goCrossToLeafEastB();
 			await sm.hsm.sync();
 
 			expect(sm.hsm.currentState).equals(LeafEastB);
@@ -138,7 +138,7 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 			await sm.hsm.sync();
 			const base = sm.ctx.trace.length;
 
-			sm.goCrossToBranchEast();
+			sm.notify.goCrossToBranchEast();
 			await sm.hsm.sync();
 
 			expect(sm.hsm.currentState).equals(LeafEastA);
@@ -152,7 +152,7 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 			await sm.hsm.sync();
 			const base = sm.ctx.trace.length;
 
-			sm.goCrossToMidEast();
+			sm.notify.goCrossToMidEast();
 			await sm.hsm.sync();
 
 			expect(sm.hsm.currentState).equals(LeafEastA);
@@ -166,7 +166,7 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 			await sm.hsm.sync();
 			const base = sm.ctx.trace.length;
 
-			sm.goSelfWest();
+			sm.notify.goSelfWest();
 			await sm.hsm.sync();
 
 			expect(sm.hsm.currentState).equals(LeafWestA);
@@ -181,7 +181,7 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 			sm.hsm.restore(LeafEastB, { ...sm.ctx, trace: [...sm.ctx.trace] });
 			const base = sm.ctx.trace.length;
 
-			sm.goSiblingEast();
+			sm.notify.goSiblingEast();
 			await sm.hsm.sync();
 
 			expect(sm.hsm.currentState).equals(LeafEastA);
@@ -196,7 +196,7 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 			sm.hsm.restore(LeafEastA, { ...sm.ctx, trace: [...sm.ctx.trace] });
 			const base = sm.ctx.trace.length;
 
-			sm.goCrossToLeafWestB();
+			sm.notify.goCrossToLeafWestB();
 			await sm.hsm.sync();
 
 			expect(sm.hsm.currentState).equals(LeafWestB);
@@ -210,7 +210,7 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 			await sm.hsm.sync();
 			const base = sm.ctx.trace.length;
 
-			sm.goAsyncCrossEast();
+			sm.notify.goAsyncCrossEast();
 			await sm.hsm.sync();
 
 			expect(sm.hsm.currentState).equals(LeafEastA);
@@ -223,9 +223,9 @@ describe('Tutorial 05 · hierarchy and transitions', () => {
 			const sm = createDeepMachine();
 			await sm.hsm.sync();
 
-			sm.armFailExit();
+			sm.notify.armFailExit();
 			await sm.hsm.sync();
-			sm.goCrossToLeafEastB();
+			sm.notify.goCrossToLeafEastB();
 			await sm.hsm.sync();
 
 			expect(sm.hsm.currentStateName).equals('FatalErrorState');

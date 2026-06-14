@@ -17,16 +17,14 @@ export interface DoorCtx {
 
 export interface DoorConfig {
 	context: DoorCtx;
-notifications: {
+	notifications: {
 		open(): void;
 		close(): void;
 	};
 }
 
-
 /** Root state: inherits run-to-completion dispatch, transition(), and tracing from TopState. */
-export class DoorTop extends PlaygroundTopState<DoorConfig> {
-}
+export class DoorTop extends PlaygroundTopState<DoorConfig> {}
 
 /** Initial leaf after makeActor + sync — door starts closed. */
 @ihsm.InitialState

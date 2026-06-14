@@ -44,7 +44,7 @@ export class WatcherCtx {
 
 export interface WatcherConfig {
 	context: WatcherCtx;
-notifications: {
+	notifications: {
 		start(path: string): void;
 		stop(): void;
 	};
@@ -57,15 +57,11 @@ notifications: {
 	};
 }
 
-
-
 /** Outbound boundary to the (impure) watch source. */
 export type WatcherPort = ihsm.DomainPortOf<WatcherConfig>;
 
-
 /** Root state. "Wrong state" events are safe no-ops so a late change can never corrupt Idle. */
 export class WatcherTop extends ihsm.TopState<WatcherConfig> {
-
 	start(_path: string): void {} // ignored unless Idle
 	stop(): void {} // ignored unless Watching
 	onChange(_version: number): void {} // ignored unless Watching

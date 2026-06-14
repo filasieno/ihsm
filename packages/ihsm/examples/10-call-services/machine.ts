@@ -14,7 +14,7 @@ export interface WalletCtx {
 
 export interface WalletConfig {
 	context: WalletCtx;
-notifications: {
+	notifications: {
 		deposit(amount: number): void;
 	};
 	services: {
@@ -24,9 +24,7 @@ notifications: {
 	};
 }
 
-
 export class WalletTop extends PlaygroundTopState<WalletConfig> {
-
 	deposit(amount: number): void {
 		this.ctx.balance += amount;
 	}

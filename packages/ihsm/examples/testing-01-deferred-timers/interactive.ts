@@ -7,7 +7,7 @@ import * as machine from './machine';
 import { HeartbeatTop, HeartbeatCtx, HOUR_MS } from './machine';
 
 /** The manually-advanced clock backing the current playground run (one per `createRuntime`). */
-let activeClock: TestPort<HeartbeatTop> | undefined;
+let activeClock: TestPort<typeof HeartbeatTop> | undefined;
 
 function summarize(sm: { hsm: { currentStateName: string }; ctx: HeartbeatCtx }): string {
 	const simulatedHours = activeClock ? Math.round(activeClock.now / HOUR_MS) : 0;
@@ -34,7 +34,7 @@ export const interactive: TutorialInteractiveMeta = {
 	createRuntime: (): InteractiveRuntime => {
 		registerStateNamesFromExports(machine);
 		const writer = new CollectingTraceWriter();
-		activeClock = new TestPort<HeartbeatTop>();
+		activeClock = new TestPort<typeof HeartbeatTop>();
 		const sm = makeTestActor(
 			HeartbeatTop, // root state
 			new HeartbeatCtx(), // fresh domain context

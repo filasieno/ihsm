@@ -79,11 +79,7 @@ ${sourceSections}
 
 ### Try it
 
-Dispatch events in the **Trace** panel and compare output to the diagram and source. Run \`npm run test:examples -- --grep '${spec.grepLabel}'\` for a headless check.
-
-\`\`\`plantuml
-${plantuml}
-\`\`\`
+Use the **interactive playground** below — pick a message, send it, and read the **Trace** panel. Compare with the diagram and source listings.
 
 <InteractiveTutorial meta={${spec.importName}} />
 `.trim();

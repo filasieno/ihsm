@@ -11,7 +11,7 @@ import { MouseTop, MouseCtx, MouseConfig, MouseStreamPort, freshCtx } from './ma
  * actions post `onMouseMove` directly onto the test actor, so this port only needs to open and
  * close the stream — exactly the surface the machine drives.
  */
-class PlaygroundMouseStream extends TestPort<MouseTop> implements MouseStreamPort {
+class PlaygroundMouseStream extends TestPort<typeof MouseTop> implements MouseStreamPort {
 	private streamId = 0;
 
 	subscribe(): ResultWithSubscription<number> {
@@ -34,7 +34,7 @@ function summarize(sm: { hsm: { currentStateName: string }; ctx: MouseCtx }): st
 
 async function streamMove(runtime: InteractiveRuntime, x: number, y: number): Promise<void> {
 	const sm = getSenderHsm<MouseConfig>(runtime, 'machine');
-	sm.onMouseMove(x, y);
+	sm.notify.onMouseMove(x, y);
 	await sm.hsm.sync();
 }
 
@@ -91,7 +91,7 @@ export const interactive: TutorialInteractiveMeta = {
 			label: 'run simulated session',
 			run: async (runtime): Promise<void> => {
 				const sm = getSenderHsm<MouseConfig>(runtime, 'machine');
-				sm.listen();
+				sm.notify.listen();
 				await sm.hsm.sync();
 				for (const [x, y] of [
 					[10, 20],
@@ -100,7 +100,7 @@ export const interactive: TutorialInteractiveMeta = {
 				]) {
 					await streamMove(runtime, x, y);
 				}
-				sm.stopListening();
+				sm.notify.stopListening();
 				await sm.hsm.sync();
 				await streamMove(runtime, 99, 99); // ignored: not listening
 			},

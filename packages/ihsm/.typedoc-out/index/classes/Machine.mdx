@@ -4,10 +4,6 @@
 
 `C` *extends* [`ActorConfig`](../interfaces/ActorConfig.mdx)
 
-## Implements
-
-- `DispatchableMachine`
-
 ## Constructors
 
 ### Constructor
@@ -105,46 +101,6 @@
 #### Inherited from
 
 `HsmObject.traceWriter`
-
-***
-
-### \_instance
-
-> **\_instance**: `Instance`\<`C`\>
-
-#### Inherited from
-
-`HsmObject._instance`
-
-***
-
-### \_transitionCache
-
-> **\_transitionCache**: `Map`\<`string`, `Transition`\<`C`\>\>
-
-#### Inherited from
-
-`HsmObject._transitionCache`
-
-***
-
-### \_jobs
-
-> **\_jobs**: `Task`[]
-
-#### Inherited from
-
-`HsmObject._jobs`
-
-***
-
-### \_hiPriorityJobs
-
-> **\_hiPriorityJobs**: `Task`[]
-
-#### Inherited from
-
-`HsmObject._hiPriorityJobs`
 
 ***
 
@@ -251,10 +207,6 @@
 ##### Returns
 
 `void`
-
-#### Implementation of
-
-`DispatchableMachine.ctx`
 
 #### Inherited from
 
@@ -548,10 +500,6 @@
 
 `void`
 
-#### Implementation of
-
-`DispatchableMachine.unshiftHiPriorityTask`
-
 #### Inherited from
 
 `HsmObject.unshiftHiPriorityTask`
@@ -684,10 +632,6 @@
 
 `Promise`\<`unknown`\>
 
-#### Implementation of
-
-`DispatchableMachine.dispatchService`
-
 ***
 
 ### dispatchNotification()
@@ -706,15 +650,11 @@
 
 ##### queue
 
-`NotificationQueue`
+[`NotificationQueue`](../type-aliases/NotificationQueue.mdx)
 
 #### Returns
 
 `void`
-
-#### Implementation of
-
-`DispatchableMachine.dispatchNotification`
 
 ***
 
@@ -731,7 +671,3 @@
 #### Returns
 
 [`ExternalHsm`](../type-aliases/ExternalHsm.mdx)\<`C`\> \| [`InboundHsm`](../type-aliases/InboundHsm.mdx)\<`C`\> \| [`ChildHsm`](../type-aliases/ChildHsm.mdx)\<`C`\>
-
-#### Implementation of
-
-`DispatchableMachine.actorHsmFor`

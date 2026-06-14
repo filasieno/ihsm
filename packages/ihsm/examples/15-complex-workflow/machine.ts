@@ -20,7 +20,7 @@ export interface CheckoutCtx {
 
 export interface CheckoutConfig {
 	context: CheckoutCtx;
-notifications: {
+	notifications: {
 		submit(): Promise<void>;
 		applyValidation(): void;
 		approve(): Promise<void>;
@@ -31,9 +31,7 @@ notifications: {
 	};
 }
 
-
 export class CheckoutTop extends PlaygroundTopState<CheckoutConfig> {
-
 	getStatus(): OrderPhase {
 		return this.ctx.phase;
 	}
@@ -56,7 +54,7 @@ export class Draft extends CheckoutTop {
 /** Decision pseudo state — guard runs via immediate after entry (hi-priority before normal post). */
 export class Validating extends CheckoutTop {
 	onEntry(): void {
-		this.hsm.immediate.applyValidation();
+		this.notifyNow.applyValidation();
 	}
 
 	applyValidation(): void {
@@ -98,6 +96,6 @@ export function createCheckout(orderId: string, amount: number, limit: number) {
 			phase: 'draft',
 			validationNotes: [],
 		},
-		new ihsm.Port(),
+		new ihsm.Port()
 	);
 }

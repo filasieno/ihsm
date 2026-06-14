@@ -58,7 +58,7 @@ live.restore(Authenticated, {
 	lastPage: 'settings',
 	entryLog: live.ctx.entryLog,
 });
-live.navigate('billing');
+live.notify.navigate('billing');
 await live.hsm.sync();
 ```
 
@@ -101,7 +101,7 @@ await afterRestart.hsm.sync();
 ### 4. Continue from the snapshot
 
 ```typescript
-afterRestart.navigate('profile');
+afterRestart.notify.navigate('profile');
 await afterRestart.hsm.sync();
 ```
 

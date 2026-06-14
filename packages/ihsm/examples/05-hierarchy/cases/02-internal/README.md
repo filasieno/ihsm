@@ -28,7 +28,7 @@ See the **Trace** panel on the [interactive docs site](https://filasieno.github.
 
 | Step | Action |
 | ---- | ------ |
-| 1 | `post('tick')` dispatches to inherited `DeepTop.tick()` |
+| 1 | `notify.tick()` dispatches to inherited `DeepTop.tick()` |
 | 2 | Handler updates `ctx.value` and pushes `handler:tick` |
 | 3 | No `transition()` → **no** lifecycle hooks |
 | 4 | Active leaf stays **`LeafWestA`** |

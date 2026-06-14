@@ -8,7 +8,7 @@ import { WorkerTop, WorkerCtx, WorkerConfig, FaultPort, freshCtx } from './machi
 
 /** Stub port (a class on {@link TestPort}, typed by the root {@link WorkerTop}): records retries
  * but never auto-reports — the buttons inject faults by hand. */
-class StubFaultPort extends TestPort<WorkerTop> implements FaultPort {
+class StubFaultPort extends TestPort<typeof WorkerTop> implements FaultPort {
 	attempt(n: number): void {
 		this.record('attempt', n);
 	}
@@ -22,7 +22,7 @@ function summarize(sm: { hsm: { currentStateName: string }; ctx: WorkerCtx }): s
 
 async function inject(runtime: InteractiveRuntime, ok: boolean): Promise<void> {
 	const sm = getSenderHsm<WorkerConfig>(runtime, 'machine');
-	sm.onResult(ok);
+	sm.notify.onResult(ok);
 	await sm.hsm.sync();
 }
 

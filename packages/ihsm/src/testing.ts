@@ -16,7 +16,7 @@
  * @packageDocumentation
  */
 import { Port, TraceLevel, spawnActor, kMachine, Machine, defaultDispatchErrorCallback, defaultInitialize, defaultTraceWriter } from './internal/runtime';
-import type { Any, Disposable, EventObserver, MachinePortInput, RandomService, TracedMessage, ActorOptions, ActorConfig, ActorContextOf, ActorConfigOf, DomainPortOf, ChildActor, TestHsm, TopStateArg, ValidatedTopStateArg } from './internal/types';
+import type { Any, EventObserver, MachinePortInput, TracedMessage, ActorOptions, ActorConfig, ActorContextOf, ActorConfigOf, DomainPortOf, ChildActor, TestHsm, TopStateArg, ValidatedTopStateArg } from './internal/types';
 
 interface HandleOwn extends Record<symbol | string, unknown> {
 	[kMachine]: unknown;
@@ -27,10 +27,10 @@ interface HandleOwn extends Record<symbol | string, unknown> {
 export * from './index';
 
 /**
- * Full-access owner actor returned by {@link makeTestActor} for **deterministic testing**.
+ * Full-access test actor returned by {@link makeTestActor} for **deterministic testing**.
  *
- * Exposes the full {@link ActorConfig} protocol (services, notifications, internal buckets) as flat
- * methods, with `hsm.port` and `hsm.subscribe` for test instrumentation.
+ * Same faceted surface as {@link ChildActor} (`notify`, `notifyNow`, `call`, `hsm`), with
+ * `hsm.port` and `hsm.subscribe` for test instrumentation.
  *
  * @typeParam C - Machine config bag (plain interface satisfying {@link ActorConfig})
  *
@@ -69,7 +69,7 @@ export type TestActor<C extends ActorConfig = ActorConfig> = ChildActor<C> & {
  *
  * @example A minimal mock port (records outbound calls; the test drives internal events)
  * ```ts
- * class MockConnPort extends ihsmTest.TestPort<ConnTop> implements ConnPort {
+ * class MockConnPort extends ihsmTest.TestPort<typeof ConnTop> implements ConnPort {
  *   private nextId = 1;
  *   connect(host: string): ihsm.ResultWithSubscription<number> {
  *     const id = this.nextId++;
@@ -80,7 +80,8 @@ export type TestActor<C extends ActorConfig = ActorConfig> = ChildActor<C> & {
  * }
  * const port = new MockConnPort();
  * const conn = ihsm.makeActor(ConnTop, ctx, port);
- * conn.post('open', 'host'); await conn.sync();
+ * await conn.notify.open('host');
+ * await conn.hsm.sync();
  * port.send('onConnected', 1);   // the test decides when the server "replies"
  * ```
  *
@@ -88,7 +89,7 @@ export type TestActor<C extends ActorConfig = ActorConfig> = ChildActor<C> & {
  */
 type VirtualTimer = { id: number; at: number; callback: () => void; repeat?: number };
 
-export class TestPort<T = Any> extends Port<T> {
+export class TestPort<T extends TopStateArg = TopStateArg> extends Port<T> {
 	private readonly _messages: TracedMessage[] = [];
 	private readonly _preloads = new Map<string, { queue: Array<(...args: unknown[]) => unknown>; fallback?: (...args: unknown[]) => unknown; calls: unknown[][] }>();
 	private _now = 0;
@@ -120,12 +121,13 @@ export class TestPort<T = Any> extends Port<T> {
 	 * {@link Port.actor} after the factory has wired it.
 	 */
 	send(event: string, ...payload: unknown[]): void {
-		const actor = this.actor as Record<string, ((...args: unknown[]) => void) | undefined> | undefined;
-		const inbound = actor?.[event];
+		const actor = this.actor as { notify?: Record<string, ((...args: unknown[]) => void) | undefined> } | undefined;
+		const facet = actor?.notify;
+		const inbound = facet?.[event];
 		if (inbound === undefined) {
-			throw new Error(`ihsm: TestPort.send — actor has no internal notification "${event}" (bind the port with makeActor/makeTestActor first)`);
+			throw new Error(`ihsm: TestPort.send — actor has no notification "${event}" (bind the port with makeActor/makeTestActor first)`);
 		}
-		inbound.call(actor, ...payload);
+		inbound.call(facet, ...payload);
 	}
 
 	private _slot(name: string): { queue: Array<(...args: unknown[]) => unknown>; fallback?: (...args: unknown[]) => unknown; calls: unknown[][] } {
@@ -366,8 +368,8 @@ export class PreloadError extends Error {
  * - `calls` — the live, typed list of argument tuples this method was called with (`Parameters<F>[]`).
  *
  * Both `default` and `once` take a closure with the **same parameters and return type** as the port
- * method, so scripts stay type-safe. Pushing internal events *inward* remains the separate
- * {@link Port.send | send} channel.
+ * method, so scripts stay type-safe. Pushing inbound observations uses
+ * {@link TestPort.send | send} on the port.
  *
  * @typeParam A - The method's argument tuple (`Parameters<F>`)
  * @typeParam R - The method's return type (`ReturnType<F>`)
@@ -388,7 +390,7 @@ export interface Stubbed<A extends unknown[], R> {
 
 /**
  * The fully-wired mock type returned by {@link makeTestPort}: the mock class `P` itself, with each
- * **port method** (inferred from the machine's {@link TopState} via {@link ConfigPort}) upgraded to
+ * **port method** (inferred from the machine's {@link TopState} via {@link DomainPortOf}) upgraded to
  * a scriptable, introspectable {@link Stubbed} method.
  *
  * @typeParam P - The mock port class instance type
@@ -400,7 +402,8 @@ export type Mock<P, C extends ActorConfig = ActorConfig> = P & {
 	[K in keyof DomainPortOf<C>]: DomainPortOf<C>[K] extends (...args: infer A) => infer R ? Stubbed<A, R> : DomainPortOf<C>[K];
 };
 
-type ActorConfigFromPortClass<P> = P extends TestPort<infer M> ? ActorConfigOf<M> : ActorConfig;
+/** Inferred {@link ActorConfig} from a {@link TestPort}'s root state type parameter. */
+export type ActorConfigFromPortClass<P> = P extends TestPort<infer M> ? ActorConfigOf<M> : ActorConfig;
 
 /** Property names the auto-stub must never synthesize — JS/test-framework probes and built-in port services. */
 const NON_STUB_PROPS: ReadonlySet<string> = new Set(['then', 'catch', 'finally', 'toJSON', 'inspect', 'asymmetricMatch', '$$typeof', 'nodeType', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'random', 'cryptoRandom', 'randomUUID', 'getRandomValues', 'advance', 'now', 'pending', 'feedRandom', 'feedCryptoRandom', 'feedUUID', 'feedRandomBytes', 'resetRandom']);
@@ -437,7 +440,7 @@ const MOCK_MARKER = Symbol('ihsm.mock');
 /** Port method names registered by {@link mock} (abstract members have no runtime prototype entries). */
 const MOCK_METHODS = Symbol('ihsm.mockMethods');
 
-type MockMarkedCtor = abstract new (...args: Any[]) => TestPort<Any> & {
+type MockMarkedCtor = abstract new (...args: Any[]) => TestPort<TopStateArg> & {
 	[MOCK_MARKER]?: boolean;
 	[MOCK_METHODS]?: readonly string[];
 };
@@ -457,7 +460,7 @@ type MockMarkedCtor = abstract new (...args: Any[]) => TestPort<Any> & {
  * @example
  * ```ts
  * @ihsmTest.mock
- * abstract class WatcherMock extends ihsmTest.TestPort<WatcherTop> {
+ * abstract class WatcherMock extends ihsmTest.TestPort<typeof WatcherTop> {
  *   abstract watch(path: string): ihsm.ResultWithSubscription<number>; // signature matches the port
  * }
  *
@@ -473,9 +476,9 @@ function markMockPort(Ctor: MockMarkedCtor, methodNames: readonly string[]): voi
 }
 
 /** Decorate an abstract {@link TestPort} subclass; pass port method names (abstract members are type-only at runtime). */
-export function mock<C extends abstract new (...args: Any[]) => TestPort<Any>>(Ctor: C): C;
-export function mock(...methodNames: string[]): <C extends abstract new (...args: Any[]) => TestPort<Any>>(Ctor: C) => C;
-export function mock<C extends abstract new (...args: Any[]) => TestPort<Any>>(first: C | string, ...rest: string[]): C | ((Ctor: C) => C) {
+export function mock<C extends abstract new (...args: Any[]) => TestPort<TopStateArg>>(Ctor: C): C;
+export function mock(...methodNames: string[]): <C extends abstract new (...args: Any[]) => TestPort<TopStateArg>>(Ctor: C) => C;
+export function mock<C extends abstract new (...args: Any[]) => TestPort<TopStateArg>>(first: C | string, ...rest: string[]): C | ((Ctor: C) => C) {
 	if (typeof first === 'function') {
 		markMockPort(first as MockMarkedCtor, []);
 		return first;
@@ -509,7 +512,7 @@ export function mock<C extends abstract new (...args: Any[]) => TestPort<Any>>(f
  *
  * @category Testing
  */
-function installPortStubs(port: TestPort<Any>, PortClass: MockMarkedCtor): void {
+function installPortStubs(port: TestPort<TopStateArg>, PortClass: MockMarkedCtor): void {
 	const stubTarget = port as unknown as StubTarget;
 	const names = (PortClass as { [MOCK_METHODS]?: readonly string[] })[MOCK_METHODS] ?? [];
 	for (const name of names) {
@@ -518,10 +521,7 @@ function installPortStubs(port: TestPort<Any>, PortClass: MockMarkedCtor): void 
 	}
 }
 
-export function makeTestPort<P extends TestPort<Any>, C extends ActorConfig = ActorConfigFromPortClass<P>>(
-	PortClass: abstract new () => P,
-	_topState?: TopStateArg<C>,
-): Mock<P, C> {
+export function makeTestPort<P extends TestPort<TopStateArg>, C extends ActorConfig = ActorConfigFromPortClass<P>>(PortClass: abstract new () => P, _topState?: TopStateArg<C>): Mock<P, C> {
 	if ((PortClass as { [MOCK_MARKER]?: boolean })[MOCK_MARKER] !== true) {
 		throw new Error('ihsm: makeTestPort requires a class decorated with @ihsm.mock');
 	}
@@ -534,9 +534,8 @@ export function makeTestPort<P extends TestPort<Any>, C extends ActorConfig = Ac
  * Creates a **full-access** actor for deterministic tests: merged protocol + typed `port`.
  *
  * Identical construction to {@link makeActor} (same three mandatory arguments + {@link ActorOptions}),
- * but the returned {@link TestActor} exposes the merged {@link Dispatch} protocol — so tests can
- * drive internal events directly (no live port required) — and grants typed access to `port` for
- * asserting outbound interactions or pushing observations.
+ * but the returned {@link TestActor} exposes the full child protocol (including internal buckets) and
+ * grants typed access to `port` for asserting outbound interactions or pushing observations.
  *
  * Unlike {@link makeActor}, `traceLevel` defaults to {@link TraceLevel.VERBOSE_DEBUG} so a failing
  * test is fully readable; opt down explicitly via `options.traceLevel` only when you need a quiet run.
@@ -558,30 +557,19 @@ export function makeTestPort<P extends TestPort<Any>, C extends ActorConfig = Ac
  *
  * @category Factory
  */
-export function makeTestActor<T extends TopStateArg<ActorConfig>>(
-	topState: ValidatedTopStateArg<T>,
-	ctx: ActorContextOf<ActorConfigOf<T>>,
-	port?: MachinePortInput<ActorConfigOf<T>> | TestPort<Any>,
-	options: ActorOptions<ActorConfigOf<T>> = {},
-): TestActor<ActorConfigOf<T>> {
+export function makeTestActor<T extends TopStateArg<ActorConfig>>(topState: ValidatedTopStateArg<T>, ctx: ActorContextOf<ActorConfigOf<T>>, port?: MachinePortInput<ActorConfigOf<T>>, options: ActorOptions<ActorConfigOf<T>> = {}): TestActor<ActorConfigOf<T>> {
 	type C = ActorConfigOf<T>;
-	const boundPort = (port ?? new TestPort()) as MachinePortInput<C>;
+	const boundPort = (port ?? new TestPort<T>()) as MachinePortInput<ActorConfigOf<T>>;
 	// Tests default to the most verbose trace (so a failing run is fully readable). Never silence to
 	// a production level here — the user opts down explicitly via `options.traceLevel`.
-	const {
-		initialize = defaultInitialize,
-		traceLevel = TraceLevel.VERBOSE_DEBUG,
-		traceWriter = defaultTraceWriter,
-		dispatchErrorCallback = defaultDispatchErrorCallback,
-		...rest
-	} = options;
+	const { initialize = defaultInitialize, traceLevel = TraceLevel.VERBOSE_DEBUG, traceWriter = defaultTraceWriter, dispatchErrorCallback = defaultDispatchErrorCallback, ...rest } = options;
 	const actor = spawnActor('test', topState as TopStateArg<C>, ctx, boundPort, {
-			initialize,
-			traceLevel,
-			traceWriter,
-			dispatchErrorCallback,
-			...rest,
-		});
+		initialize,
+		traceLevel,
+		traceWriter,
+		dispatchErrorCallback,
+		...rest,
+	});
 	const machine = (actor as unknown as HandleOwn)[kMachine] as Machine<C>;
 	const testHsm = actor.hsm as TestHsm<C>;
 	Object.defineProperties(testHsm, {

@@ -20,7 +20,6 @@ interface UnhandledConfig {
 }
 
 export class HsmTop extends TopState<UnhandledConfig> {
-
 	onUnhandled<EventName extends keyof ActorNotificationsOf<UnhandledConfig>>(error: UnhandledEventError<UnhandledConfig, EventName>): Promise<void> | void {
 		console.log(`${error}`);
 		if (this.hsm.currentState === A) {
@@ -91,8 +90,7 @@ export class H extends HsmTop {
 @InitialState
 export class B extends HsmTop {}
 
-export class EmptyTopState extends TopState<UnhandledConfig> {
-}
+export class EmptyTopState extends TopState<UnhandledConfig> {}
 
 export class WithHello extends EmptyTopState {
 	hello(): void {}
@@ -115,46 +113,46 @@ for (const traceLevel of TRACE_LEVELS) {
 		});
 
 		it(`calls onUnhandledEvent`, async () => {
-			sm.hello();
+			sm.notify.hello();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(A);
 			expect(port.events).eqls(['hello']);
 		});
 
 		it(`calls onUnhandledEvent, when an event handler calls unhandled()`, async () => {
-			sm.transitionTo(A);
-			sm.hello();
+			sm.notify.transitionTo(A);
+			sm.notify.hello();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(B);
 		});
 
 		it(`throws in an onUnhandled()`, async () => {
-			sm.transitionTo(C);
-			sm.hello();
+			sm.notify.transitionTo(C);
+			sm.notify.hello();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(FatalErrorState);
 			expect(getLastError()).instanceOf(RuntimeError);
 		});
 
 		it(`throws in a transition after onUnhandled()`, async () => {
-			sm.transitionTo(F);
-			sm.hello();
+			sm.notify.transitionTo(F);
+			sm.notify.hello();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(FatalErrorState);
 			expect(getLastError()).instanceOf(RuntimeError);
 		});
 
 		it(`throws and recovers`, async () => {
-			sm.transitionTo(G);
-			sm.hello();
+			sm.notify.transitionTo(G);
+			sm.notify.hello();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(G);
 			expect(getLastError()).equals(undefined);
 		});
 
 		it(`throws, and it does not recover in a user marked unhandled`, async () => {
-			sm.transitionTo(H);
-			sm.hello();
+			sm.notify.transitionTo(H);
+			sm.notify.hello();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(FatalErrorState);
 			expect(getLastError()).instanceOf(RuntimeError);
@@ -162,7 +160,7 @@ for (const traceLevel of TRACE_LEVELS) {
 
 		it(`the standard onUnhandled throws`, async () => {
 			const sm = makeTestActor(EmptyTopState, {}, new TestPort(), { traceLevel, dispatchErrorCallback: createTestDispatchErrorCallback(true) });
-			sm.hello();
+			sm.notify.hello();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(FatalErrorState);
 			expect(getLastError()).instanceOf(RuntimeError);

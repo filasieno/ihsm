@@ -88,14 +88,14 @@ export class Idle extends FileTop {
 While `transfer` is in flight:
 
 - **Active state** remains `Idle` (not `Opening` / `Reading` / …).
-- The actor **still accepts** `post` / `call` — messages **queue** until this handler runs to completion (same actor serialization as always).
+- The actor **still accepts** `notify` / `call` — messages **queue** until this handler runs to completion (same actor serialization as always).
 - **`transition(Done)`** runs only after the handler’s Promise settles successfully.
 
 ```typescript
 const sm = createFileActor();
 await sm.hsm.sync();
 
-sm.transfer('/inbox/a.dat', '/archive/a.dat');
+sm.notify.transfer('/inbox/a.dat', '/archive/a.dat');
 await sm.hsm.sync(); // waits through entire open/read/write/close chain
 
 expect(sm.currentState).equals(Done);

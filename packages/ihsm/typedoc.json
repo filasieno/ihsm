@@ -19,5 +19,12 @@
 	"hidePageHeader": true,
 	"hidePageTitle": true,
 	"hideBreadcrumbs": true,
-	"useHTMLAnchors": false
+	"useHTMLAnchors": false,
+	"intentionallyNotExported": [
+		"OverlappingProtocolKeys",
+		"DispatchableMachine",
+		"Task",
+		"Transition",
+		"HsmWithTracing"
+	]
 }

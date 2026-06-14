@@ -18,11 +18,7 @@ export class CollectingTraceWriter implements TraceWriter {
 	}
 }
 
-export function withTrace<C extends ActorConfig>(
-	topState: TopStateArg<C>,
-	ctx: ActorContextOf<C>,
-	initialize = true,
-): { sm: TestActor<C>; writer: CollectingTraceWriter } {
+export function withTrace<C extends ActorConfig>(topState: TopStateArg<C>, ctx: ActorContextOf<C>, initialize = true): { sm: TestActor<C>; writer: CollectingTraceWriter } {
 	const writer = new CollectingTraceWriter();
 	const options: ActorOptions<C> = {
 		initialize,

@@ -11,15 +11,15 @@ ihsm serializes dispatch with **run-to-completion semantics**.
 | Side | Where | Role |
 | ---- | ----- | ---- |
 | **Handler** | State class method | Runs when the notification is dispatched |
-| **Client** | Code that holds the actor handle | Calls generated methods + `await actor.hsm.sync()` |
+| **Client** | Code that holds the actor handle | Calls `notify` / `call` + `await actor.hsm.sync()` |
 
 | API | Client waits? | Return value? | Use when |
 | --- | ------------- | ------------- | -------- |
-| **`actor.event(…)`** (notification) | No — returns immediately | No | Fire-and-forget |
-| **`await actor.service(…)`** (service) | Yes — `await` the Promise | Yes — typed reply | Request/response |
+| **`actor.notify.event(…)`** (notification) | No — returns immediately | No | Fire-and-forget |
+| **`await actor.call.service(…)`** (service) | Yes — `await` the Promise | Yes — typed reply | Request/response |
 | **`await actor.hsm.sync()`** | Yes | No | Drain everything already enqueued |
 
-**Rule of thumb:** need a value back → **`await actor.service()`**. Just tell the actor something happened → **`actor.notification()`**. Need a batch of notifications to finish → **`actor.tick(); actor.done(); await actor.hsm.sync()` once**.
+**Rule of thumb:** need a value back → **`await actor.call.service()`**. Just tell the actor something happened → **`actor.notify.event()`**. Need a batch of notifications to finish → **`actor.notify.tick(); actor.notify.done(); await actor.hsm.sync()` once**.
 
 Typed services: [Call services](../10-call-services/README.md).
 
@@ -30,7 +30,7 @@ Typed services: [Call services](../10-call-services/README.md).
 left to right direction
 state QueueTop {
   [*] --> Idle
-  Idle : start / actor.tick(); actor.tick(); actor.done()
+  Idle : start / actor.notify.tick(); actor.notify.tick(); actor.notify.done()
   Idle : tick
   Idle : done
 }
@@ -75,9 +75,9 @@ export class QueueTop extends TopState {
 const sm = createQueueMachine();
 await sm.hsm.sync();
 
-sm.tick();
-sm.tick();
-sm.done();
+sm.notify.tick();
+sm.notify.tick();
+sm.notify.done();
 await sm.hsm.sync();
 
 // sm.ctx.events === ['tick', 'tick', 'done']
@@ -97,9 +97,9 @@ One `sync` after the batch — not after every notification.
 export class QueueTop extends TopState {
   start(): void {
     this.ctx.events.push('start');
-    this.hsm.actor.tick();
-    this.hsm.actor.tick();
-    this.hsm.actor.done();
+    this.notify.tick();
+    this.notify.tick();
+    this.notify.done();
   }
 }
 ```
@@ -112,7 +112,7 @@ Inner notifications are not enqueued until `start` finishes:
 const sm = createQueueMachine();
 await sm.hsm.sync();
 
-sm.start();
+sm.notify.start();
 await sm.hsm.sync(); // through start only → ['start']
 await sm.hsm.sync(); // through tick, tick, done
 ```

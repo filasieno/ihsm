@@ -1,7 +1,7 @@
 /**
  * @internal Pure types for the ihsm runtime — no runtime values in this module.
  */
-import type { TraceLevel } from './runtime';
+import type { Machine, Port, RuntimeError, TopState as RuntimeTopState, TraceLevel, UnhandledEventError } from './runtime';
 
 export type Any = Record<string, any>;
 
@@ -34,25 +34,28 @@ export interface TopState<C extends ActorConfig = ActorConfig> {
 	readonly ctx: ActorContextOf<C>;
 }
 
-export type StateClassOf<C extends ActorConfig = ActorConfig> = abstract new (...args: never[]) => TopState<C>;
+export type StateClassOf<C extends ActorConfig = ActorConfig> = new (...args: any[]) => RuntimeTopState<C>;
 export type TopStateArg<C extends ActorConfig = ActorConfig> = StateClassOf<C>;
-export type ActorConfigOf<T> = T extends abstract new (...args: never[]) => TopState<infer C extends ActorConfig>
+
+export type ActorConfigOf<T> = T extends new (...args: any[]) => RuntimeTopState<infer C extends ActorConfig>
 	? C
 	: T extends TopStateArg<infer C>
 		? C
-		: T extends abstract new (...args: never[]) => infer Inst
-			? Inst extends { readonly hsm: HandlerHsm<infer C> }
-				? C
-				: Inst extends { readonly ctx: infer Context }
+		: T extends abstract new (...args: never[]) => RuntimeTopState<infer C extends ActorConfig>
+			? C
+			: T extends new (...args: any[]) => infer Inst
+				? Inst extends { readonly hsm: HandlerHsm<infer C> }
+					? C
+					: Inst extends { readonly ctx: infer Context }
+						? [Context] extends [ActorContextOf<infer C>]
+							? C
+							: ActorConfig
+						: ActorConfig
+				: T extends { readonly ctx: infer Context }
 					? [Context] extends [ActorContextOf<infer C>]
 						? C
 						: ActorConfig
-					: ActorConfig
-			: T extends { readonly ctx: infer Context }
-				? [Context] extends [ActorContextOf<infer C>]
-					? C
-					: ActorConfig
-				: ActorConfig;
+					: ActorConfig;
 
 /** Top state constructor whose {@link ActorConfigOf} passes {@link DisjointActorConfig}. */
 export type ValidatedTopStateArg<T extends TopStateArg<ActorConfig>> = DisjointActorConfig<ActorConfigOf<T>> extends true ? T : never;
@@ -76,7 +79,7 @@ export type NotificationArgs<N extends object, K extends keyof N> = N[K] extends
 type BucketKeys<B> = {} extends B ? never : keyof B;
 type ProtocolFieldKeys<C extends ActorConfig> = BucketKeys<ActorServicesOf<C>> | BucketKeys<ActorNotificationsOf<C>> | BucketKeys<ActorInternalServicesOf<C>> | BucketKeys<ActorInternalNotificationsOf<C>>;
 
-type OverlappingProtocolKeys<C extends ActorConfig> =
+export type OverlappingProtocolKeys<C extends ActorConfig> =
 	Extract<BucketKeys<ActorServicesOf<C>> & BucketKeys<ActorNotificationsOf<C>>, PropertyKey> extends never
 		? Extract<BucketKeys<ActorServicesOf<C>> & BucketKeys<ActorInternalServicesOf<C>>, PropertyKey> extends never
 			? Extract<BucketKeys<ActorServicesOf<C>> & BucketKeys<ActorInternalNotificationsOf<C>>, PropertyKey> extends never
@@ -150,24 +153,33 @@ export const kHandlerMachine = Symbol('ihsm.handlerMachine');
 
 export type ParentActor<T extends TopStateArg = TopStateArg> = {
 	readonly top: T;
-	readonly [kParentLink]?: import('./runtime').Machine<ActorConfigOf<T>>;
+	readonly [kParentLink]?: Machine<ActorConfigOf<T>>;
 };
 
-type ActorParentField<ParentT extends TopStateArg = TopStateArg> = {
+/** Optional parent link on actors created via {@link makeChildActor}. */
+export type ActorParentField<ParentT extends TopStateArg = TopStateArg> = {
 	readonly parent?: ParentActor<ParentT>;
 };
 
 export interface RandomService {
+	/** Pseudorandom number in `[0, 1)`. */
 	random(): number;
+	/** Cryptographic-quality random in `[0, 1)` when the platform provides it. */
 	cryptoRandom(): number;
+	/** Generate a UUID v4 string. */
 	randomUUID(): string;
+	/** Fill `array` with cryptographically strong random bytes. */
 	getRandomValues<T extends ArrayBufferView>(array: T): T;
 }
 
 export interface TimerService {
+	/** Schedule a one-shot callback after `millis` milliseconds. */
 	setTimeout(callback: () => void, millis?: number): number;
+	/** Cancel a timer previously returned by {@link TimerService.setTimeout}. */
 	clearTimeout(id: number | undefined): void;
+	/** Schedule a repeating callback every `millis` milliseconds. */
 	setInterval(callback: () => void, millis?: number): number;
+	/** Cancel an interval previously returned by {@link TimerService.setInterval}. */
 	clearInterval(id: number | undefined): void;
 }
 
@@ -192,55 +204,30 @@ export type CallFacet<S extends object> = ServiceClient<S>;
 /** Faceted notification surface — `actor.notify.<event>(...)` / `actor.notifyNow.<event>(...)`. */
 export type NotifyFacet<N extends object> = NotificationClient<N>;
 
-/** @deprecated Handler-only; root shells use {@link ExternalActor}. */
-export type ActorCore<C extends ActorConfig = ActorConfig> = {
-	ctx: ActorContextOf<C>;
-	hsm: ActorHsm<C>;
-};
-
 export type ExternalHsm<C extends ActorConfig = ActorConfig> = ActorHsm<C>;
 
-export type ExternalActor<C extends ActorConfig = ActorConfig> = ActorParentField &
-	/** @deprecated flat protocol methods — use `actor.call.x()` / `actor.notify.x()`. */
-	ServiceClient<ActorServicesOf<C>> &
-	NotificationClient<ActorNotificationsOf<C>> & {
-		readonly notify: NotifyFacet<ActorNotificationsOf<C>>;
-		readonly notifyNow: NotifyFacet<ActorNotificationsOf<C>>;
-		readonly call: CallFacet<ActorServicesOf<C>>;
-		readonly hsm: ExternalHsm<C>;
-	};
-
-/** @deprecated Use {@link ExternalActor} — root shells have no `ctx`. */
-export type Actor<C extends ActorConfig = ActorConfig> = ExternalActor<C> & { ctx?: never };
+export type ExternalActor<C extends ActorConfig = ActorConfig> = ActorParentField & {
+	readonly notify: NotifyFacet<ActorNotificationsOf<C>>;
+	readonly notifyNow: NotifyFacet<ActorNotificationsOf<C>>;
+	readonly call: CallFacet<ActorServicesOf<C>>;
+	readonly hsm: ExternalHsm<C>;
+};
 
 export type InboundHsm<C extends ActorConfig = ActorConfig> = TestActorHsm<C>;
 
-export type InboundActor<C extends ActorConfig = ActorConfig> = ActorParentField &
-	ServiceClient<ActorServicesOf<C>> &
-	NotificationClient<ActorNotificationsOf<C>> &
-	NotificationClient<ActorInternalNotificationsOf<C>> & {
-		readonly notify: NotifyFacet<ActorNotificationsOf<C> & ActorInternalNotificationsOf<C>>;
-		readonly notifyNow: NotifyFacet<ActorNotificationsOf<C> & ActorInternalNotificationsOf<C>>;
-		readonly call: CallFacet<ActorServicesOf<C>>;
-		readonly hsm: InboundHsm<C>;
-	};
-
-/** @deprecated Use {@link InboundActor}. */
-export type InternalActor<C extends ActorConfig = ActorConfig> = InboundActor<C>;
-
-/** @deprecated Use {@link InboundHsm}. */
-export type InternalActorHsm<C extends ActorConfig = ActorConfig> = InboundHsm<C>;
+export type InboundActor<C extends ActorConfig = ActorConfig> = ActorParentField & {
+	readonly notify: NotifyFacet<ActorNotificationsOf<C> & ActorInternalNotificationsOf<C>>;
+	readonly notifyNow: NotifyFacet<ActorNotificationsOf<C> & ActorInternalNotificationsOf<C>>;
+	readonly call: CallFacet<ActorServicesOf<C>>;
+	readonly hsm: InboundHsm<C>;
+};
 
 export type ChildHsm<C extends ActorConfig = ActorConfig> = OwnerActorHsm<C>;
 
-export type ChildActor<C extends ActorConfig = ActorConfig> = InboundActor<C> &
-	ServiceClient<ActorInternalServicesOf<C>> & {
-		readonly call: CallFacet<ActorServicesOf<C> & ActorInternalServicesOf<C>>;
-		readonly hsm: ChildHsm<C>;
-	};
-
-/** @deprecated Use {@link ChildActor}. */
-export type OwnerActor<C extends ActorConfig = ActorConfig> = ChildActor<C>;
+export type ChildActor<C extends ActorConfig = ActorConfig> = Omit<InboundActor<C>, 'call' | 'hsm'> & {
+	readonly call: CallFacet<ActorServicesOf<C> & ActorInternalServicesOf<C>>;
+	readonly hsm: ChildHsm<C>;
+};
 
 export type SelfNotifications<C extends ActorConfig = ActorConfig> = NotificationClient<ActorNotificationsOf<C>> & NotificationClient<ActorInternalNotificationsOf<C>>;
 
@@ -257,13 +244,12 @@ export interface IPort<C extends ActorConfig = ActorConfig> extends TimerService
 }
 
 /** Port instance passed to a factory before {@link IPort.actor} is bound. */
-export type MachinePortInput<C extends ActorConfig = ActorConfig> = import('./runtime').Port<Any>;
+export type UntypedPortInput = Port<TopStateArg>;
+export type MachinePortInput<C extends ActorConfig = ActorConfig> = IPort<C> | UntypedPortInput;
 
 export type HandlerHsm<C extends ActorConfig = ActorConfig> = {
 	ctx: ActorContextOf<C>;
 	transition(next: StateClassOf<C>): void;
-	actor: SelfNotifications<C>;
-	immediate: SelfNotifications<C>;
 	port: ActorPortOf<C>;
 	unhandled(): never;
 	eventName: string;
@@ -286,7 +272,7 @@ export interface TopState<C extends ActorConfig = ActorConfig> {
 	readonly notifyNow: SelfNotifications<C>;
 }
 
-export type ActorHsm<C extends ActorConfig = ActorConfig> = {
+export type ActorHsm<_C extends ActorConfig = ActorConfig> = {
 	sync(): Promise<void>;
 	currentStateName: string;
 	topStateName: string;
@@ -310,13 +296,7 @@ export type TestHsm<C extends ActorConfig = ActorConfig> = ChildHsm<C> & {
 	subscribe(observer: (message: { event: string; payload: unknown[] }) => void): { dispose(): void };
 };
 
-/** @deprecated Use {@link TestHsm} */
-export type TestOwnerActorHsm<C extends ActorConfig = ActorConfig> = TestHsm<C>;
-
 export type EmbodimentKind = 'root' | 'inbound' | 'child' | 'test';
-
-/** @deprecated Use {@link EmbodimentKind}. */
-export type HandleWidth = EmbodimentKind;
 
 //#endregion
 
@@ -325,8 +305,8 @@ export type HandleWidth = EmbodimentKind;
 export interface StateEvents<C extends ActorConfig = ActorConfig> {
 	onExit(): Promise<void> | void;
 	onEntry(): Promise<void> | void;
-	onError(error: import('./runtime').RuntimeError<C>): Promise<void> | void;
-	onUnhandled(error: import('./runtime').UnhandledEventError<C>): Promise<void> | void;
+	onError(error: RuntimeError<C>): Promise<void> | void;
+	onUnhandled(error: UnhandledEventError<C>): Promise<void> | void;
 }
 
 /** Machine snapshot passed to error constructors at failure time. */
@@ -342,20 +322,24 @@ export type ErrorHost<C extends ActorConfig = ActorConfig> = {
 
 //#region Internal runtime host types
 
+/** @internal Per-actor runtime instance bag (context, handler facade, port). */
 export interface Instance<C extends ActorConfig> {
 	ctx: ActorContextOf<C>;
 	hsm: HsmWithTracing<C>;
 	portRef?: unknown;
 }
 
+/** @internal Compiled transition between two states. */
 export interface Transition<C extends ActorConfig> {
 	execute(hsm: HsmWithTracing<C>, srcState: StateClassOf<C>, dstState: StateClassOf<C>): Promise<void>;
 }
 
 export type DoneCallback = () => void;
+/** @internal Run-to-completion work unit queued on the machine. */
 export type Task = (done: DoneCallback) => void;
 
-export interface HsmWithTracing<C extends ActorConfig = ActorConfig> {
+/** Machine host passed to {@link executeTransitionRoutine}. */
+export interface TransitionHost<C extends ActorConfig = ActorConfig> {
 	readonly ctx: ActorContextOf<C>;
 	readonly currentStateName: string;
 	readonly topState: StateClassOf<C>;
@@ -364,8 +348,11 @@ export interface HsmWithTracing<C extends ActorConfig = ActorConfig> {
 	readonly traceHeader: string;
 	readonly eventName: string;
 	readonly eventPayload: unknown[];
-
 	currentState: StateClassOf<C>;
+}
+
+/** @internal Runtime host passed to transition execution and dispatch tasks. */
+export interface HsmWithTracing<C extends ActorConfig = ActorConfig> extends TransitionHost<C> {
 	traceLevel: TraceLevel;
 	traceWriter: TraceWriter;
 	dispatchErrorCallback: DispatchErrorCallback<C>;
@@ -399,6 +386,7 @@ export interface ProtocolIndex {
 	entries(kind: EmbodimentKind): Iterable<[string, ProtocolSlot]>;
 }
 
+/** @internal Machine surface used by generated actor handles and dispatch. */
 export interface DispatchableMachine {
 	dispatchService(name: string, args: unknown[]): Promise<unknown>;
 	dispatchNotification(name: string, args: unknown[], queue: NotificationQueue): void;
@@ -408,7 +396,6 @@ export interface DispatchableMachine {
 }
 
 export type NotificationQueue = 'default' | 'priority' | 'timer';
-export type DispatchKind = 'notification' | 'service';
 
 export interface TransitionResolver<C extends ActorConfig = ActorConfig> {
 	resolve(src: StateClassOf<C>, dest: StateClassOf<C>): Transition<C>;

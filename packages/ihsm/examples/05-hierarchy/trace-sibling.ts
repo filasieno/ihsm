@@ -14,16 +14,14 @@ export interface TraceCtx {
 
 export interface TraceConfig {
 	context: TraceCtx;
-notifications: {
+	notifications: {
 		goToB(): void;
 		goToC(): void;
 	};
 }
 
-
 /** Shallow sibling chain — entry/exit order without deep nesting. */
 export class TraceTop extends PlaygroundTopState<TraceConfig> {
-
 	onEntry(): void {
 		this.ctx.log.push('enter:Top');
 	}

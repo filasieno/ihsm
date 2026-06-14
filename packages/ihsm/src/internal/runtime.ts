@@ -5,9 +5,7 @@ import type {
 	ActorContextOf,
 	ActorConfigOf,
 	ActorPortOf,
-	ActorHsm,
 	ActorOptions,
-	Any,
 	ChildActor,
 	ChildHsm,
 	DispatchableMachine,
@@ -42,6 +40,7 @@ import type {
 	DispatchErrorCallback,
 	Transition,
 	TransitionResolver,
+	TransitionHost,
 	TransitionRoutineExecuteOptions,
 	TransitionRoutinePlan,
 	TransitionRoutineStyle,
@@ -115,27 +114,17 @@ export function getStateName<C extends ActorConfig>(state: StateClass<C>): strin
 
 //#region ports
 
-export class Port<T = Any> implements IPort<ActorConfigOf<T>>, RandomService {
+/** Production port: timers, randomness, and deferred self-notifications for one machine.
+ * @typeParam T - Root state **constructor** (`typeof DoorTop`), not the instance type. */
+export class Port<T extends TopStateArg = TopStateArg> implements IPort<ActorConfigOf<T>>, RandomService {
 	declare readonly __topState: T;
 	actor!: InboundActor<ActorConfigOf<T>> | ChildActor<ActorConfigOf<T>>;
 	private _deferFactory?: (ms: number) => SelfNotifications<ActorConfigOf<T>>;
-
-	/** @internal Wired by {@link Machine.bindPort} — do not call from application code. */
-	bindDeferredNotifications(factory: (ms: number) => SelfNotifications<ActorConfigOf<T>>): void {
-		this._deferFactory = factory;
-	}
-
-	defer(ms: number): SelfNotifications<ActorConfigOf<T>> {
-		if (this._deferFactory === undefined) {
-			throw new Error('ihsm: port.defer requires actor binding — pass the port to makeActor / makeTestActor');
-		}
-		return this._deferFactory(ms);
-	}
-
 	protected _timerSeq = 0;
 	protected readonly _timeoutHandles = new Map<number, ReturnType<typeof setTimeout>>();
 	protected readonly _intervalHandles = new Map<number, ReturnType<typeof setInterval>>();
 
+	/** Schedule a one-shot callback after `millis` milliseconds (platform timer). */
 	setTimeout(callback: () => void, millis?: number): number {
 		const id = ++this._timerSeq;
 		const handle = globalThis.setTimeout(
@@ -149,6 +138,7 @@ export class Port<T = Any> implements IPort<ActorConfigOf<T>>, RandomService {
 		return id;
 	}
 
+	/** Cancel a timer previously returned by {@link Port.setTimeout}. */
 	clearTimeout(id: number | undefined): void {
 		if (id === undefined) {
 			return;
@@ -160,6 +150,7 @@ export class Port<T = Any> implements IPort<ActorConfigOf<T>>, RandomService {
 		}
 	}
 
+	/** Schedule a repeating callback every `millis` milliseconds. */
 	setInterval(callback: () => void, millis?: number): number {
 		const id = ++this._timerSeq;
 		const handle = globalThis.setInterval(callback, Math.max(0, millis ?? 0));
@@ -167,6 +158,7 @@ export class Port<T = Any> implements IPort<ActorConfigOf<T>>, RandomService {
 		return id;
 	}
 
+	/** Cancel an interval previously returned by {@link Port.setInterval}. */
 	clearInterval(id: number | undefined): void {
 		if (id === undefined) {
 			return;
@@ -178,29 +170,45 @@ export class Port<T = Any> implements IPort<ActorConfigOf<T>>, RandomService {
 		}
 	}
 
+	/** Pseudorandom number in `[0, 1)` — delegates to `Math.random()`. */
 	random(): number {
 		return Math.random();
 	}
 
+	/** Cryptographic-quality random in `[0, 1)` when the platform provides it. */
 	cryptoRandom(): number {
 		const crypto = globalThis.crypto as Crypto & { random?: () => number };
 		return crypto.random?.() ?? Math.random();
 	}
 
+	/** Generate a UUID v4 string via `crypto.randomUUID()`. */
 	randomUUID(): string {
 		return globalThis.crypto.randomUUID();
 	}
 
+	/** Fill `array` with cryptographically strong random bytes. */
 	getRandomValues<T extends ArrayBufferView>(array: T): T {
 		globalThis.crypto.getRandomValues(array as never);
 		return array;
+	}
+
+	/** @internal Wired by {@link Machine.bindPort} — do not call from application code. */
+	bindDeferredNotifications(factory: (ms: number) => SelfNotifications<ActorConfigOf<T>>): void {
+		this._deferFactory = factory;
+	}
+
+	defer(ms: number): SelfNotifications<ActorConfigOf<T>> {
+		if (this._deferFactory === undefined) {
+			throw new Error('ihsm: port.defer requires actor binding — pass the port to makeActor / makeTestActor');
+		}
+		return this._deferFactory(ms);
 	}
 }
 
 const kRequestingPort = Symbol('ihsm.requestingPort');
 type RequestingPortCtor = Function & Record<typeof kRequestingPort, boolean | undefined>;
 
-export abstract class RequestingPort<T> extends Port<T> {
+export abstract class RequestingPort<T extends TopStateArg = TopStateArg> extends Port<T> {
 	declare actor: ChildActor<ActorConfigOf<T>>;
 }
 
@@ -542,6 +550,7 @@ export class CallTimeoutError extends Error {
 
 export const kMachine = Symbol('ihsm.machine');
 
+/** @internal Actor handle prototype bag used when wiring generated facets. */
 export interface HandleOwn extends Record<symbol | string, unknown> {
 	[kMachine]: DispatchableMachine;
 	ctx?: unknown;
@@ -597,39 +606,6 @@ export function serviceCallWithTimeout<T>(promise: Promise<T>, method: string, t
 	});
 }
 
-const protoCache = new WeakMap<object, Map<EmbodimentKind, object>>();
-
-export function getHandleProto(topState: object, index: ProtocolIndex, kind: EmbodimentKind): object {
-	let map = protoCache.get(topState);
-	if (map === undefined) {
-		map = new Map();
-		protoCache.set(topState, map);
-	}
-	let proto = map.get(kind);
-	if (proto === undefined) {
-		const built: Record<string, Function> = Object.create(null);
-		for (const [name, slot] of index.entries(kind)) {
-			if (slot.bucket === 'services' || slot.bucket === 'internalServices') {
-				built[name] = function (this: HandleOwn, ...args: unknown[]): Promise<unknown> {
-					const { callArgs, timeoutMs } = splitServiceArgs(args);
-					const promise = this[kMachine].dispatchService(name, callArgs);
-					if (timeoutMs === undefined) {
-						return promise;
-					}
-					return serviceCallWithTimeout(promise, name, timeoutMs);
-				};
-			} else {
-				built[name] = function (this: HandleOwn, ...args: unknown[]): void {
-					this[kMachine].dispatchNotification(name, args, 'default');
-				};
-			}
-		}
-		proto = Object.freeze(built);
-		map.set(kind, proto);
-	}
-	return proto;
-}
-
 type FacetKind = 'notify' | 'notifyNow' | 'call';
 
 const facetProtoCache = new WeakMap<object, Map<string, object>>();
@@ -650,17 +626,20 @@ function getFacetProto(topState: object, index: ProtocolIndex, kind: EmbodimentK
 	let proto = map.get(cacheKey);
 	if (proto === undefined) {
 		const built: Record<string, Function> = Object.create(null);
-		for (const [name, slot] of index.entries(kind)) {
+		// Dispatch mode is fixed by the facet, not by the handler's signature, so
+		// every member visible to this embodiment kind is exposed on every facet.
+		// The static types (`NotifyFacet` / `CallFacet`) are the gate that decides
+		// which members are legal to reach through which facet; the runtime never
+		// needs to guess service-vs-notification from the handler's return type.
+		const queue: NotificationQueue = facet === 'notifyNow' ? 'priority' : 'default';
+		for (const [name] of index.entries(kind)) {
 			if (facet === 'call') {
-				if (slot.bucket === 'services' || slot.bucket === 'internalServices') {
-					built[name] = function (this: HandleOwn, ...args: unknown[]): Promise<unknown> {
-						const { callArgs, timeoutMs } = splitServiceArgs(args);
-						const promise = this[kMachine].dispatchService(name, callArgs);
-						return timeoutMs === undefined ? promise : serviceCallWithTimeout(promise, name, timeoutMs);
-					};
-				}
-			} else if (slot.bucket === 'notifications' || slot.bucket === 'internalNotifications') {
-				const queue: NotificationQueue = facet === 'notifyNow' ? 'priority' : 'default';
+				built[name] = function (this: HandleOwn, ...args: unknown[]): Promise<unknown> {
+					const { callArgs, timeoutMs } = splitServiceArgs(args);
+					const promise = this[kMachine].dispatchService(name, callArgs);
+					return timeoutMs === undefined ? promise : serviceCallWithTimeout(promise, name, timeoutMs);
+				};
+			} else {
 				built[name] = function (this: HandleOwn, ...args: unknown[]): void {
 					this[kMachine].dispatchNotification(name, args, queue);
 				};
@@ -678,8 +657,12 @@ function createFacet(machine: DispatchableMachine, topState: object, index: Prot
 	return facetHandle;
 }
 
+/** @internal */
 export function createActorHandle(machine: DispatchableMachine, topState: object, index: ProtocolIndex, kind: EmbodimentKind): HandleOwn {
-	const handle = Object.create(getHandleProto(topState, index, kind)) as HandleOwn;
+	// Faceted surface only — protocol members live under `notify` / `notifyNow`
+	// / `call`. There are no flat methods on the handle, so `actor.theEvent()`
+	// is a compile-time and runtime error; callers must go through a facet.
+	const handle = {} as HandleOwn;
 	Object.defineProperty(handle, kMachine, { value: machine, enumerable: false });
 	if (kind === 'test') {
 		Object.defineProperty(handle, 'ctx', {
@@ -698,6 +681,7 @@ export function createActorHandle(machine: DispatchableMachine, topState: object
 
 const selfProtoCache = new WeakMap<object, Map<NotificationQueue, object>>();
 
+/** @internal */
 export function getSelfNotificationsProto(topState: object, index: ProtocolIndex, queue: NotificationQueue): object {
 	let map = selfProtoCache.get(topState);
 	if (map === undefined) {
@@ -707,19 +691,13 @@ export function getSelfNotificationsProto(topState: object, index: ProtocolIndex
 	let proto = map.get(queue);
 	if (proto === undefined) {
 		const built: Record<string, Function> = Object.create(null);
-		for (const [name, slot] of index.entries('inbound')) {
-			if (slot.bucket === 'notifications' || slot.bucket === 'internalNotifications') {
-				built[name] = function (this: HandleOwn, ...args: unknown[]): void {
-					this[kMachine].dispatchNotification(name, args, queue);
-				};
-			}
-		}
-		for (const [name, slot] of index.entries('root')) {
-			if (slot.bucket === 'notifications') {
-				built[name] = function (this: HandleOwn, ...args: unknown[]): void {
-					this[kMachine].dispatchNotification(name, args, queue);
-				};
-			}
+		// Self-send always uses notification dispatch (you cannot await a service
+		// on yourself); `SelfNotifications<C>` is the static gate for which members
+		// are reachable, so expose every member visible to the handler embodiment.
+		for (const [name] of index.entries('inbound')) {
+			built[name] = function (this: HandleOwn, ...args: unknown[]): void {
+				this[kMachine].dispatchNotification(name, args, queue);
+			};
 		}
 		proto = Object.freeze(built);
 		map.set(queue, proto);
@@ -794,8 +772,6 @@ export const dispatchContext = (() => {
 
 //#region transition-routines
 
-type TransitionHost<C extends ActorConfig> = HsmWithTracing<C>;
-
 /** Thrown when a generated transition table's graph hash does not match the scanned hierarchy. */
 export class TransitionTableError extends Error {
 	constructor(message: string) {
@@ -811,7 +787,7 @@ export function planTransitionClasses<C extends ActorConfig>(srcState: StateClas
 	let srcPath: StateClass<C>[] = [];
 	const end = TopState as StateClass<C>;
 	const srcIndex = new Map<StateClass<C>, number>();
-	let dstPath: StateClass<C>[] = [];
+	const dstPath: StateClass<C>[] = [];
 	let cur: StateClass<C> = src;
 	let i = 0;
 
@@ -986,6 +962,7 @@ export class RuntimeTransitionResolver<C extends ActorConfig = ActorConfig> impl
 	}
 }
 
+/** @internal */
 export async function executePendingTransition<C extends ActorConfig>(host: HsmWithTracing<C>, resolver: TransitionResolver<C>): Promise<void> {
 	if (host._transitionState === undefined) return;
 	try {
@@ -1089,6 +1066,7 @@ async function invokeHandler<C extends ActorConfig>(host: HsmWithTracing<C>, res
 	}
 }
 
+/** @internal */
 export function createInitTask<C extends ActorConfig>(host: HsmWithTracing<C>, resolver: TransitionResolver<C>): Task {
 	const runInit = host.traceLevel === TraceLevel.PRODUCTION ? executeInitProduction : host.traceLevel === TraceLevel.DEBUG ? executeInitDebug : executeInitVerbose;
 	return (done: DoneCallback): void => {
@@ -1102,6 +1080,7 @@ export function createInitTask<C extends ActorConfig>(host: HsmWithTracing<C>, r
 	};
 }
 
+/** @internal */
 export function createServiceTask<C extends ActorConfig>(host: HsmWithTracing<C>, resolver: TransitionResolver<C>, name: string, args: readonly unknown[], resolve: (value: unknown) => void, reject: (error: Error) => void): Task {
 	const machine = host as unknown as DispatchableMachine;
 	return (done: DoneCallback): void => {
@@ -1126,6 +1105,7 @@ export function createServiceTask<C extends ActorConfig>(host: HsmWithTracing<C>
 	};
 }
 
+/** @internal */
 export function createNotificationTask<C extends ActorConfig>(host: HsmWithTracing<C>, _resolver: TransitionResolver<C>, name: string, args: readonly unknown[]): Task {
 	return (done: DoneCallback): void => {
 		host._createEventDispatchTask(host, name, ...args)(done);
@@ -1154,9 +1134,13 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 	public readonly ctxTypeName: string;
 	public traceWriter: TraceWriter;
 
+	/** @internal */
 	public _instance: Instance<C>;
+	/** @internal */
 	public _transitionCache: Map<string, Transition<C>> = new Map();
+	/** @internal */
 	public _jobs: Task[];
+	/** @internal */
 	public _hiPriorityJobs: Task[];
 	private _isRunning = false;
 	public _transitionState?: StateClass<C>;
@@ -1345,7 +1329,7 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 
 //#region machine
 
-export class Machine<C extends ActorConfig> extends HsmObject<C> implements DispatchableMachine {
+export class Machine<C extends ActorConfig> extends HsmObject<C> {
 	readonly transitionResolver: TransitionResolver<C>;
 	private readonly protocolIndex: ProtocolIndex;
 	private readonly handlerFacade: HandlerHsm<C>;
@@ -1418,7 +1402,7 @@ export class Machine<C extends ActorConfig> extends HsmObject<C> implements Disp
 	/** @internal Binds deferred self-notifications to a port instance. */
 	bindPort(portRef: unknown): void {
 		if (portRef instanceof Port) {
-			(portRef as Port<C>).bindDeferredNotifications(ms => this.createDeferredSelfNotifications(ms) as unknown as SelfNotifications<ActorConfigOf<C>>);
+			(portRef as Port<TopStateArg<C>>).bindDeferredNotifications(ms => this.createDeferredSelfNotifications(ms));
 		}
 	}
 
@@ -1429,8 +1413,6 @@ export class Machine<C extends ActorConfig> extends HsmObject<C> implements Disp
 				return machine.ctx;
 			},
 			transition: next => machine.transition(next as StateClass<C>),
-			actor: this.selfActor,
-			immediate: this.selfImmediate,
 			get port(): ActorPortOf<C> {
 				return instance.portRef as ActorPortOf<C>;
 			},
@@ -1642,7 +1624,7 @@ export function spawnActor<C extends ActorConfig, K extends EmbodimentKind>(kind
 
 	const protocolIndex = buildProtocolIndex(topState);
 
-	const boundPort = (port ?? new Port<C>()) as Port<C>;
+	const boundPort = (port ?? new Port<TopStateArg<C>>()) as MachinePortInput<C>;
 	const instance: { ctx: ActorContextOf<C>; hsm: never; portRef?: unknown } = {
 		ctx,
 		hsm: undefined as never,
@@ -1770,6 +1752,7 @@ async function prod_doUnhandledEvent<C extends ActorConfig>(hsm: HsmWithTracing<
 	}
 }
 
+/** @internal */
 export async function executeInitProduction<C extends ActorConfig>(hsm: HsmWithTracing<C>): Promise<void> {
 	let currState: StateClass<C> = hsm.topState;
 	try {

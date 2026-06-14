@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 /**
  * Ensure generated website/docs exist before Docusaurus start/build.
- * Regenerates when API/reference/testing output is missing or PlantUML was left as code fences.
- * Avoids webpack "Can't resolve @site/docs/api/…" after a failed or partial prepare.
+ * Regenerates when reference/testing output is missing or PlantUML was left as code fences.
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -12,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const docsDir = path.join(repoRoot, 'website/docs');
 const markers = [
-	path.join(docsDir, 'api/index.mdx'),
+	path.join(docsDir, 'intro.mdx'),
 	path.join(docsDir, 'reference.mdx'),
 	path.join(docsDir, 'testing.mdx'),
 	path.join(repoRoot, 'website/sidebars.ts'),

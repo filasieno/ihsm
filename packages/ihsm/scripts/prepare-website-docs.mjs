@@ -26,7 +26,7 @@ function run(script) {
 }
 
 function assertPrepared() {
-	for (const rel of ['api/index.mdx', 'reference.mdx', 'testing.mdx', 'intro.mdx']) {
+	for (const rel of ['reference.mdx', 'testing.mdx', 'intro.mdx']) {
 		const p = path.join(staging, rel);
 		if (!fs.existsSync(p)) {
 			console.error(`prepare incomplete: missing ${rel}`);
@@ -46,8 +46,6 @@ fs.mkdirSync(staging, { recursive: true });
 fs.cpSync(docsSrc, staging, { recursive: true });
 fs.rmSync(path.join(staging, 'README.md'), { force: true });
 
-// API first so a reference/plantuml failure still leaves api/ in staging (not swapped).
-run('generate-api-docs.mjs');
 run('generate-reference-mdx.mjs');
 
 assertPrepared();

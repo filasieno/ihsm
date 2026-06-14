@@ -12,15 +12,13 @@ export interface ReminderCtx {
 
 export interface ReminderConfig {
 	context: ReminderCtx;
-notifications: {
+	notifications: {
 		scheduleReminder(text: string): void;
 		deliver(text: string): void;
 	};
 }
 
-
 export class ReminderTop extends PlaygroundTopState<ReminderConfig> {
-
 	scheduleReminder(text: string): void {
 		// Returns immediately; deliver is enqueued when the timer fires.
 		this.hsm.port.defer(50).deliver(text);

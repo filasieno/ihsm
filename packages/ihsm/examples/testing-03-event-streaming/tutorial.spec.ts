@@ -17,7 +17,7 @@ import { MouseTop, Idle, Listening, Point, freshCtx } from './machine';
  * emitted from `subscribe`; a move is delivered inward only while the subscription is live.
  */
 @ihsm.mock('subscribe')
-abstract class MockMouseStream extends ihsm.TestPort<MouseTop> {
+abstract class MockMouseStream extends ihsm.TestPort<typeof MouseTop> {
 	abstract subscribe(): ihsm.ResultWithSubscription<number>;
 
 	/** The simulated OS pointer — device state owned by the mock, not the actor's business. */
@@ -91,7 +91,7 @@ describe('Testing 03: event streaming (mouse)', () => {
 		expect(stream.trace).to.include('drop:1,1');
 
 		// Press "listen" → the machine subscribes through the port (running the scripted subscribe).
-		sm.listen();
+		sm.notify.listen();
 		await sm.hsm.sync();
 		expect(sm.hsm.currentState).equals(Listening);
 		expect(sm.ctx.listening).equals(true);
@@ -112,7 +112,7 @@ describe('Testing 03: event streaming (mouse)', () => {
 		]);
 
 		// Press "stop listening" → subscription disposed, source goes quiet.
-		sm.stopListening();
+		sm.notify.stopListening();
 		await sm.hsm.sync();
 		expect(sm.hsm.currentState).equals(Idle);
 		expect(sm.ctx.listening).equals(false);
@@ -138,7 +138,7 @@ describe('Testing 03: event streaming (mouse)', () => {
 		expect(sm.ctx.moves).to.deep.equal([]); // actor saw nothing
 
 		// Subscribe, then nudge relative to where the device actually is — not where the actor "left off".
-		sm.listen();
+		sm.notify.listen();
 		await sm.hsm.sync();
 		stream.moveBy(10, 10);
 		await sm.hsm.sync();
@@ -146,7 +146,7 @@ describe('Testing 03: event streaming (mouse)', () => {
 		expect(sm.ctx.moves).to.deep.equal([{ x: 15, y: 15 }]);
 
 		// Stop listening; the device keeps moving (mock position advances) while the actor stays put.
-		sm.stopListening();
+		sm.notify.stopListening();
 		await sm.hsm.sync();
 		stream.moveBy(100, 100);
 		await sm.hsm.sync();
@@ -160,13 +160,13 @@ describe('Testing 03: event streaming (mouse)', () => {
 
 		expect(test.hsm.port).to.not.equal(undefined);
 
-		test.listen();
+		test.notify.listen();
 		await test.hsm.sync();
 		expect(test.hsm.currentState).equals(Listening);
 
 		// Internal events posted directly on the full test surface.
-		test.onMouseMove(5, 6);
-		test.onMouseMove(7, 8);
+		test.notify.onMouseMove(5, 6);
+		test.notify.onMouseMove(7, 8);
 		await test.hsm.sync();
 		expect(test.ctx.moves).to.deep.equal([
 			{ x: 5, y: 6 },
@@ -174,9 +174,9 @@ describe('Testing 03: event streaming (mouse)', () => {
 		]);
 
 		// A move while idle is ignored by the machine (top-state no-op).
-		test.stopListening();
+		test.notify.stopListening();
 		await test.hsm.sync();
-		test.onMouseMove(1, 1);
+		test.notify.onMouseMove(1, 1);
 		await test.hsm.sync();
 		expect(test.ctx.moves).to.have.length(2);
 	});

@@ -1,0 +1,25 @@
+> **PortServices**\<`C`\> = [`TimerService`](../interfaces/TimerService.mdx) & [`RandomService`](../interfaces/RandomService.mdx) & `object`
+
+Timer, random, and deferred self-notifications — always on [ActorPortOf](ActorPortOf.mdx).
+
+## Type Declaration
+
+### defer()
+
+> **defer**(`ms`): [`SelfNotifications`](SelfNotifications.mdx)\<`C`\>
+
+#### Parameters
+
+##### ms
+
+`number`
+
+#### Returns
+
+[`SelfNotifications`](SelfNotifications.mdx)\<`C`\>
+
+## Type Parameters
+
+### C
+
+`C` *extends* [`ActorConfig`](../interfaces/ActorConfig.mdx) = [`ActorConfig`](../interfaces/ActorConfig.mdx)

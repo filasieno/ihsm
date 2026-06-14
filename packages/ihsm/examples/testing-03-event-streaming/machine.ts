@@ -28,7 +28,7 @@ export interface MouseCtx {
 
 export interface MouseConfig {
 	context: MouseCtx;
-notifications: {
+	notifications: {
 		listen(): void;
 		stopListening(): void;
 	};
@@ -40,20 +40,14 @@ notifications: {
 	};
 }
 
-export type MousePublic = ihsm.ActorNotificationsOf<MouseConfig>;
-
-export type MouseInternal = ihsm.ActorInternalNotificationsOf<MouseConfig>;
-
 /** Outbound boundary to the (impure) event source. */
 export type MouseStreamPort = ihsm.DomainPortOf<MouseConfig>;
-
 
 /**
  * Root state. The "wrong state" cases are safe no-ops so the live demo never crashes:
  * a move that arrives while idle, or a redundant listen/stop, is simply ignored.
  */
 export class MouseTop extends ihsm.TopState<MouseConfig> {
-
 	listen(): void {} // ignored unless Idle
 	stopListening(): void {} // ignored unless Listening
 	onMouseMove(_x: number, _y: number): void {} // ignored unless Listening

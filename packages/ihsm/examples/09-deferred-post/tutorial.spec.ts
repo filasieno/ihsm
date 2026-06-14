@@ -12,7 +12,7 @@ describe('Tutorial 09: deferred post', () => {
 		const sm = createReminder();
 		await sm.hsm.sync();
 
-		sm.scheduleReminder('hello later');
+		sm.notify.scheduleReminder('hello later');
 		await sleep(100);
 		await sm.hsm.sync();
 

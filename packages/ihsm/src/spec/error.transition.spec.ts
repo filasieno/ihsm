@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { FatalErrorState, InitialState, StateClass, TopState, TraceLevel} from '../';
+import { FatalErrorState, InitialState, StateClass, TopState, TraceLevel } from '../';
 import type { TestActor } from '../testing';
 import { makeTestActor, TestPort } from '../testing';
 import * as self from './error.transition.spec';
@@ -17,7 +17,6 @@ interface ErrorTransitionConfig {
 
 //#region ThisTestSpec
 export class HsmTop extends TopState<ErrorTransitionConfig> {
-
 	transitionTo(s: Cons): void {
 		this.hsm.transition(s);
 	}
@@ -33,7 +32,6 @@ export class A extends HsmTop {
 export class B extends HsmTop {}
 
 export class C extends HsmTop {
-
 	onExit(): void {
 		throw new Error('A fatal error');
 	}
@@ -58,12 +56,12 @@ for (const traceLevel of TRACE_LEVELS) {
 		it(`logs an error from the exit() callback and moves the state machine to the 'FatalErrorState' (traceLevel = ${traceLevel as TraceLevel})`, async () => {
 			expect(sm.hsm.currentState).equals(B);
 
-			sm.transitionTo(C);
+			sm.notify.transitionTo(C);
 			await sm.hsm.sync();
 
 			expect(sm.hsm.currentState).equals(C);
 			expect(port.events).to.include('transitionTo');
-			sm.transitionTo(B);
+			sm.notify.transitionTo(B);
 			await sm.hsm.sync();
 
 			expect(sm.hsm.currentState).equals(FatalErrorState);
@@ -72,7 +70,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		it(`logs an error from the entry() callback and moves the state machine to the 'FatalErrorState' (traceLevel = ${traceLevel as TraceLevel})`, async () => {
 			expect(sm.hsm.currentState).equals(B);
 
-			sm.transitionTo(A);
+			sm.notify.transitionTo(A);
 			await sm.hsm.sync();
 
 			expect(sm.hsm.currentState).equals(FatalErrorState);

@@ -1,7 +1,7 @@
-> **Mock**\<`P`, `C`\> = `P` & `{ [K in keyof ActorPortOf<C>]: ActorPortOf<C>[K] extends (args: infer A) => infer R ? Stubbed<A, R> : ActorPortOf<C>[K] }`
+> **Mock**\<`P`, `C`\> = `P` & `{ [K in keyof DomainPortOf<C>]: DomainPortOf<C>[K] extends (args: infer A) => infer R ? Stubbed<A, R> : DomainPortOf<C>[K] }`
 
 The fully-wired mock type returned by [makeTestPort](../functions/makeTestPort.mdx): the mock class `P` itself, with each
-**port method** (inferred from the machine's [TopState](../../index/classes/TopState.mdx) via ConfigPort) upgraded to
+**port method** (inferred from the machine's [TopState](../../index/classes/TopState.mdx) via [DomainPortOf](../../index/type-aliases/DomainPortOf.mdx)) upgraded to
 a scriptable, introspectable [Stubbed](../interfaces/Stubbed.mdx) method.
 
 ## Type Parameters

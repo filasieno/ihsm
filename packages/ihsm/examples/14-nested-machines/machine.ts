@@ -13,14 +13,12 @@ export interface PaymentCtx {
 
 export interface PaymentConfig {
 	context: PaymentCtx;
-notifications: {
+	notifications: {
 		markPaid(): void;
 	};
 }
 
-
 export class PaymentTop extends PlaygroundTopState<PaymentConfig> {
-
 	markPaid(): void {
 		this.ctx.paid = true;
 		this.hsm.transition(PaymentDone);
@@ -39,14 +37,12 @@ export interface ShippingCtx {
 
 export interface ShippingConfig {
 	context: ShippingCtx;
-notifications: {
+	notifications: {
 		markShipped(): void;
 	};
 }
 
-
 export class ShippingTop extends PlaygroundTopState<ShippingConfig> {
-
 	markShipped(): void {
 		this.ctx.shipped = true;
 		this.hsm.transition(ShippingDone);
@@ -74,10 +70,10 @@ export class OrderCoordinator {
 	}
 
 	async fulfill(): Promise<void> {
-		this.payment.markPaid();
+		this.payment.notify.markPaid();
 		await this.payment.hsm.sync();
 
-		this.shipping.markShipped();
+		this.shipping.notify.markShipped();
 		await this.shipping.hsm.sync();
 	}
 }

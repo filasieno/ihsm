@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import type { AssertAsyncService, ActorConfig, ActorServicesOf, DisjointActorConfig, ServiceArgs, ServiceReply, TopStateArg } from '../';
+import type { AssertAsyncService, ActorServicesOf, DisjointActorConfig, ServiceArgs, ServiceReply, TopStateArg } from '../';
 import { ReservedNames } from '../internal/runtime';
 import * as self from './actor-config.spec';
 import { registerSpecStateNames } from './spec.utils';
@@ -64,9 +64,6 @@ type _SyncServiceCheck = AssertAsyncService<ActorServicesOf<SyncServiceConfig>['
 type _FetchArgs = ServiceArgs<ActorServicesOf<GoodConfig>, 'fetch'>;
 type _FetchReply = ServiceReply<ActorServicesOf<GoodConfig>, 'fetch'>;
 type _VoidReply = ServiceReply<ActorServicesOf<GoodConfig>, 'sleep'>;
-
-declare class GoodTop {
-}
 
 type _TopArg = TopStateArg<GoodConfig>;
 

@@ -2,13 +2,22 @@
 slug: /
 sidebar_position: 1
 title: Home
+description: Class-based hierarchical state machines and run-to-completion actors for TypeScript.
 ---
+
+<div className="ihsm-hero">
 
 # ihsm
 
-**Class-based hierarchical state machines and run-to-completion actors for TypeScript** — typed `post`/`call`, zero production dependencies.
+**Class-based hierarchical state machines** for TypeScript — states as classes, protocol as methods, actors with run-to-completion dispatch.
 
-This site has two sections: the **[Reference](/reference)** (concepts, semantics, and interactive examples on one page) and the **[API reference](/api)** (TSDoc from `src/index.ts`).
+<div className="ihsm-badges">
+  <span className="ihsm-badge">0 production dependencies</span>
+  <span className="ihsm-badge">100% runtime coverage</span>
+  <span className="ihsm-badge">Node 22+</span>
+</div>
+
+</div>
 
 ## Quick start
 
@@ -16,11 +25,63 @@ This site has two sections: the **[Reference](/reference)** (concepts, semantics
 npm install ihsm
 ```
 
-See [Key concepts](/reference#_1-key-concepts) on the Reference page for your first `makeHsm` actor.
+```typescript
+import { InitialState, makeActor, Port, TopState } from 'ihsm';
 
-## Where to go next
+interface DoorCtx {
+  openCount: number;
+}
 
-- [Reference](/reference) — full manual with embedded playgrounds
-- [API reference](/api) — typed exports from `src/index.ts`
+interface DoorConfig {
+  context: DoorCtx;
+  notifications: { open(): void; close(): void };
+}
 
-Source for contributors: `reference/REFERENCE.md`, runnable machines under `examples/`.
+class DoorTop extends TopState<DoorConfig> {}
+
+@InitialState
+class Closed extends DoorTop {
+  open(): void {
+    this.ctx.openCount += 1;
+    this.hsm.transition(Open);
+  }
+}
+
+class Open extends DoorTop {
+  close(): void {
+    this.hsm.transition(Closed);
+  }
+}
+
+const door = makeActor(DoorTop, { openCount: 0 }, new Port());
+await door.hsm.sync();
+
+door.notify.open();
+await door.hsm.sync();
+```
+
+## Learning path
+
+<div className="ihsm-cards">
+
+<div className="ihsm-card">
+
+### 1 · Reference + playgrounds
+
+[Reference](/reference) — concepts, semantics, and **interactive trace panels** for every major example.
+
+</div>
+
+<div className="ihsm-card">
+
+### 2 · Deterministic testing
+
+[Testing](/testing) — runnable DST examples first, then the full technique: `TestPort`, mock ports, simulated time, fault injection.
+
+</div>
+
+</div>
+
+:::info For contributors
+Sources live in `reference/`, `examples/`, and `website/docs-src/`. Regenerate the site with `nix develop --command npm run sync:docs`.
+:::

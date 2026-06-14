@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { InitialState, StateClass, TopState, TraceLevel, TraceWriter} from '../';
+import { InitialState, StateClass, TopState, TraceLevel, TraceWriter } from '../';
 import type { TestActor } from '../testing';
 import { makeTestActor, TestPort } from '../testing';
 import * as self from './fields.spec';
@@ -30,7 +30,6 @@ interface FieldsConfig {
 }
 
 export class HsmTop extends TopState<FieldsConfig> {
-
 	report(msg: string): void {
 		console.log(`received message: ${msg}`);
 		this.ctx.eventName = this.hsm.eventName;
@@ -67,7 +66,7 @@ for (const traceLevel of TRACE_LEVELS) {
 			const port = new TestPort();
 			sm = makeTestActor(HsmTop, ctx, port, { traceLevel });
 			traceActorOnPort(sm, port);
-			sm.report('hello world');
+			sm.notify.report('hello world');
 			await sm.hsm.sync();
 			expect(port.trace).eqls(['report:hello world']);
 			expect(sm.hsm.currentStateName).eq('B');

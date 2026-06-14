@@ -1,18 +1,14 @@
-Runtime port binding — `actor` is set synchronously before factory return.
+Runtime port — timers, randomness, deferred notifications, and [IPort.actor](../../index/interfaces/IPort.mdx#actor).
 
 ## Extends
 
-- [`BasePort`](../../index/classes/BasePort.mdx)\<`T`\>
+- [`Port`](../../index/classes/Port.mdx)\<`T`\>
 
 ## Type Parameters
 
 ### T
 
 `T` = [`Any`](../../index/type-aliases/Any.mdx)
-
-## Implements
-
-- [`RandomService`](../../index/interfaces/RandomService.mdx)
 
 ## Constructors
 
@@ -26,7 +22,7 @@ Runtime port binding — `actor` is set synchronously before factory return.
 
 #### Inherited from
 
-[`BasePort`](../../index/classes/BasePort.mdx).[`constructor`](../../index/classes/BasePort.mdx#constructor)
+[`Port`](../../index/classes/Port.mdx).[`constructor`](../../index/classes/Port.mdx#constructor)
 
 ## Properties
 
@@ -36,7 +32,7 @@ Runtime port binding — `actor` is set synchronously before factory return.
 
 #### Inherited from
 
-[`BasePort`](../../index/classes/BasePort.mdx).[`__topState`](../../index/classes/BasePort.mdx#__topstate)
+[`Port`](../../index/classes/Port.mdx).[`__topState`](../../index/classes/Port.mdx#__topstate)
 
 ***
 
@@ -46,7 +42,37 @@ Runtime port binding — `actor` is set synchronously before factory return.
 
 #### Inherited from
 
-[`BasePort`](../../index/classes/BasePort.mdx).[`actor`](../../index/classes/BasePort.mdx#actor)
+[`Port`](../../index/classes/Port.mdx).[`actor`](../../index/classes/Port.mdx#actor)
+
+***
+
+### \_timerSeq
+
+> `protected` **\_timerSeq**: `number` = `0`
+
+#### Inherited from
+
+[`Port`](../../index/classes/Port.mdx).[`_timerSeq`](../../index/classes/Port.mdx#_timerseq)
+
+***
+
+### \_timeoutHandles
+
+> `protected` `readonly` **\_timeoutHandles**: `Map`\<`number`, `Timeout`\>
+
+#### Inherited from
+
+[`Port`](../../index/classes/Port.mdx).[`_timeoutHandles`](../../index/classes/Port.mdx#_timeouthandles)
+
+***
+
+### \_intervalHandles
+
+> `protected` `readonly` **\_intervalHandles**: `Map`\<`number`, `Timeout`\>
+
+#### Inherited from
+
+[`Port`](../../index/classes/Port.mdx).[`_intervalHandles`](../../index/classes/Port.mdx#_intervalhandles)
 
 ## Accessors
 
@@ -148,6 +174,26 @@ Number of timers still pending (not yet fired or disposed).
 
 ## Methods
 
+### defer()
+
+> **defer**(`ms`): [`SelfNotifications`](../../index/type-aliases/SelfNotifications.mdx)\<[`ActorConfigOf`](../../index/type-aliases/ActorConfigOf.mdx)\<`T`\>\>
+
+#### Parameters
+
+##### ms
+
+`number`
+
+#### Returns
+
+[`SelfNotifications`](../../index/type-aliases/SelfNotifications.mdx)\<[`ActorConfigOf`](../../index/type-aliases/ActorConfigOf.mdx)\<`T`\>\>
+
+#### Inherited from
+
+[`Port`](../../index/classes/Port.mdx).[`defer`](../../index/classes/Port.mdx#defer)
+
+***
+
 ### record()
 
 > **record**(`event`, ...`payload`): `void`
@@ -184,7 +230,7 @@ Optional values associated with the entry
 Push an **inbound** internal notification into the bound actor (`port.actor.onData(…)`).
 
 Convenience for deterministic tests — equivalent to calling the generated method on
-[BasePort.actor](../../index/classes/BasePort.mdx#actor) after the factory has wired it.
+[Port.actor](../../index/classes/Port.mdx#actor) after the factory has wired it.
 
 #### Parameters
 
@@ -218,6 +264,8 @@ Clear the recorded message log.
 
 > **setTimeout**(`callback`, `millis?`): `number`
 
+Schedule a one-shot callback after `millis` milliseconds (platform timer).
+
 #### Parameters
 
 ##### callback
@@ -232,9 +280,9 @@ Clear the recorded message log.
 
 `number`
 
-#### Inherit Doc
+#### Overrides
 
-— backed by the virtual clock; fire with [advance](#advance).
+[`Port`](../../index/classes/Port.mdx).[`setTimeout`](../../index/classes/Port.mdx#settimeout)
 
 ***
 
@@ -242,6 +290,8 @@ Clear the recorded message log.
 
 > **clearTimeout**(`id`): `void`
 
+Cancel a timer previously returned by [Port.setTimeout](../../index/classes/Port.mdx#settimeout).
+
 #### Parameters
 
 ##### id
@@ -252,13 +302,17 @@ Clear the recorded message log.
 
 `void`
 
-#### Inherit Doc
+#### Overrides
+
+[`Port`](../../index/classes/Port.mdx).[`clearTimeout`](../../index/classes/Port.mdx#cleartimeout)
 
 ***
 
 ### setInterval()
 
 > **setInterval**(`callback`, `millis?`): `number`
+
+Schedule a repeating callback every `millis` milliseconds.
 
 #### Parameters
 
@@ -274,15 +328,17 @@ Clear the recorded message log.
 
 `number`
 
-#### Inherit Doc
+#### Overrides
 
-— backed by the virtual clock; fire with [advance](#advance).
+[`Port`](../../index/classes/Port.mdx).[`setInterval`](../../index/classes/Port.mdx#setinterval)
 
 ***
 
 ### clearInterval()
 
 > **clearInterval**(`id`): `void`
+
+Cancel an interval previously returned by [Port.setInterval](../../index/classes/Port.mdx#setinterval).
 
 #### Parameters
 
@@ -294,7 +350,9 @@ Clear the recorded message log.
 
 `void`
 
-#### Inherit Doc
+#### Overrides
+
+[`Port`](../../index/classes/Port.mdx).[`clearInterval`](../../index/classes/Port.mdx#clearinterval)
 
 ***
 
@@ -408,17 +466,15 @@ Clear all scripted random queues ([feedRandom](#feedrandom) / [feedCryptoRandom]
 
 > **random**(): `number`
 
+Pseudorandom number in `[0, 1)`.
+
 #### Returns
 
 `number`
 
-#### Inherit Doc
+#### Overrides
 
-— queued values only; returns `0` when empty (never calls `Math.random`).
-
-#### Implementation of
-
-[`RandomService`](../../index/interfaces/RandomService.mdx).[`random`](../../index/interfaces/RandomService.mdx#random)
+[`Port`](../../index/classes/Port.mdx).[`random`](../../index/classes/Port.mdx#random)
 
 ***
 
@@ -426,17 +482,15 @@ Clear all scripted random queues ([feedRandom](#feedrandom) / [feedCryptoRandom]
 
 > **cryptoRandom**(): `number`
 
+Cryptographic-quality random in `[0, 1)` when the platform provides it.
+
 #### Returns
 
 `number`
 
-#### Inherit Doc
+#### Overrides
 
-— queued values only; returns `0` when empty (never calls `crypto.random`).
-
-#### Implementation of
-
-[`RandomService`](../../index/interfaces/RandomService.mdx).[`cryptoRandom`](../../index/interfaces/RandomService.mdx#cryptorandom)
+[`Port`](../../index/classes/Port.mdx).[`cryptoRandom`](../../index/classes/Port.mdx#cryptorandom)
 
 ***
 
@@ -444,23 +498,23 @@ Clear all scripted random queues ([feedRandom](#feedrandom) / [feedCryptoRandom]
 
 > **randomUUID**(): `string`
 
+Generate a UUID v4 string.
+
 #### Returns
 
 `string`
 
-#### Inherit Doc
+#### Overrides
 
-— queued values only; never calls `crypto.randomUUID`.
-
-#### Implementation of
-
-[`RandomService`](../../index/interfaces/RandomService.mdx).[`randomUUID`](../../index/interfaces/RandomService.mdx#randomuuid)
+[`Port`](../../index/classes/Port.mdx).[`randomUUID`](../../index/classes/Port.mdx#randomuuid)
 
 ***
 
 ### getRandomValues()
 
 > **getRandomValues**\<`T`\>(`array`): `T`
+
+Fill `array` with cryptographically strong random bytes.
 
 #### Type Parameters
 
@@ -478,10 +532,6 @@ Clear all scripted random queues ([feedRandom](#feedrandom) / [feedCryptoRandom]
 
 `T`
 
-#### Inherit Doc
+#### Overrides
 
-— queued bytes only; never calls `crypto.getRandomValues`.
-
-#### Implementation of
-
-[`RandomService`](../../index/interfaces/RandomService.mdx).[`getRandomValues`](../../index/interfaces/RandomService.mdx#getrandomvalues)
+[`Port`](../../index/classes/Port.mdx).[`getRandomValues`](../../index/classes/Port.mdx#getrandomvalues)

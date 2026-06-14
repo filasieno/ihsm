@@ -93,7 +93,7 @@ surface is inferred from `WatcherTop`:
 
 ```ts
 @ihsm.mock
-abstract class WatcherMock extends ihsm.TestPort<WatcherTop> {
+abstract class WatcherMock extends ihsm.TestPort<typeof WatcherTop> {
   abstract watch(path: string): ihsm.ResultWithSubscription<number>; // signature matches the port
 }
 

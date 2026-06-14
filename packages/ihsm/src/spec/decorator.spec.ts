@@ -8,20 +8,16 @@ import { clearLastError, registerSpecStateNames } from './spec.utils';
 
 export class HsmTop extends TopState {}
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 @InitialState
 export class A extends HsmTop {}
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export class B extends HsmTop {}
 
 export class DuplicateInitialTop extends TopState {}
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 @InitialState
 export class DuplicateA extends DuplicateInitialTop {}
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export class DuplicateB extends DuplicateInitialTop {}
 
 registerSpecStateNames(self);

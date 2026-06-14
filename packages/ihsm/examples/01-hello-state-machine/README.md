@@ -6,7 +6,7 @@ Model each mode as a **state class**. Events are methods; crossing a mode bounda
 
 ## Solution
 
-One `Config` bag declares context + notifications. `makeActor` returns a handle with flat methods (`door.open()`). Machinery (`transition`, `sync`, `currentState`) lives on `door.hsm`.
+One `Config` bag declares context + protocol buckets. `makeActor` returns a handle with **`notify`**, **`notifyNow`**, and **`call`**. Machinery (`transition`, `sync`, `currentState`) lives on `door.hsm`.
 
 ## UML statechart
 
@@ -24,7 +24,7 @@ state DoorTop {
 ## Config
 
 ```typescript
-interface DoorConfig extends Config {
+interface DoorConfig {
   context: DoorCtx;
   notifications: {
     open(): void;
@@ -32,10 +32,7 @@ interface DoorConfig extends Config {
   };
 }
 
-
-export class DoorTop extends TopState {
-  declare readonly __ihsm: DoorConfig;
-}
+export class DoorTop extends TopState<DoorConfig> {}
 ```
 
 Mark the **initial state** with `@InitialState`. After `makeActor` + `await door.hsm.sync()`, the runtime descends here.
@@ -64,14 +61,14 @@ import { makeActor, Port } from 'ihsm';
 const door = makeActor(DoorTop, { openCount: 0 }, new Port());
 await door.hsm.sync();
 
-door.open();                    // fire-and-forget notification
+door.notify.open();                    // fire-and-forget notification
 await door.hsm.sync();          // handler + transition finished
 
-door.close();
+door.notify.close();
 await door.hsm.sync();
 
-door.open();
-door.close();
+door.notify.open();
+door.notify.close();
 await door.hsm.sync();
 
 console.log(door.hsm.currentStateName); // 'Closed'
@@ -80,7 +77,7 @@ console.log(door.ctx.openCount);          // 2
 
 | Side | Call | Blocks? |
 | ---- | ---- | ------- |
-| Client | `door.open()` | No — returns immediately |
+| Client | `door.notify.open()` | No — returns immediately |
 | Client | `await door.hsm.sync()` | Yes — drains enqueued work |
 
 See [Post & sync](../08-post-and-sync/README.md) for batching and handler chaining.

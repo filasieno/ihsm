@@ -69,7 +69,7 @@ for (const traceLevel of TRACE_LEVELS) {
 
 		it(`executes the error callback`, async () => {
 			expect(sm.hsm.currentState).equals(A);
-			sm.executeWithError01();
+			sm.notify.executeWithError01();
 			await sm.hsm.sync();
 			expect(port.events).to.include('executeWithError01');
 			expect(sm.hsm.dispatchErrorCallback).equals(dispatchErrorCallback);
@@ -79,8 +79,8 @@ for (const traceLevel of TRACE_LEVELS) {
 			flag = false;
 
 			sm.hsm.restore(A, {});
-			sm.switchCallback();
-			sm.executeWithError01();
+			sm.notify.switchCallback();
+			sm.notify.executeWithError01();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(FatalErrorState);
 			expect(flag).eq(false);

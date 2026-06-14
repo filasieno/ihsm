@@ -26,7 +26,7 @@ No exit or entry on `dim` / `brighten` — internal transitions on `On`.
 Track whether entry ran via a counter in ctx:
 
 ```typescript
-export class LampTop extends TopState<LampCtx, LampProtocol> {
+export class LampTop extends TopState<LampCtxConfig> {
 	onEntry(): void {
 		this.ctx.entryCount += 1; // only bumps on real entry
 	}
@@ -49,7 +49,7 @@ Handlers clamp brightness and **do not transition**:
 Guards are plain TypeScript (`Math.max` / `Math.min`) — no separate guard table.
 
 ```typescript
-lamp.dim(10);
+lamp.notify.dim(10);
 await lamp.hsm.sync();
 // brightness changed, entryCount unchanged, state still On
 ```

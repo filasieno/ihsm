@@ -1,11 +1,39 @@
 .panel {
-	border: 1px solid rgba(255, 255, 255, 0.06);
+	border: 1px solid rgba(99, 102, 241, 0.22);
 	border-radius: 0.75rem;
 	padding: 1.25rem;
-	margin: 1.5rem 0;
+	margin: 2rem 0;
 	background: rgba(9, 9, 11, 0.55);
 	backdrop-filter: blur(12px);
 	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.playgroundHeader {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.65rem;
+	margin-bottom: 1rem;
+	padding-bottom: 0.75rem;
+	border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+.playgroundBadge {
+	font-size: 0.7rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	padding: 0.2rem 0.55rem;
+	border-radius: 999px;
+	background: rgba(99, 102, 241, 0.18);
+	color: #a5b4fc;
+	border: 1px solid rgba(99, 102, 241, 0.35);
+}
+
+.playgroundTitle {
+	font-weight: 600;
+	font-size: 1rem;
+	color: var(--ifm-font-color-base);
 }
 
 html[data-theme='light'] .panel {

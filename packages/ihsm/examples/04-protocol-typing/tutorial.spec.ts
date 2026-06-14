@@ -8,7 +8,7 @@ describe('Tutorial 04: protocol typing', () => {
 		const thermostat = createThermostat(18);
 		await thermostat.hsm.sync();
 
-		thermostat.setTarget(22);
+		thermostat.notify.setTarget(22);
 		await thermostat.hsm.sync();
 		expect(thermostat.ctx.celsius).equals(22);
 	});

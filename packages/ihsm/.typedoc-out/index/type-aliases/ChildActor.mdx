@@ -1,4 +1,4 @@
-> **ChildActor**\<`C`\> = [`InboundActor`](InboundActor.mdx)\<`C`\> & [`ServiceClient`](ServiceClient.mdx)\<[`ActorInternalServicesOf`](ActorInternalServicesOf.mdx)\<`C`\>\> & `object`
+> **ChildActor**\<`C`\> = `Omit`\<[`InboundActor`](InboundActor.mdx)\<`C`\>, `"call"` \| `"hsm"`\> & `object`
 
 Type-only public surface — erased at compile time; no runtime JS from this module.
 
@@ -6,6 +6,10 @@ Import protocol and actor types from here:
 `import type { ActorConfig, ChildActor } from 'ihsm/types'`
 
 ## Type Declaration
+
+### call
+
+> `readonly` **call**: [`CallFacet`](CallFacet.mdx)\<[`ActorServicesOf`](ActorServicesOf.mdx)\<`C`\> & [`ActorInternalServicesOf`](ActorInternalServicesOf.mdx)\<`C`\>\>
 
 ### hsm
 

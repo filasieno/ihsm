@@ -1,4 +1,4 @@
-> **makeChildActor**\<`ParentT`, `ChildT`\>(`parent`, `childTop`, `childCtx`, `port?`, `options?`): `ActorParentField`\<[`TopStateArg`](../type-aliases/TopStateArg.mdx)\<[`ActorConfig`](../interfaces/ActorConfig.mdx)\>\> & [`ServiceClient`](../type-aliases/ServiceClient.mdx)\<[`ActorServicesOf`](../type-aliases/ActorServicesOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>\> & [`NotificationClient`](../type-aliases/NotificationClient.mdx)\<[`ActorNotificationsOf`](../type-aliases/ActorNotificationsOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>\> & [`NotificationClient`](../type-aliases/NotificationClient.mdx)\<[`ActorInternalNotificationsOf`](../type-aliases/ActorInternalNotificationsOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>\> & `object` & [`ServiceClient`](../type-aliases/ServiceClient.mdx)\<[`ActorInternalServicesOf`](../type-aliases/ActorInternalServicesOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>\> & `object` & `object`
+> **makeChildActor**\<`ParentT`, `ChildT`\>(`parent`, `childTop`, `childCtx`, `port?`, `options?`): `Omit`\<[`InboundActor`](../type-aliases/InboundActor.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>, `"hsm"` \| `"call"`\> & `object` & `object`
 
 Parent composes a child machine — returns full child protocol shell with `parent` set.
 
@@ -28,7 +28,7 @@ Parent composes a child machine — returns full child protocol shell with `pare
 
 ### port?
 
-[`MachinePortInput`](../type-aliases/MachinePortInput.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>
+[`Port`](../classes/Port.mdx)\<[`Any`](../type-aliases/Any.mdx)\>
 
 ### options?
 
@@ -36,4 +36,4 @@ Parent composes a child machine — returns full child protocol shell with `pare
 
 ## Returns
 
-`ActorParentField`\<[`TopStateArg`](../type-aliases/TopStateArg.mdx)\<[`ActorConfig`](../interfaces/ActorConfig.mdx)\>\> & [`ServiceClient`](../type-aliases/ServiceClient.mdx)\<[`ActorServicesOf`](../type-aliases/ActorServicesOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>\> & [`NotificationClient`](../type-aliases/NotificationClient.mdx)\<[`ActorNotificationsOf`](../type-aliases/ActorNotificationsOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>\> & [`NotificationClient`](../type-aliases/NotificationClient.mdx)\<[`ActorInternalNotificationsOf`](../type-aliases/ActorInternalNotificationsOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>\> & `object` & [`ServiceClient`](../type-aliases/ServiceClient.mdx)\<[`ActorInternalServicesOf`](../type-aliases/ActorInternalServicesOf.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>\> & `object` & `object`
+`Omit`\<[`InboundActor`](../type-aliases/InboundActor.mdx)\<[`ActorConfigOf`](../type-aliases/ActorConfigOf.mdx)\<`ChildT`\>\>, `"hsm"` \| `"call"`\> & `object` & `object`

@@ -1,8 +1,14 @@
+## Extended by
+
+- [`IPort`](IPort.mdx)
+
 ## Methods
 
 ### random()
 
 > **random**(): `number`
+
+Pseudorandom number in `[0, 1)`.
 
 #### Returns
 
@@ -14,6 +20,8 @@
 
 > **cryptoRandom**(): `number`
 
+Cryptographic-quality random in `[0, 1)` when the platform provides it.
+
 #### Returns
 
 `number`
@@ -24,6 +32,8 @@
 
 > **randomUUID**(): `string`
 
+Generate a UUID v4 string.
+
 #### Returns
 
 `string`
@@ -33,6 +43,8 @@
 ### getRandomValues()
 
 > **getRandomValues**\<`T`\>(`array`): `T`
+
+Fill `array` with cryptographically strong random bytes.
 
 #### Type Parameters
 

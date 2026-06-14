@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { InitialState, TopState, TraceLevel, TraceWriter} from '../';
+import { InitialState, TopState, TraceLevel, TraceWriter } from '../';
 import type { TestActor } from '../testing';
 import { makeTestActor, TestPort } from '../testing';
 import * as ihsm from '../index';
@@ -19,7 +19,6 @@ interface TraceLevelConfig {
 }
 
 export class HsmTop extends TopState<TraceLevelConfig> {
-
 	async switchTraceWriter(tw: TraceWriter): Promise<void> {
 		this.hsm.traceWriter = tw;
 	}
@@ -71,27 +70,27 @@ describe(`Switch TraceLevel`, function (): void {
 	it(`trace level switch`, async () => {
 		expect(sm.hsm.currentState).eqls(F);
 
-		sm.switchTraceLevel(TraceLevel.VERBOSE_DEBUG);
+		sm.notify.switchTraceLevel(TraceLevel.VERBOSE_DEBUG);
 		await sm.hsm.sync();
 
 		console.log('>>>');
-		sm.hello();
+		sm.notify.hello();
 		await sm.hsm.sync();
 		console.log('<<<');
 
-		sm.switchTraceLevel(TraceLevel.DEBUG);
+		sm.notify.switchTraceLevel(TraceLevel.DEBUG);
 		await sm.hsm.sync();
 
 		console.log('>>>');
-		sm.hello();
+		sm.notify.hello();
 		await sm.hsm.sync();
 		console.log('<<<');
 
-		sm.switchTraceLevel(TraceLevel.PRODUCTION);
+		sm.notify.switchTraceLevel(TraceLevel.PRODUCTION);
 		await sm.hsm.sync();
 
 		console.log('>>>');
-		sm.hello();
+		sm.notify.hello();
 		await sm.hsm.sync();
 		console.log('<<<');
 
@@ -101,8 +100,8 @@ describe(`Switch TraceLevel`, function (): void {
 
 	it('changes trace writer at runtime', async () => {
 		const tw = new TestTraceWriter();
-		sm.switchTraceWriter(tw);
-		sm.hello();
+		sm.notify.switchTraceWriter(tw);
+		sm.notify.hello();
 		expect(tw.lines.filter(line => line.startsWith('TEST: '))).eqls([]);
 	});
 });

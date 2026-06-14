@@ -11,8 +11,8 @@ and carries the scripting + introspection surface a test drives:
 - `calls` — the live, typed list of argument tuples this method was called with (`Parameters<F>[]`).
 
 Both `default` and `once` take a closure with the **same parameters and return type** as the port
-method, so scripts stay type-safe. Pushing internal events *inward* remains the separate
-BasePort.send \| send channel.
+method, so scripts stay type-safe. Pushing inbound observations uses
+[send](../classes/TestPort.mdx#send) on the port.
 
 ## Type Parameters
 
@@ -43,8 +43,8 @@ and carries the scripting + introspection surface a test drives:
 - `calls` — the live, typed list of argument tuples this method was called with (`Parameters<F>[]`).
 
 Both `default` and `once` take a closure with the **same parameters and return type** as the port
-method, so scripts stay type-safe. Pushing internal events *inward* remains the separate
-BasePort.send \| send channel.
+method, so scripts stay type-safe. Pushing inbound observations uses
+[send](../classes/TestPort.mdx#send) on the port.
 
 ## Parameters
 

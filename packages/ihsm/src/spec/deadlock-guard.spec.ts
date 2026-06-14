@@ -25,13 +25,12 @@ interface DeadlockConfig {
 	internalNotifications: Record<string, never>;
 }
 
-export class DeadlockTop extends TopState<DeadlockConfig> {
-}
+export class DeadlockTop extends TopState<DeadlockConfig> {}
 
 @InitialState
 export class DeadlockActive extends DeadlockTop {
 	async outer(): Promise<string> {
-		return await (this.ctx.actor!.inner() as unknown as Promise<string>);
+		return await (this.ctx.actor!.call.inner() as unknown as Promise<string>);
 	}
 
 	async inner(): Promise<string> {
@@ -55,7 +54,7 @@ describe('deadlock-guard', function (): void {
 		ctx.actor = actor;
 		await actor.hsm.sync();
 		try {
-			await actor.outer();
+			await actor.call.outer();
 			expect.fail('expected SelfCallDeadlockError');
 		} catch (err) {
 			expect(err).instanceOf(SelfCallDeadlockError);
@@ -68,17 +67,14 @@ describe('deadlock-guard', function (): void {
 		const actor = makeTestActor(DeadlockTop, ctx, new Port(), { traceLevel: TraceLevel.PRODUCTION });
 		ctx.actor = actor;
 		await actor.hsm.sync();
-		const pending = actor.outer();
+		const pending = actor.call.outer();
 		let caught: Error | undefined;
 		try {
-			await Promise.race([
-				pending,
-				new Promise<never>((_, reject) => setTimeout(() => reject(new Error('still blocked')), 80)),
-			]);
+			await Promise.race([pending, new Promise<never>((_, reject) => setTimeout(() => reject(new Error('still blocked')), 80))]);
 		} catch (err) {
 			caught = err as Error;
 		}
-		expect(caught).to.exist;
+		expect(caught).to.not.equal(undefined);
 		expect(caught).not.instanceOf(SelfCallDeadlockError);
 	});
 
@@ -87,7 +83,7 @@ describe('deadlock-guard', function (): void {
 		const actor = makeTestActor(DeadlockTop, {}, new Port(), { traceLevel: TraceLevel.DEBUG });
 		await actor.hsm.sync();
 		try {
-			await actor.slow({ timeoutMs: 5 });
+			await actor.call.slow({ timeoutMs: 5 });
 			expect.fail('expected CallTimeoutError');
 		} catch (err) {
 			expect(err).instanceOf(CallTimeoutError);
@@ -100,7 +96,7 @@ describe('deadlock-guard', function (): void {
 		const actor = makeTestActor(DeadlockTop, {}, new Port());
 		await actor.hsm.sync();
 		try {
-			await actor.slow({ timeoutMs: 0 });
+			await actor.call.slow({ timeoutMs: 0 });
 			expect.fail('expected CallTimeoutError');
 		} catch (err) {
 			expect(err).instanceOf(CallTimeoutError);

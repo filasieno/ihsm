@@ -40,13 +40,13 @@ export class HsmTop extends TopState<PostNowConfig> {
 
 	enqueueBoth(): void {
 		this.ctx.order.push('enqueue-start');
-		this.hsm.actor.lo();
-		this.hsm.immediate.hi();
+		this.notify.lo();
+		this.notifyNow.hi();
 		this.ctx.order.push('enqueue-end');
 	}
 
 	kickImmediate(): void {
-		this.hsm.immediate.run();
+		this.notifyNow.run();
 	}
 }
 
@@ -68,7 +68,7 @@ for (const traceLevel of TRACE_LEVELS) {
 		});
 
 		it('dispatches hi-priority events before normal post from the same handler', async () => {
-			sm.enqueueBoth();
+			sm.notify.enqueueBoth();
 			await sm.hsm.sync();
 			await sm.hsm.sync();
 			expect(ctx.order).eqls(['enqueue-start', 'enqueue-end', 'hi', 'lo']);
@@ -76,15 +76,15 @@ for (const traceLevel of TRACE_LEVELS) {
 		});
 
 		it('dispatches hi-priority events before already-queued normal posts from the same handler', async () => {
-			sm.lo();
-			sm.enqueueBoth();
+			sm.notify.lo();
+			sm.notify.enqueueBoth();
 			await sm.hsm.sync();
 			await sm.hsm.sync();
 			expect(ctx.order).eqls(['lo', 'enqueue-start', 'enqueue-end', 'hi', 'lo']);
 		});
 
 		it('dispatches hi-priority run via immediate from a handler', async () => {
-			sm.kickImmediate();
+			sm.notify.kickImmediate();
 			await sm.hsm.sync();
 			expect(ctx.order).eqls(['run']);
 		});

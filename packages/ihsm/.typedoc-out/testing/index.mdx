@@ -76,6 +76,24 @@ Re-exports [RandomService](../index/interfaces/RandomService.mdx)
 
 ***
 
+### TimerService
+
+Re-exports [TimerService](../index/interfaces/TimerService.mdx)
+
+***
+
+### DomainPortOf
+
+Re-exports [DomainPortOf](../index/type-aliases/DomainPortOf.mdx)
+
+***
+
+### PortServices
+
+Re-exports [PortServices](../index/type-aliases/PortServices.mdx)
+
+***
+
 ### ResultWithSubscription
 
 Re-exports [ResultWithSubscription](../index/interfaces/ResultWithSubscription.mdx)
@@ -118,21 +136,15 @@ Re-exports [defineStateName](../index/functions/defineStateName.mdx)
 
 ***
 
-### BasePort
+### Port
 
-Re-exports [BasePort](../index/classes/BasePort.mdx)
+Re-exports [Port](../index/classes/Port.mdx)
 
 ***
 
 ### RequestingPort
 
 Re-exports [RequestingPort](../index/classes/RequestingPort.mdx)
-
-***
-
-### Port
-
-Re-exports [Port](../index/classes/Port.mdx)
 
 ***
 
@@ -256,12 +268,6 @@ Re-exports [kMachine](../index/variables/kMachine.mdx)
 
 ***
 
-### HandleOwn
-
-Re-exports [HandleOwn](../index/interfaces/HandleOwn.mdx)
-
-***
-
 ### isServiceCallOptions
 
 Re-exports [isServiceCallOptions](../index/functions/isServiceCallOptions.mdx)
@@ -277,24 +283,6 @@ Re-exports [splitServiceArgs](../index/functions/splitServiceArgs.mdx)
 ### serviceCallWithTimeout
 
 Re-exports [serviceCallWithTimeout](../index/functions/serviceCallWithTimeout.mdx)
-
-***
-
-### getHandleProto
-
-Re-exports [getHandleProto](../index/functions/getHandleProto.mdx)
-
-***
-
-### createActorHandle
-
-Re-exports [createActorHandle](../index/functions/createActorHandle.mdx)
-
-***
-
-### getSelfNotificationsProto
-
-Re-exports [getSelfNotificationsProto](../index/functions/getSelfNotificationsProto.mdx)
 
 ***
 
@@ -352,30 +340,6 @@ Re-exports [RuntimeTransitionResolver](../index/classes/RuntimeTransitionResolve
 
 ***
 
-### executePendingTransition
-
-Re-exports [executePendingTransition](../index/functions/executePendingTransition.mdx)
-
-***
-
-### createInitTask
-
-Re-exports [createInitTask](../index/functions/createInitTask.mdx)
-
-***
-
-### createServiceTask
-
-Re-exports [createServiceTask](../index/functions/createServiceTask.mdx)
-
-***
-
-### createNotificationTask
-
-Re-exports [createNotificationTask](../index/functions/createNotificationTask.mdx)
-
-***
-
 ### Machine
 
 Re-exports [Machine](../index/classes/Machine.mdx)
@@ -418,12 +382,6 @@ Re-exports [kParentLink](../index/variables/kParentLink.mdx)
 
 ***
 
-### executeInitProduction
-
-Re-exports [executeInitProduction](../index/functions/executeInitProduction.mdx)
-
-***
-
 ### createEventDispatchTaskDebug
 
 Re-exports [createEventDispatchTaskDebug](../index/functions/createEventDispatchTaskDebug.mdx)
@@ -433,12 +391,6 @@ Re-exports [createEventDispatchTaskDebug](../index/functions/createEventDispatch
 ### createEventDispatchTaskVerbose
 
 Re-exports [createEventDispatchTaskVerbose](../index/functions/createEventDispatchTaskVerbose.mdx)
-
-***
-
-### Actor
-
-Re-exports [Actor](../index/type-aliases/Actor.mdx)
 
 ***
 
@@ -496,12 +448,6 @@ Re-exports [ActorServicesOf](../index/type-aliases/ActorServicesOf.mdx)
 
 ***
 
-### ActorCore
-
-Re-exports [ActorCore](../index/type-aliases/ActorCore.mdx)
-
-***
-
 ### ActorHsm
 
 Re-exports [ActorHsm](../index/type-aliases/ActorHsm.mdx)
@@ -514,9 +460,21 @@ Re-exports [ActorOptions](../index/interfaces/ActorOptions.mdx)
 
 ***
 
+### ActorParentField
+
+Re-exports [ActorParentField](../index/type-aliases/ActorParentField.mdx)
+
+***
+
 ### AssertAsyncService
 
 Re-exports [AssertAsyncService](../index/type-aliases/AssertAsyncService.mdx)
+
+***
+
+### CallFacet
+
+Re-exports [CallFacet](../index/type-aliases/CallFacet.mdx)
 
 ***
 
@@ -544,6 +502,12 @@ Re-exports [EmbodimentKind](../index/type-aliases/EmbodimentKind.mdx)
 
 ***
 
+### ErrorHost
+
+Re-exports [ErrorHost](../index/type-aliases/ErrorHost.mdx)
+
+***
+
 ### ExternalActor
 
 Re-exports [ExternalActor](../index/type-aliases/ExternalActor.mdx)
@@ -562,12 +526,6 @@ Re-exports [FilterReservedKeys](../index/type-aliases/FilterReservedKeys.mdx)
 
 ***
 
-### HandleWidth
-
-Re-exports [HandleWidth](../index/type-aliases/HandleWidth.mdx)
-
-***
-
 ### InboundActor
 
 Re-exports [InboundActor](../index/type-aliases/InboundActor.mdx)
@@ -580,21 +538,15 @@ Re-exports [InboundHsm](../index/type-aliases/InboundHsm.mdx)
 
 ***
 
+### IsReservedName
+
+Re-exports [IsReservedName](../index/type-aliases/IsReservedName.mdx)
+
+***
+
 ### HandlerHsm
 
 Re-exports [HandlerHsm](../index/type-aliases/HandlerHsm.mdx)
-
-***
-
-### InternalActor
-
-Re-exports [InternalActor](../index/type-aliases/InternalActor.mdx)
-
-***
-
-### InternalActorHsm
-
-Re-exports [InternalActorHsm](../index/type-aliases/InternalActorHsm.mdx)
 
 ***
 
@@ -640,9 +592,15 @@ Re-exports [NotificationHandler](../index/type-aliases/NotificationHandler.mdx)
 
 ***
 
-### OwnerActor
+### NotificationQueue
 
-Re-exports [OwnerActor](../index/type-aliases/OwnerActor.mdx)
+Re-exports [NotificationQueue](../index/type-aliases/NotificationQueue.mdx)
+
+***
+
+### NotifyFacet
+
+Re-exports [NotifyFacet](../index/type-aliases/NotifyFacet.mdx)
 
 ***
 
@@ -742,15 +700,15 @@ Re-exports [TestHsm](../index/type-aliases/TestHsm.mdx)
 
 ***
 
-### TestOwnerActorHsm
-
-Re-exports [TestOwnerActorHsm](../index/type-aliases/TestOwnerActorHsm.mdx)
-
-***
-
 ### TopStateArg
 
 Re-exports [TopStateArg](../index/type-aliases/TopStateArg.mdx)
+
+***
+
+### TransitionHost
+
+Re-exports [TransitionHost](../index/interfaces/TransitionHost.mdx)
 
 ***
 
@@ -793,3 +751,9 @@ Re-exports [TransitionTraceHost](../index/type-aliases/TransitionTraceHost.mdx)
 ### ValidatedActorConfig
 
 Re-exports [ValidatedActorConfig](../index/type-aliases/ValidatedActorConfig.mdx)
+
+***
+
+### ValidatedTopStateArg
+
+Re-exports [ValidatedTopStateArg](../index/type-aliases/ValidatedTopStateArg.mdx)

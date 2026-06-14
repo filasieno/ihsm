@@ -11,7 +11,7 @@ import { FetchTop, FetchCtx, FetchConfig, FetchPort, freshCtx } from './machine'
  * subscription, but never settles on its own — the "deliver 200 / 503 / error" buttons push the
  * settled event in, mirroring the deterministic `port.send(...)` the unit test calls.
  */
-class PlaygroundFetchPort extends TestPort<FetchTop> implements FetchPort {
+class PlaygroundFetchPort extends TestPort<typeof FetchTop> implements FetchPort {
 	private seq = 0;
 
 	request(url: string): ResultWithSubscription<number> {
@@ -35,9 +35,9 @@ function summarize(sm: { hsm: { currentStateName: string }; ctx: FetchCtx }): st
 async function settle(runtime: InteractiveRuntime, event: 'onResponse' | 'onFailure', ...args: (number | string)[]): Promise<void> {
 	const sm = getSenderHsm<FetchConfig>(runtime, 'machine');
 	if (event === 'onResponse') {
-		sm.onResponse(args[0] as number, args[1] as string);
+		sm.notify.onResponse(args[0] as number, args[1] as string);
 	} else {
-		sm.onFailure(args[0] as string);
+		sm.notify.onFailure(args[0] as string);
 	}
 	await sm.hsm.sync();
 }

@@ -13,7 +13,7 @@ export interface ConnCtx {
 
 export interface ConnConfig {
 	context: ConnCtx;
-services: {
+	services: {
 		fetchFrames(limit: number): Promise<number>;
 	};
 	notifications: {
@@ -25,9 +25,7 @@ services: {
 	};
 }
 
-
 export class ConnTop extends PlaygroundTopState<ConnConfig> {
-
 	open(host: string): void {
 		this.ctx.host = host;
 		this.hsm.transition(Open);

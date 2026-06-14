@@ -4,7 +4,9 @@
 and JavaScript. States are **classes**, protocol members are **methods**, hierarchy is
 **inheritance**, and the runtime is an **actor** with serialized, run-to-completion dispatch.
 
-> **v0.1.0 model:** one **`Config`** bag per machine (`context`, `services`, `notifications`, `internalServices`, `internalNotifications`, `port`). Factories return **generated handles** with flat method names (`conn.open()`, `await conn.fetchFrames(n)`). Machinery lives behind **`this.hsm`** / **`actor.hsm`**. Services return **`Promise<Reply>`** on the client. Start at [`examples/00-config/`](../examples/00-config/README.md). Migrating from 0.0.x: [`CHANGELOG.md`](../CHANGELOG.md#010---2026-06-12).
+Each machine declares one **`Config`** bag (`context`, `services`, `notifications`,
+`internalServices`, `internalNotifications`, optional `port`). Start at
+[`examples/00-config/`](../examples/00-config/README.md).
 
 Lineage: Harel’s hierarchical statecharts, encoded the Samek/QP way (class
 hierarchy + explicit transitions), with **cached LCA transition paths** and
@@ -16,7 +18,7 @@ typed **promise services** on generated actor handles.
 | Runtime test coverage | **100%** (statements, branches, functions, lines) |
 | Node.js | **22+** |
 
-Documentation: [Reference](https://filasieno.github.io/ihsm/reference) · [API](https://filasieno.github.io/ihsm/api)
+Documentation: [Reference](https://filasieno.github.io/ihsm/reference) · [Testing](https://filasieno.github.io/ihsm/testing)
 
 ---
 
@@ -25,7 +27,7 @@ Documentation: [Reference](https://filasieno.github.io/ihsm/reference) · [API](
 ihsm targets TypeScript developers who model domain logic as **classes** rather
 than JSON statecharts. You get hierarchical states via inheritance, a typed
 **`Config`** vocabulary, and actor-style messaging with **promise services**
-(`await actor.getBalance()`) — all in a runtime with **zero npm dependencies**
+(`await actor.call.getBalance()`) — all in a runtime with **zero npm dependencies**
 and **100%** test coverage.
 
 **When to choose ihsm:** backend services, session actors, protocol handlers,
@@ -53,8 +55,7 @@ parallel regions, or deep frontend/Stately integration. See
 11. [Zero dependencies](#_11-zero-dependencies)
 12. [Code coverage](#_12-code-coverage)
 13. [Comparison with XState](#_13-comparison-with-xstate)
-14. [Deterministic testing](#_14-deterministic-testing)
-15. [API quick reference](#_15-api-quick-reference)
+14. [Quick reference](#_14-quick-reference)
 
 ---
 
@@ -84,9 +85,7 @@ interface DoorConfig extends Config {
   notifications: { open(): void; close(): void };
 }
 
-class DoorTop extends TopState {
-  declare readonly __ihsm: DoorConfig;
-}
+class DoorTop extends TopState<DoorConfig> {}
 
 @InitialState
 class Closed extends DoorTop {
@@ -121,9 +120,8 @@ Each machine declares one **`Config`** interface: `context`, `notifications`,
 `services`, `internalNotifications`, `internalServices`, and optional `port`.
 Protocol keys are discovered from handler methods on state classes (`async` → services, sync → notifications).
 
-Generated handles expose **flat method names** (`door.open()`,
-`await wallet.getBalance()`). Handler machinery (`transition`, `defer`,
-`actor`, `immediate`, `sleep`) lives on **`this.hsm`**.
+Client handles use **`actor.notify`**, **`actor.notifyNow`**, and **`await actor.call`**.
+Handler machinery (`transition`, `port.defer`, `sync`) lives on **`this.hsm`**.
 
 See [§3 Static type checking](#_3-static-type-checking) and
 [`examples/00-config/`](../examples/00-config/README.md).
@@ -138,13 +136,15 @@ messages are **queued**, not re-entered.
 
 ### Factories
 
-`makeActor`, `makeInternalActor`, and `makeOwnerActor` create instances
-(`makeHsm` aliases `makeOwnerActor`):
+`makeActor` creates the production **external** shell (public protocol only).
+`makeChildActor` composes a child under a parent. Tests use `makeTestActor` from
+`ihsm/testing` (full protocol + port introspection). Deterministic testing is covered in
+the [Testing](/testing) chapter — **after** the interactive examples there.
 
 ```typescript
-const door = makeOwnerActor(DoorTop, { openCount: 0 }, new Port());
+const door = makeActor(DoorTop, { openCount: 0 }, new Port());
+door.notify.open();
 await door.hsm.sync();
-door.open();
 ```
 
 <!-- @example:01-hello-state-machine -->
@@ -167,13 +167,14 @@ door.open();
 | Internal transition | handle event, no `transition()` | Implicit (by omission) |
 | Guards | `if` in handler | Implicit (code) |
 | History | `ctx` + `restore()` | Implicit (data) |
-| Orthogonal regions | nest multiple actors | Composition |
-| Notifications | `actor.event()` — fire-and-forget | Yes |
-| `hsm.defer(ms)` | port timer (`Port.setTimeout`) + queue | Yes |
-| Services | `await actor.service()` — Promise | Yes |
+| Orthogonal regions | multiple actors (not `type: 'parallel'`) | Composition |
+| Chained child actors | `makeChildActor` in parent `onEntry` | Yes |
+| Notifications | `actor.notify.event()` — fire-and-forget | Yes |
+| `hsm.port.defer(ms)` | port timer (`Port.setTimeout`) + queue | Yes |
+| Services | `await actor.call.service()` — Promise | Yes |
 | `hsm.sync()` | drain queue | Yes |
 | `restore` | set state + ctx | Yes |
-| `makeOwnerActor` | create + optional init | Yes |
+| `makeActor` | create + optional init | Yes |
 | Tracing | levels + `TraceWriter` | Yes |
 | Errors | typed error hierarchy | Yes |
 | Async handlers | `async` methods | Yes |
@@ -182,7 +183,7 @@ door.open();
 
 ### Context
 
-Mutable domain object passed as the second argument to `makeOwnerActor`. Survives transitions
+Mutable domain object passed as the second argument to `makeActor`. Survives transitions
 unless you replace it in `restore()`.
 
 <!-- @example:03-context -->
@@ -259,12 +260,35 @@ Store “where we were” in `ctx`, or call `restore(stateClass, ctx)` to rehydr
 No shallow/deep history pseudostates — you keep explicit control.
 
 
-### Orthogonal regions
+### Orthogonal regions (why not parallel states)
 
-Run **multiple machines** and coordinate with `post` / `call` between instances.
-Each region has its own queue and cache.
+ihsm does **not** implement UML `type: 'parallel'` regions inside a single chart.
+Parallel regions share one dispatch queue, one transition cache, one `Config`, and
+one `Port` — which is too weak for production domains that need:
+
+- **Independent run-to-completion** per concern (slow work in one region must not block another)
+- **Separate public and internal protocols** per region (`internalServices`, `RequestingPort`)
+- **Owned lifecycle** — spawn a concern in parent `onEntry`, tear it down in `onExit`
+- **Typed `await child.call.service()`** across boundaries without bolting actors on after the fact
+- **Per-actor restore, tracing, and DST** — each region gets its own `TestPort` and isolated tests
+- **Phased or optional regions** without combinatorial state products (N active modes × M link states)
+
+Compose **multiple full actors** and coordinate with `notify` / `call` / `sync()` instead.
+[Tutorial 14](../examples/14-nested-machines/README.md) uses **sibling** actors and an
+external coordinator. [Tutorial 18](../examples/18-chained-child-actors/README.md) uses
+**chained child actors** when a parent state owns the nested concern — stronger semantics
+than a parallel chart.
 
 <!-- @example:14-nested-machines -->
+
+### Chained child actors
+
+When one machine **owns** another (session owns connection, checkout owns payment link),
+spawn the child in parent `onEntry` with `makeChildActor(asParentActor(this), ChildTop, ctx, port)`,
+drive it with `child.notify` / `child.call`, and clear `ctx.child` in `onExit`. The child
+is a full `Hsm` with its own queue and protocol — not a passive parallel region.
+
+<!-- @example:18-chained-child-actors -->
 
 ---
 
@@ -274,38 +298,33 @@ ihsm pushes correctness to **compile time** via `Config` and
 generated handles. At a glance:
 
 ```typescript
-interface WalletConfig extends Config {
+interface WalletConfig {
   context: Wallet;
   notifications: { charge(amount: number): void };
   services: { getBalance(): Promise<number> };
 }
 
+class PaymentTop extends TopState<WalletConfig> {}
 
-class PaymentTop extends TopState {
-  declare readonly __ihsm: WalletConfig;
-}
+const wallet = makeActor(PaymentTop, { balance: 0 }, new Port());
 
-const wallet = makeOwnerActor(PaymentTop, { balance: 0 }, new Port());
+wallet.notify.charge(10);                         // ✓ typed notification
+// wallet.notify.charge('ten');                   // ✗ string ≠ number
 
-wallet.charge(10);                         // ✓ typed notification
-// wallet.charge('ten');                   // ✗ string ≠ number
-
-const balance = await wallet.getBalance(); // ✓ Promise<number>
+const balance = await wallet.call.getBalance(); // ✓ Promise<number>
 ```
 
 <!-- @example:04-protocol-typing -->
 
 ---
 
-### Advanced: compile-time safety (implementation notes)
+### Advanced: compile-time safety (implementation notes) {#advanced-protocol-typing-and-compile-time-safety}
 
-The bullets below describe TypeScript mechanisms in the runtime. The **v0.1
-client surface** uses generated methods, not string `post`/`call`. For the
-0.0.x → 0.1 migration table see [`CHANGELOG.md`](../CHANGELOG.md#010---2026-06-12).
+The bullets below describe TypeScript mechanisms in the runtime.
 
 #### What other libraries do not provide
 
-| Library / style | Event names | Payload types | `call()` return type | Same run-to-completion dispatch for events + services |
+| Library / style | Event names | Payload types | `call` return type | Same run-to-completion dispatch for events + services |
 | --------------- | ----------- | ------------- | -------------------- | ---------------------------------- |
 | **ihsm** | `keyof Protocol` literals | inferred from method params | `Promise<T>` from `resolve` arg | Yes |
 | **XState v5** | string `type` on objects | `setup().types` maps | snapshot / spawned actors / `waitFor` | No unified typed `call` |
@@ -316,12 +335,12 @@ Concrete gaps elsewhere:
 
 1. **Stringly-typed events** — `send({ type: 'setTargt' })` compiles unless you
    maintain a separate union and exhaustiveness checks; ihsm rejects
-   `post('setTargt', …)` because `'setTargt'` is not `keyof Protocol`.
+   `notify.setTargt(, …)` because `'setTargt'` is not `keyof Protocol`.
 2. **Untyped payloads** — object events decouple payload shape from handler
-   signature; ihsm derives the rest parameters of `post('setTarget', …)` from
+   signature; ihsm derives the rest parameters of `notify.setTarget(, …)` from
    `Protocol['setTarget']`.
 3. **No typed request/response on the actor** — XState and peers use
-   `getSnapshot()`, child actors, or external promises; ihsm’s `call('getBalance')`
+   `getSnapshot()`, child actors, or external promises; ihsm’s `call.getBalance()`
    returns `Promise<number>` inferred from the service method’s `resolve` callback.
 4. **Runtime-only vocabulary** — dynamic `send(eventName, data)` in untyped JS
    cannot catch refactors; ihsm’s vocabulary is checked when TypeScript compiles
@@ -329,7 +348,7 @@ Concrete gaps elsewhere:
 
 ihsm is safe at compile time because **the Protocol interface is the single
 source of truth** for both state handler signatures and external
-`post` / `call` / `hsm.defer(ms)` call sites.
+`notify` / `call` / `hsm.port.defer(ms)` call sites.
 
 #### Adopted typing strategy
 
@@ -337,13 +356,13 @@ Five rules define how a `Protocol` interface maps to the runtime dispatch:
 
 | Rule | Meaning |
 | ---- | ------- |
-| **1. Two type parameters everywhere** | `Context` (domain data) and `Protocol` (vocabulary) flow through `makeOwnerActor`, `TopState`, `Hsm`, and errors. |
+| **1. Two type parameters everywhere** | `Context` (domain data) and `Protocol` (vocabulary) flow through `makeActor`, `TopState`, `Hsm`, and errors. |
 | **2. Events are void handlers** | A **event** is a `Protocol` method whose return type is `void` or `Promise<void>`. Payload types are everything before that return. |
 | **3. Services are resolve/reject handlers** | A **service** (for `call`) is a method whose **first two parameters** are `resolve: (result: T) => void` and `reject: (error: Error) => void`. Request args follow; `Promise` return type is `T`. |
 | **4. Reserved names are excluded** | Keys that exist on `State` (e.g. `transition`, `post`, `ctx`) cannot be used as event or service names — they become `never` at the type level. |
-| **5. Untyped escape hatch** | `Protocol` may be `undefined`; then `post` accepts `string` and `any[]` (legacy / gradual typing). |
+| **5. Disjoint protocol buckets** | `notifications`, `internalNotifications`, `services`, and `internalServices` must not share keys — enforced at compile time via `Config`. |
 
-State classes **declare handler methods** that match `Protocol`; `TopState<Context, Protocol>` already binds typing for `makeOwnerActor`, `post`, and `call` — no `implements Protocol` on the class:
+State classes declare handler methods on the `Config` buckets; `TopState<YourConfig>` binds typing for `makeActor`, `notify`, and `call`:
 
 ```typescript
 export interface WalletProtocol {
@@ -351,7 +370,7 @@ export interface WalletProtocol {
   getBalance(resolve: ResolveCallback<number>, reject: RejectCallback): void;
 }
 
-export class WalletTop extends TopState<WalletCtx, WalletProtocol> {
+export class WalletTop extends TopState<WalletCtxConfig> {
   deposit(amount: number): void { /* … */ }
   getBalance(resolve: ResolveCallback<number>, reject: RejectCallback): void { /* … */ }
 }
@@ -368,12 +387,12 @@ signature that uses it.
 `Context` and `Protocol` are declared once and threaded through the whole API:
 
 ```typescript
-export function makeOwnerActor<Context, Protocol>(topState, ctx, initialize?, traceLevel?, traceWriter?, dispatchErrorCallback?): Hsm<Context, Protocol>
+export function makeActor<Context, Protocol>(topState, ctx, initialize?, traceLevel?, traceWriter?, dispatchErrorCallback?): Hsm<Context, Protocol>
 export abstract class TopState<Context = Any, Protocol extends {} | undefined = undefined> { /* … */ }
 export interface Hsm<Context = Any, Protocol extends {} | undefined = undefined> { /* … */ }
 ```
 
-**Effect:** `makeOwnerActor(Top, ctx)` returns `Hsm<Context, Protocol>` — callers
+**Effect:** `makeActor(Top, ctx)` returns `Hsm<Context, Protocol>` — callers
 inherit the same `Protocol` used on the state classes.
 
 ##### 2. Generic constraints (`extends`)
@@ -395,7 +414,7 @@ post<EventName extends keyof Protocol>(
 ): void;
 ```
 
-**Effect:** `post('open', …)` only accepts strings that exist on `Protocol`.
+**Effect:** `notify.open(, …)` only accepts strings that exist on `Protocol`.
 Autocomplete in the IDE lists valid event names.
 
 ##### 4. Indexed access types
@@ -443,7 +462,7 @@ Protocol[EventName] extends (...payload: infer Payload) => Promise<void> | void
 ```
 
 For `setTarget(celsius: number): void`, `infer Payload` is `[celsius: number]`,
-so `post('setTarget', 22)` is valid and `post('setTarget', 'hot')` is not.
+so `notify.setTarget(, 22)` is valid and `notify.setTarget(, 'hot')` is not.
 
 **Service request args** — everything after `resolve` and `reject`:
 
@@ -474,7 +493,7 @@ export type ServiceResponse<Protocol, EventName extends keyof Protocol> =
 ```
 
 For `getBalance(resolve: (n: number) => void, reject: …): void`, `Reply` is
-`number`, so `call('getBalance')` is `Promise<number>`.
+`number`, so `call.getBalance()` is `Promise<number>`.
 
 ##### 7. `never` — reject invalid names at compile time
 
@@ -520,7 +539,7 @@ as an exact tuple derived from the handler, not as `any[]`.
 
 ##### 10. `implements Protocol` (optional)
 
-`TopState<Context, Protocol>` already binds the protocol for `makeOwnerActor`, `post`,
+`TopState<YourConfig>` already binds the protocol for `makeActor`, `post`,
 and `call` — you do **not** need `implements Protocol` for client typing.
 
 Add `implements Protocol` only when you want an extra compile-time check that a
@@ -536,8 +555,7 @@ export type ServiceName<Protocol, EventName> =
   : EventName;
 ```
 
-`call()` uses `ServiceName` + `ServiceRequest` / `ServiceResponse`;
-`post()` uses `EventName` + `EventPayload`. Same key set,
+`call` uses service names + request args; `notify` uses notification names + payloads. Same key set,
 different signature rules — a method is typed for `call` only if it matches the
 resolve/reject pattern.
 
@@ -589,9 +607,9 @@ extracts from service methods.
 left to right direction
 rectangle "Protocol interface" as P
 rectangle "State class\nextends TopState<Ctx, Protocol>" as S
-rectangle "makeOwnerActor\n(TopState, ctx)" as F
+rectangle "makeActor\n(TopState, ctx)" as F
 rectangle "Hsm instance" as H
-rectangle "post / `hsm.defer(ms)`" as post
+rectangle "post / `hsm.port.defer(ms)`" as post
 rectangle "call" as call
 queue "Event queue" as Q
 rectangle "Dispatch to\nstate method" as D
@@ -609,8 +627,8 @@ S --> D
 
 1. You define `Protocol` and `Context`.
 2. State classes **implement** `Protocol` (handlers).
-3. `makeOwnerActor(TopState, ctx)` infers `Context` and `Protocol` from the top state class.
-4. External code calls `post('event', …)` / `call('service', …)` — TypeScript
+3. `makeActor(TopState, ctx)` infers `Context` and `Protocol` from the top state class.
+4. External code calls `notify.event(, …)` / `call.service(, …)` — TypeScript
    validates against the same `Protocol` the handlers implement.
 5. At runtime, ihsm dispatches to the method on the **current state** prototype
    chain; compile-time checks ensure the vocabulary and arity are valid at every
@@ -629,7 +647,7 @@ Every messaging API has two sides:
 | Side | Where | Role |
 | ---- | ----- | ---- |
 | **Handler** | Method on the active state class | Runs when the actor dispatches the event or service |
-| **Client** | Generated actor handle | Calls flat methods + `await actor.hsm.sync()` |
+| **Client** | Generated actor handle | `notify`, `notifyNow`, `call`, and `await actor.hsm.sync()` |
 
 **`Config`** types both: handler signatures on state classes and generated client methods.
 
@@ -659,7 +677,7 @@ With `left to right direction`, compass keywords are interpreted **before** the 
 to place a target **below** the source, use `-left->`; **above**, use `-right->`.
 Do not use self-loop arrows for internal transitions — use in-state `State : event / action` text instead.
 
-**After `makeOwnerActor(TopState, ctx)`** the runtime performs **initialization**: `onEntry`
+**After `makeActor(TopState, ctx)`** the runtime performs **initialization**: `onEntry`
 from the top state down through each composite’s initial child until the deepest
 initial leaf is active (same order as following `[ * ]` arrows inward).
 
@@ -670,14 +688,13 @@ Full deep-hierarchy walkthrough with **trace for every transition kind**:
 [tutorial 05](/reference) and
 [§5 Transition taxonomy](#transition-taxonomy).
 
-### Notifications (`actor.event(…)`)
+### Notifications (`actor.notify.event(…)`)
 
-Fire-and-forget. The client enqueues; the handler runs later on the active state.
+Fire-and-forget. The client enqueues on the default FIFO queue; the handler runs later on the active state.
 
-**Handler** — notification method on `Config.notifications`:
+**Handler** — method on `Config.notifications` (or `internalNotifications` for self/inbound):
 
 ```typescript
-// Protocol: open(): void;
 @InitialState
 class Closed extends DoorTop {
   open(): void {
@@ -690,19 +707,19 @@ class Closed extends DoorTop {
 **Client** — returns immediately; use `await actor.hsm.sync()` to wait:
 
 ```typescript
-door.open();
+door.notify.open();
 await door.hsm.sync(); // handler + transition complete
 ```
 
-Inside a state handler, `this.hsm.actor.tick()` schedules work **after** the current
-handler completes (and after any transition it requested).
+Inside a state handler, `this.notify.tick()` schedules work **after** the current
+handler completes (and after any transition it requested). Use `this.notifyNow.tick()`
+for hi-priority delivery — see [Tutorial 17](../examples/17-post-now/README.md).
 
 <!-- @example:08-post-and-sync -->
 
-### Services (`await actor.service(…)`)
+### Services (`await actor.call.service(…)`)
 
-Query the same actor through run-to-completion dispatch and receive a **typed
-Promise**.
+Query the same actor through run-to-completion dispatch and receive a **typed Promise**.
 
 **Handler** — return a value or `Promise` (`Config.services`):
 
@@ -717,21 +734,20 @@ async fetchBalance(id: string): Promise<number> {
 }
 ```
 
-**Client** — one `await`; optional `{ timeoutMs }` trailing arg:
+**Client**:
 
 ```typescript
-const balance = await wallet.getBalance();
+const balance = await wallet.call.getBalance();
+wallet.notify.deposit(50);
+await wallet.hsm.sync();
 ```
 
-Handler throws reject the client `Promise`. Same serialization as notifications.
-
-
-**XState:** read snapshot via `actor.getSnapshot()`, spawn promise actors, or
-use `waitFor` — no single typed `call` on the interpreter.
+Handlers **cannot** call `this.call` on themselves — that would deadlock. Cross-actor
+service calls use a **different** actor handle (`child.call…`, `parent…`).
 
 <!-- @example:10-call-services -->
 
-### `hsm.defer(ms)` — deferred notifications
+### `hsm.port.defer(ms)` — deferred notifications
 
 Schedule an event after a delay via the machine's **port timer service**, then enqueue
 normally. A machine without a custom port is always backed by a `Port` whose
@@ -760,7 +776,7 @@ await sm.hsm.sync();  // wait for deliver handler
 
 <!-- @example:09-deferred-post -->
 
-### `actor.hsm.sync()`
+### `actor.hsm.sync()` {#sync}
 
 Returns a Promise that resolves when a **sync marker** task reaches the front of
 the queue — **client-side only** on `actor.hsm` (no handler to implement).
@@ -777,17 +793,17 @@ sm.done();
 await sm.hsm.sync();   // one sync drains all three notifications
 ```
 
-After a handler **chains** `this.hsm.actor.…` calls, call `hsm.sync()` again
+After a handler **chains** `this.notify.…` calls, call `hsm.sync()` again
 (see [tutorial 08](/reference)).
 
 **Note:** services return their own `Promise`; you usually do not need
 `hsm.sync()` after `await actor.service()`.
 
-### `hsm.immediate` — hi-priority notifications
+### `notifyNow` — hi-priority notifications
 
-Handler-only hi-priority enqueue (`this.hsm.immediate.event()`). After the
+Handler-only hi-priority enqueue (`this.notifyNow.event()`). After the
 current handler and its transition finish, the runtime drains hi-priority jobs
-before normal `hsm.actor` notifications from the same turn.
+before normal `notify` notifications from the same turn.
 
 Use for **extended transitions** — see [tutorial 17](/reference).
 
@@ -854,8 +870,8 @@ Paths are **cached** per `FromState=>ToState` in `_transitionCache`.
 | ------- | -------- |
 | Sync handler + `transition()` | Handler completes → transition runs in same dispatch → `sync()` sees final state |
 | `async` handler + `await` + `transition()` | Transition runs after `await`; `sync()` waits for both |
-| `this.hsm.actor.e()` inside handler | Deferred until current handler **and** its transition finish |
-| `transition()` in `onEntry` / `onExit` | **Cleared** at end of dispatch — use `post()` from lifecycle hooks instead |
+| `this.notify.e()` inside handler | Deferred until current handler **and** its transition finish |
+| `transition()` in `onEntry` / `onExit` | **Cleared** at end of dispatch — use `this.notify` from lifecycle hooks instead |
 
 ```typescript
 sm.goAsyncCross();
@@ -886,7 +902,7 @@ to propagate failures to application code.
 - Self-transition: no exit/entry when source equals target leaf and initial
   descent unchanged.
 - **`transition()` inside `onEntry`/`onExit` of the same dispatch is cleared**
-  when that dispatch finishes — schedule follow-up work with `post()` from
+  when that dispatch finishes — schedule follow-up work with `this.notify` from
   `onEntry`, or branch in the event handler (see tutorial 15).
 
 <!-- @example:15-complex-workflow -->
@@ -903,7 +919,7 @@ to propagate failures to application code.
 | `DEBUG` | 1 | Transition and handler boundaries |
 | `VERBOSE_DEBUG` | 2 | Lookup walks, cache hit/miss |
 
-Set trace level: `makeOwnerActor(Top, ctx, true, TraceLevel.DEBUG)`.
+Set trace level: `makeActor(Top, ctx, true, TraceLevel.DEBUG)`.
 
 ### Trace writer
 
@@ -925,7 +941,7 @@ Inside states: `this.traceHeader`, `this.traceWriter`, `this.traceLevel`.
 READMEs describe how to read `VERBOSE_DEBUG` output; run `npm run test:examples` for
 headless verification.
 
-Tutorial: [../tutorials/02-tracing/README.md](/reference) (**start here** after tutorial 01). Every other tutorial includes a **Reading the trace** section.
+Tutorial: [examples/02-tracing/README.md](../examples/02-tracing/README.md) (**start here** after tutorial 01). Every other tutorial includes a **Reading the trace** section.
 
 **XState:** `@xstate/inspect`, Stately visualizer — external tooling vs
 in-process trace hooks.
@@ -970,12 +986,12 @@ way is to register the module's own namespace — no need to list every state:
 import * as ihsm from 'ihsm';
 import * as self from './machine'; // self-reference
 
-export class DoorTop extends ihsm.TopState<DoorCtx, DoorProtocol> {}
+export class DoorTop extends ihsm.TopState<DoorCtxConfig> {}
 export class Open extends DoorTop {}
 export class Closed extends DoorTop {}
 
 export function createDoor() {
-  return ihsm.makeOwnerActor(DoorTop, { openCount: 0 });
+  return ihsm.makeActor(DoorTop, { openCount: 0 });
 }
 
 ihsm.registerStateNames(self); // grabs every exported state automatically
@@ -1039,7 +1055,7 @@ const json = JSON.stringify({
 });
 
 // resume — new instance after restart
-const sm = makeOwnerActor(TopState, emptyCtx, false);
+const sm = makeActor(TopState, emptyCtx, false);
 sm.restore(STATE_BY_NAME[stateName], parsed.ctx);
 ```
 
@@ -1089,7 +1105,7 @@ open/read/write/close work.
 
 Classic tools (and XState `invoke` + `done` events) often require **one state per
 in-flight step** because the handler must return immediately. ihsm keeps the actor
-serialized: while one async handler runs, `post` / `call` messages **queue** until
+serialized: while one async handler runs, `notify` / `call` messages **queue** until
 it finishes.
 
 Add extra states only when a **waiting mode is domain-meaningful** (cancel allowed,
@@ -1123,7 +1139,7 @@ sm.transfer('/inbox/a.dat', '/archive/a.dat');
 await sm.hsm.sync(); // through open, read, write, close + transition
 ```
 
-While `await`ing, the actor **still accepts** `post`/`call` — messages queue
+While `await`ing, the actor **still accepts** `notify` / `call` — messages queue
 until the current handler runs to completion.
 
 
@@ -1136,35 +1152,32 @@ for in-flight work.
 
 ## 10. Factories
 
-`makeActor`, `makeInternalActor`, and `makeOwnerActor` bind a root state class,
-context, and port. `makeHsm` aliases `makeOwnerActor`.
+| Factory | Returns | Use when |
+| ------- | ------- | -------- |
+| `makeActor(top, ctx, port?, options?)` | `ExternalActor<C>` | Production — public `notify` / `notifyNow` / `call` only |
+| `makeChildActor(parent, childTop, ctx, port?, options?)` | `ChildActor<C>` + `parent` | Nested region owned by a parent handler |
+| `makeTestActor(top, ctx, port?, options?)` (`ihsm/testing`) | `TestActor<C>` | Tests — full protocol + `port` + `subscribe` |
+
+`port.actor` after `makeActor` is an **inbound** shell (`InboundActor`) — same public protocol plus internal notifications for port-driven events.
 
 ```typescript
-import { makeOwnerActor, Port, TraceLevel } from 'ihsm';
+import { makeActor, Port, TraceLevel } from 'ihsm';
 
-const door = makeOwnerActor(DoorTop, { openCount: 0 }, new Port());
+const door = makeActor(DoorTop, { openCount: 0 }, new Port());
+door.notify.open();
 await door.hsm.sync();
 
-const traced = makeOwnerActor(DoorTop, { openCount: 0 }, new Port(), {
+const traced = makeActor(DoorTop, { openCount: 0 }, new Port(), {
   traceLevel: TraceLevel.VERBOSE_DEBUG,
   traceWriter: new CollectingTraceWriter(),
 });
 
-const sm = makeOwnerActor(SessionTop, emptyCtx, new Port(), { initialize: false });
-sm.hsm.restore(Authenticated, savedCtx);
+const child = makeChildActor(asParentActor(this), ChildTop, childCtx, new Port());
+await child.call.internalService();
+child.hsm.restore(SavedState, savedCtx);
 ```
 
-```typescript
-makeOwnerActor(topState, ctx, port, options?): OwnerActor<Config>
-```
-
-| Factory | Handle | Exposes |
-| ------- | ------ | ------- |
-| `makeActor` | `Actor<C>` | public notifications + services |
-| `makeInternalActor` | `InternalActor<C>` | + internal notifications |
-| `makeOwnerActor` / `makeHsm` | `OwnerActor<C>` | + internal services, `restore`, `currentState` |
-
-`Config` is inferred from `TopState` via state handler methods.
+`Config` is inferred from `TopState<YourConfig>` and handler methods on state classes.
 
 
 ---
@@ -1209,13 +1222,13 @@ Tutorial tests: `npm run test:examples`
 | ------- | ---- | --------- |
 | State definition | classes | `createMachine` config |
 | Hierarchy | `extends` | nested `states:` |
-| Events | `Config` + generated methods | `{ type: '...' }` objects |
+| Events | `Config` + typed methods | `{ type: '...' }` objects |
 | Internal transition | omit `transition()` | `internal: true` transition |
 | Guards | inline code | `guard` property |
 | Parallel regions | multiple `Hsm` | `type: 'parallel'` |
 | History | `ctx` / `restore()` | history pseudo-states |
 | Async work | `async` handlers | `invoke`, actors |
-| Request/response | **`call()` → Promise** | snapshot / spawned promises |
+| Request/response | **`actor.call` → Promise** | snapshot / spawned promises |
 | Visualization | IDE + (future extract) | Stately editor |
 | Dependencies | **0** | 0 (core) |
 | Coverage | **100% runtime** | project tests |
@@ -1226,51 +1239,27 @@ visual specs, parallel regions in one chart, or frontend ecosystem integration.
 
 ---
 
-## 14. Deterministic testing
+## 14. Quick reference
 
-Determinism is a first-class feature of ihsm, not an afterthought. It rests on three
-properties you can lean on in tests:
+### Actor handles
 
-1. **Serialized, run-to-completion dispatch.** Each handler runs to completion and never
-   interleaves; `await hsm.hsm.sync()` resolves only once every job enqueued before it has
-   finished. There are no races to flake on.
-2. **A `Port` boundary.** All impurity — sockets, child processes, clocks, the filesystem —
-   lives behind a single `port` object. Swap it for a mock and the machine is pure.
-3. **A public / internal protocol split.** Events the outside world raises (`open`) are
-   separated from events the *port* raises (`onConnected`, `onData`). Tests can drive either
-   side directly, with no real I/O and no waiting on wall-clock time.
+| Surface | Delivery | Returns | Example |
+| ----- | -------- | ------- | ------- |
+| `actor.notify` | default FIFO queue | `void` | `door.notify.open()` |
+| `actor.notifyNow` | priority queue | `void` | `door.notifyNow.lockInventory()` |
+| `actor.call` | service dispatch | `Promise<R>` | `await wallet.call.getBalance()` |
 
-For the full treatment, the library ships a dedicated, hands-on **[Deterministic testing](/testing)**
-chapter that builds these ideas up from a pure machine to fault injection — each stage with a
-complete runnable example and a live playground:
+Handlers use **`this.notify`** / **`this.notifyNow`** (no `this.call` — self-service would deadlock).
 
-- **Deferred timers & simulated time** — never wait on the wall clock; advance a `TestPort`.
-- **Network fetch behind a port** — control *what* a response is and *when* it arrives.
-- **Event streaming behind a port** — gate a push source so it provably goes quiet on unsubscribe.
-- **Fault injection & seeded DST** — make failure reproducible with a seeded PRNG.
-- **Subscriptions & disposables** — own a `Disposable` and prove it is released exactly once; build the mock with `@mock` + `makeTestPort` and script `port.watch.default(...)`.
-
-Two rules carry across all of them: **never perform I/O outside a port**, and **never sleep on
-wall-clock time in a test** — advance the machine with `sync()` and feed internal events yourself.
-
-| Goal | Factory | Surface | Use when |
-| ---- | ------- | ------- | -------- |
-| Production wiring | `makeActor` | public only | shipping code; clients must not post internal events |
-| Black-box test | `makeActor` + mock port | public only | exercise the real public path; assert recorded port calls and disposals |
-| White-box test | `makeTestActor` | merged + `port` | pin a state, drive internal events directly, assert `port` interactions |
-| Legacy / single protocol | `makeOwnerActor` | one protocol | machines with no port or no public/internal split (unchanged) |
-
----
-
-## 15. API quick reference
+Deterministic simulation testing: work through the five interactive examples in
+[Testing](/testing) first; the DST checklist and tooling reference follow the examples there.
 
 ### Factories
 
 ```typescript
-makeActor(topState, ctx, port, options?): Actor<Config>
-makeInternalActor(topState, ctx, port, options?): InternalActor<Config>
-makeOwnerActor(topState, ctx, port, options?): OwnerActor<Config>  // makeHsm alias
-makeTestActor(topState, ctx, port, options?): TestOwnerActor<Config>  // ihsm/testing
+makeActor(topState, ctx, port?, options?): ExternalActor<Config>
+makeChildActor(parent, childTop, ctx, port?, options?): ChildActor<Config> & { parent }
+makeTestActor(topState, ctx, port?, options?): TestActor<Config>  // ihsm/testing
 ```
 
 ### `HandlerHsm` (handlers: `this.hsm`)
@@ -1278,13 +1267,14 @@ makeTestActor(topState, ctx, port, options?): TestOwnerActor<Config>  // ihsm/te
 | Member | Description |
 | ------ | ----------- |
 | `transition(next)` | Schedule state change |
-| `actor` / `immediate` / `defer(ms)` | Enqueue notifications (normal / hi-priority / timed) |
-| `port` | Outbound boundary |
+| `port` | Outbound boundary (`defer(ms)` for timed self-notifications) |
 | `sleep(ms)` | Promise delay via port timer |
 | `sync()` | Drain queue (tests / internal) |
 | `currentState` / `currentStateName` | Active state |
 
-### `OwnerActorHsm` (clients: `actor.hsm`)
+Handler **`this.notify`** / **`this.notifyNow`** enqueue self-notifications (normal / hi-priority).
+
+### `ChildActorHsm` (clients: `child.hsm`)
 
 | Member | Description |
 | ------ | ----------- |
@@ -1296,8 +1286,8 @@ makeTestActor(topState, ctx, port, options?): TestOwnerActor<Config>  // ihsm/te
 
 | Type | Role |
 | ---- | ---- |
-| `Port<TopState>` | Production port: timers + random |
-| `TestPort<TopState>` | Virtual clock, mocked random, `send` / `record` |
+| `Port<typeof TopState>` | Production port: timers + random |
+| `TestPort<typeof TopState>` | Virtual clock, mocked random, `send` / `record` |
 | `@mock` + `makeTestPort` | Typed domain port doubles for tests |
 
 ### Errors

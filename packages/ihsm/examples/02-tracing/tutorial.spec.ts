@@ -12,7 +12,7 @@ describe('Tutorial 02: tracing', () => {
 		expect(sm.hsm.currentState).equals(Ready);
 
 		const before = writer.lines.length;
-		sm.ping();
+		sm.notify.ping();
 		await sm.hsm.sync();
 		expect(sm.ctx.pings).equals(1);
 		expect(writer.lines.length).greaterThan(before);

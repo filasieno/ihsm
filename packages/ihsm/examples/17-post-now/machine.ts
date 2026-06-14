@@ -16,7 +16,7 @@ export interface CheckoutCtx {
 
 export interface CheckoutConfig {
 	context: CheckoutCtx;
-notifications: {
+	notifications: {
 		confirm(): void;
 		lockInventory(): void;
 		capturePayment(): void;
@@ -24,16 +24,14 @@ notifications: {
 	};
 }
 
-
 export class CheckoutTop extends PlaygroundTopState<CheckoutConfig> {
-
 	confirm(): void {
 		this.ctx.steps.push('confirm-start');
 		// Extended transition: critical steps must finish before any normal follow-up
 		// (including `cancel` posted from the same handler).
-		this.hsm.actor.cancel();
-		this.hsm.immediate.lockInventory();
-		this.hsm.immediate.capturePayment();
+		this.notify.cancel();
+		this.notifyNow.lockInventory();
+		this.notifyNow.capturePayment();
 		this.ctx.steps.push('confirm-end');
 		this.hsm.transition(Confirmed);
 	}
@@ -68,6 +66,6 @@ export function createCheckout() {
 			committed: false,
 			cancelled: false,
 		},
-		new ihsm.Port(),
+		new ihsm.Port()
 	);
 }

@@ -56,19 +56,20 @@ export async function dispatchMessage(runtime: InteractiveRuntime, senderId: str
 		return field.type === 'number' ? Number(raw) : raw;
 	});
 
-	const method = sm[message.id];
+	const facet = message.kind === 'service' ? sm.call : sm.notify;
+	const method = facet[message.id as keyof typeof facet];
 	if (typeof method !== 'function') {
 		throw new Error(`unknown message: ${message.id}`);
 	}
 
 	if (message.kind === 'service') {
-		const result = await method.call(sm, ...args);
+		const result = await (method as (...args: unknown[]) => Promise<unknown>).apply(facet, args);
 		runtime.writer.lines.push(`↳ call ${message.id} → ${JSON.stringify(result)}`);
 		await sm.hsm.sync();
 		return String(result);
 	}
 
-	method.call(sm, ...args);
+	(method as (...args: unknown[]) => void).apply(facet, args);
 	await sm.hsm.sync();
 	return undefined;
 }
@@ -86,10 +87,6 @@ export function resetRuntime(meta: TutorialInteractiveMeta, runtime: Interactive
 	return runtime;
 }
 
-export function wrapWithTrace<C extends ActorConfig>(
-	topState: SingleSenderTutorialOptions<C>['topState'],
-	ctx: SingleSenderTutorialOptions<C>['initialCtx'],
-	initialize = true,
-): { sm: TestActor<C>; writer: CollectingTraceWriter } {
+export function wrapWithTrace<C extends ActorConfig>(topState: SingleSenderTutorialOptions<C>['topState'], ctx: SingleSenderTutorialOptions<C>['initialCtx'], initialize = true): { sm: TestActor<C>; writer: CollectingTraceWriter } {
 	return withTrace(topState, ctx, initialize);
 }

@@ -24,7 +24,7 @@ export interface WorkerCtx {
 
 export interface WorkerConfig {
 	context: WorkerCtx;
-notifications: {
+	notifications: {
 		run(): void;
 	};
 	internalNotifications: {
@@ -35,17 +35,11 @@ notifications: {
 	};
 }
 
-export type WorkerPublic = ihsm.ActorNotificationsOf<WorkerConfig>;
-
-export type WorkerInternal = ihsm.ActorInternalNotificationsOf<WorkerConfig>;
-
 /** Outbound boundary to the impure, occasionally-failing operation. */
 export type FaultPort = ihsm.DomainPortOf<WorkerConfig>;
 
-
 /** Root state. A stray `onResult` outside `Working` is a safe no-op. */
 export class WorkerTop extends ihsm.TopState<WorkerConfig> {
-
 	run(): void {} // ignored unless Idle/Succeeded/Failed
 	onResult(_ok: boolean): void {} // ignored unless Working
 }

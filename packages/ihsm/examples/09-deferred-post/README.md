@@ -1,4 +1,4 @@
-# Deferred notifications (`hsm.defer`)
+# Deferred notifications (`hsm.port.defer`)
 
 ## Problem
 
@@ -7,6 +7,19 @@ Handlers sometimes need to schedule follow-up work after a delay without blockin
 ## Solution
 
 `this.hsm.port.defer(millis).eventName(…)` arms a timer through the machine's **port timer service** (`Port.setTimeout`), then enqueues the notification like any other. **Handler-only** — not on the external actor surface.
+
+## UML statechart
+
+```plantuml
+@startuml
+left to right direction
+state ReminderTop {
+  [*] --> Idle
+  Idle : scheduleReminder / port.defer(50).deliver(text)
+  Idle : deliver / ctx.message := text
+}
+@enduml
+```
 
 ## Handler
 
@@ -28,7 +41,7 @@ export class ReminderTop extends TopState {
 const sm = createReminder();
 await sm.hsm.sync();
 
-sm.scheduleReminder('hello later');
+sm.notify.scheduleReminder('hello later');
 await sleep(100); // real time in production; TestPort.advance in tests
 await sm.hsm.sync();
 
@@ -37,8 +50,8 @@ await sm.hsm.sync();
 
 | Step | Who | What |
 | ---- | --- | ---- |
-| 1 | Client | `sm.scheduleReminder('…')` |
-| 2 | Handler | `hsm.defer(50).deliver(…)` — returns; timer armed |
+| 1 | Client | `sm.notify.scheduleReminder('…')` |
+| 2 | Handler | `hsm.port.defer(50).deliver(…)` — returns; timer armed |
 | 3 | Port timer | fires → `deliver` enqueued |
 | 4 | Client | `await sm.hsm.sync()` — `deliver` runs |
 

@@ -56,19 +56,19 @@ for (const traceLevel of TRACE_LEVELS) {
 			});
 			traceActorOnPort(hsm, port);
 			const query = { value: '' };
-			hsm.getValue(query);
+			hsm.notify.getValue(query);
 			await hsm.hsm.sync();
 			expect(query.value).equals(initial.value);
 			expect(hsm.hsm.currentState).equals(HsmTop);
 
 			hsm.hsm.restore(B, first);
-			hsm.getValue(query);
+			hsm.notify.getValue(query);
 			await hsm.hsm.sync();
 			expect(query.value).equals(first.value);
 			expect(hsm.hsm.currentState).equals(B);
 
 			hsm.hsm.restore(C, second);
-			hsm.getValue(query);
+			hsm.notify.getValue(query);
 			await hsm.hsm.sync();
 			expect(query.value).equals(second.value);
 			expect(hsm.hsm.currentState).equals(C);

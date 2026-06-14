@@ -16,14 +16,12 @@ export interface PingCtx {
 
 export interface PingConfig {
 	context: PingCtx;
-notifications: {
+	notifications: {
 		ping(): void;
 	};
 }
 
-
 export class PingTop extends PlaygroundTopState<PingConfig> {
-
 	ping(): void {
 		this.ctx.pings += 1;
 		// Custom writer receives domain|…|StateName: message (also in VERBOSE_DEBUG).

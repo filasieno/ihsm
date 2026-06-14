@@ -67,7 +67,7 @@ describe('protocol-collision', function (): void {
 	it('allows lifecycle hooks implemented as hooks', () => {
 		expect(() => buildProtocolIndex(HookTop)).not.to.throw();
 		const actor = makeTestActor(HookTop, {}, new Port());
-		expect(actor).to.exist;
+		expect(actor).to.not.equal(undefined);
 	});
 
 	it('allows helper methods discovered from the state graph', () => {
@@ -76,6 +76,6 @@ describe('protocol-collision', function (): void {
 
 	it('constructs when handlers align with Config', () => {
 		const actor = makeTestActor(CollisionTop, {}, new Port());
-		expect(actor).to.exist;
+		expect(actor).to.not.equal(undefined);
 	});
 });

@@ -203,7 +203,7 @@ Nested dispatch therefore produces headers like:
 | Domain | When pushed | Typical opening message |
 | ------ | ----------- | ------------------------ |
 | `initialize` | Machine init descent | `started initialization from …` |
-| `#<eventName>` | Each `post` / `call` dispatch | `started event dispatch` |
+| `#<eventName>` | Each `notify` / `call` dispatch | `started event dispatch` |
 | `lookup` | Finding handler, `onError`, or `onUnhandled` | `started lookup of #ping event handler` |
 | `execute` | Running handler or recovery hook | `started event handler execution` |
 | `transition from <A> to <B>` | LCA exit/entry walk | `started transition from A to B` |
@@ -229,7 +229,7 @@ Nested dispatch therefore produces headers like:
 
 ## Example trace (tutorial 02)
 
-After `await sm.hsm.sync()` then `sm.ping(); await sm.hsm.sync();` with `VERBOSE_DEBUG`, expect a nested sequence similar to:
+After `await sm.hsm.sync()` then `sm.notify.ping(); await sm.hsm.sync();` with `VERBOSE_DEBUG`, expect a nested sequence similar to:
 
 ```text
 PingTop: begin event dispatch of #ping

@@ -14,7 +14,7 @@ import { FetchTop, Idle, Fetching, Done, Failed, freshCtx } from './machine';
  * timer-free — one mock serves the success, failure, and cancellation scenarios.
  */
 @ihsm.mock('request')
-abstract class MockFetchPort extends ihsm.TestPort<FetchTop> {
+abstract class MockFetchPort extends ihsm.TestPort<typeof FetchTop> {
 	abstract request(url: string): ihsm.ResultWithSubscription<number>;
 }
 
@@ -41,7 +41,7 @@ describe('Testing 02: network fetch behind a port', () => {
 		await fetcher.hsm.sync();
 		expect(fetcher.hsm.currentState).equals(Idle);
 
-		fetcher.fetch('https://google.com');
+		fetcher.notify.fetch('https://google.com');
 		await fetcher.hsm.sync();
 		// Request issued, but no response was delivered from the sync call — we control when it lands.
 		expect(fetcher.hsm.currentState).equals(Fetching);
@@ -53,7 +53,7 @@ describe('Testing 02: network fetch behind a port', () => {
 		await fetcher.hsm.sync();
 		expect(fetcher.hsm.currentState).equals(Done);
 
-		const body = await fetcher.body();
+		const body = await fetcher.call.body();
 		expect(body).to.contain('google');
 	});
 
@@ -61,7 +61,7 @@ describe('Testing 02: network fetch behind a port', () => {
 		const fetcher = ihsm.makeTestActor(FetchTop, freshCtx(), port);
 		await fetcher.hsm.sync();
 
-		fetcher.fetch('https://google.com/down');
+		fetcher.notify.fetch('https://google.com/down');
 		await fetcher.hsm.sync();
 		port.send('onResponse', 503, 'unavailable');
 		await fetcher.hsm.sync();
@@ -73,7 +73,7 @@ describe('Testing 02: network fetch behind a port', () => {
 		const fetcher = ihsm.makeTestActor(FetchTop, freshCtx(), port);
 		await fetcher.hsm.sync();
 
-		fetcher.fetch('https://nope.invalid');
+		fetcher.notify.fetch('https://nope.invalid');
 		await fetcher.hsm.sync();
 		port.send('onFailure', 'ENOTFOUND');
 		await fetcher.hsm.sync();
@@ -86,11 +86,11 @@ describe('Testing 02: network fetch behind a port', () => {
 		const fetcher = ihsm.makeTestActor(FetchTop, freshCtx(), port);
 		await fetcher.hsm.sync();
 
-		fetcher.fetch('https://google.com');
+		fetcher.notify.fetch('https://google.com');
 		await fetcher.hsm.sync();
 		expect(fetcher.hsm.currentState).equals(Fetching);
 
-		fetcher.cancel();
+		fetcher.notify.cancel();
 		await fetcher.hsm.sync();
 		expect(fetcher.hsm.currentState).equals(Idle);
 		expect(port.trace).to.include('abort:1'); // dispose() ran when the machine cancelled
@@ -113,7 +113,7 @@ describe('Testing 02: network fetch behind a port', () => {
 		expect(test.hsm.currentState).equals(Fetching);
 
 		// No live port needed: post the settled-response event the port would have raised.
-		test.onResponse(200, 'pong');
+		test.notify.onResponse(200, 'pong');
 		await test.hsm.sync();
 		expect(test.hsm.currentState).equals(Done);
 		expect(test.ctx.body).equals('pong');
@@ -123,27 +123,29 @@ describe('Testing 02: network fetch behind a port', () => {
 		// Validated by `tsc` (the examples project is type-checked); the body never runs. The
 		// production `makeActor` surface here is what demonstrates the public/internal boundary.
 		const _typeChecks = (): void => {
-			const fetcher = makeTestActor(FetchTop, freshCtx(), ihsm.makeTestPort(MockFetchPort));
+			const fetcher = ihsm.makeTestActor(FetchTop, freshCtx(), ihsm.makeTestPort(MockFetchPort));
 
 			// @ts-expect-error 'onResponse' is internal — not callable on the public Actor surface.
-			fetcher.onResponse(200, 'x');
+			fetcher.notify.onResponse(200, 'x');
 			// @ts-expect-error 'fetch' requires a url argument.
-			fetcher.fetch();
-			fetcher.fetch('https://google.com'); // valid public event
+			fetcher.notify.fetch();
+			fetcher.notify.fetch('https://google.com'); // valid public event
 
 			// T2 — services are invoked with call(), plain events with post():
 			// @ts-expect-error 'body' is a service (resolve/reject signature); it is not postable.
-			fetcher.body();
-			void fetcher.body(); // valid: 'body' is a service
+			fetcher.call.body();
+			void fetcher.call.body(); // valid: 'body' is a service
 			// @ts-expect-error 'fetch' is a void event; it is not callable.
-			void fetcher.fetch('https://google.com');
+			void fetcher.notify.fetch('https://google.com');
 
-			interface CollidingInternal {
-				// Collides with FetchPublic.fetch — must be rejected by the disjointness gate.
-				fetch(url: string): void;
+			interface CollidingFetchConfig {
+				context: ReturnType<typeof freshCtx>;
+				notifications: { fetch(url: string): void };
+				internalNotifications: { fetch(url: string): void };
 			}
+			class CollidingFetchTop extends ihsm.TopState<CollidingFetchConfig> {}
 			// @ts-expect-error public and internal protocols must not share keys ('fetch').
-			makeTestActor<ReturnType<typeof freshCtx>, { fetch(u: string): void }, CollidingInternal>(FetchTop, freshCtx(), ihsm.makeTestPort(MockFetchPort));
+			ihsm.makeTestActor(CollidingFetchTop, freshCtx(), ihsm.makeTestPort(MockFetchPort));
 		};
 
 		expect(typeof _typeChecks).to.equal('function');

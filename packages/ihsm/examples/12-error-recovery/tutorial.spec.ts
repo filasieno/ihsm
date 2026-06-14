@@ -8,7 +8,7 @@ describe('Tutorial 12: error recovery', () => {
 		const worker = createWorker();
 		await worker.hsm.sync();
 
-		worker.risky();
+		worker.notify.risky();
 		await worker.hsm.sync();
 		expect(worker.hsm.currentState).equals(Working);
 		expect(worker.ctx.recovered).equals(1);
@@ -19,7 +19,7 @@ describe('Tutorial 12: error recovery', () => {
 		const worker = createWorker();
 		await worker.hsm.sync();
 
-		worker.unknown();
+		worker.notify.unknown();
 		await worker.hsm.sync();
 		expect(worker.ctx.failures).equals(1);
 	});

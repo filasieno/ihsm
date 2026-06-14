@@ -1,4 +1,4 @@
-> **InboundActor**\<`C`\> = `ActorParentField` & [`ServiceClient`](ServiceClient.mdx)\<[`ActorServicesOf`](ActorServicesOf.mdx)\<`C`\>\> & [`NotificationClient`](NotificationClient.mdx)\<[`ActorNotificationsOf`](ActorNotificationsOf.mdx)\<`C`\>\> & [`NotificationClient`](NotificationClient.mdx)\<[`ActorInternalNotificationsOf`](ActorInternalNotificationsOf.mdx)\<`C`\>\> & `object`
+> **InboundActor**\<`C`\> = [`ActorParentField`](ActorParentField.mdx) & `object`
 
 Type-only public surface — erased at compile time; no runtime JS from this module.
 
@@ -6,6 +6,18 @@ Import protocol and actor types from here:
 `import type { ActorConfig, ChildActor } from 'ihsm/types'`
 
 ## Type Declaration
+
+### notify
+
+> `readonly` **notify**: [`NotifyFacet`](NotifyFacet.mdx)\<[`ActorNotificationsOf`](ActorNotificationsOf.mdx)\<`C`\> & [`ActorInternalNotificationsOf`](ActorInternalNotificationsOf.mdx)\<`C`\>\>
+
+### notifyNow
+
+> `readonly` **notifyNow**: [`NotifyFacet`](NotifyFacet.mdx)\<[`ActorNotificationsOf`](ActorNotificationsOf.mdx)\<`C`\> & [`ActorInternalNotificationsOf`](ActorInternalNotificationsOf.mdx)\<`C`\>\>
+
+### call
+
+> `readonly` **call**: [`CallFacet`](CallFacet.mdx)\<[`ActorServicesOf`](ActorServicesOf.mdx)\<`C`\>\>
 
 ### hsm
 

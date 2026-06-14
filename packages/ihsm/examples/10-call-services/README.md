@@ -10,8 +10,22 @@ Declare **services** on `Config.services`. The generated client method returns `
 
 | Bucket | Handler return | Client call |
 | ------ | ---------------- | ----------- |
-| **Notification** (`notifications`) | `void` / `Promise<void>` | `actor.deposit(5)` |
-| **Service** (`services`) | `T` / `Promise<T>` | `await actor.getBalance()` |
+| **Notification** (`notifications`) | `void` / `Promise<void>` | `actor.notify.deposit(5)` |
+| **Service** (`services`) | `T` / `Promise<T>` | `await actor.call.getBalance()` |
+
+## UML statechart
+
+```plantuml
+@startuml
+left to right direction
+state WalletTop {
+  [*] --> Open
+  Open : deposit(amount) / balance += amount
+  Open : getBalance / return balance
+  Open : withdraw(amount) / balance -= amount
+}
+@enduml
+```
 
 ## Config
 
@@ -58,24 +72,24 @@ export class WalletTop extends TopState {
 const wallet = makeActor(WalletTop, { balance: 75 }, new Port());
 await wallet.hsm.sync();
 
-wallet.deposit(25);
+wallet.notify.deposit(25);
 
-const balance = await wallet.getBalance(); // → 100
+const balance = await wallet.call.getBalance(); // → 100
 
 try {
-  await wallet.withdraw(200);
+  await wallet.call.withdraw(200);
 } catch {
   // handler throw → rejected Promise
 }
 
-const remaining = await wallet.withdraw(40); // → 60
-const later = await wallet.fetchBalanceDelayed(10); // → 60 after sleep
+const remaining = await wallet.call.withdraw(40); // → 60
+const later = await wallet.call.fetchBalanceDelayed(10); // → 60 after sleep
 ```
 
 | Goal | Handler | Client |
 | ---- | ------- | ------ |
-| Update balance (no reply) | `deposit(amount) { … }` | `wallet.deposit(5)` |
-| Read balance (typed reply) | `getBalance(): number` | `await wallet.getBalance()` |
+| Update balance (no reply) | `deposit(amount) { … }` | `wallet.notify.deposit(5)` |
+| Read balance (typed reply) | `getBalance(): number` | `await wallet.call.getBalance()` |
 
 ## Verify
 

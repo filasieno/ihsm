@@ -1,4 +1,4 @@
-# Hi-priority notifications (`hsm.immediate`)
+# Hi-priority notifications (`notifyNow`)
 
 ## Problem
 
@@ -6,9 +6,9 @@ Sometimes a handler must run **follow-up protocol steps before** normal-priority
 
 ## Solution
 
-**`this.hsm.immediate.event()`** enqueues on the **hi-priority** queue. After the current handler and its transitions finish, the runtime drains all hi-priority jobs before normal `hsm.actor` notifications from that handler.
+**`this.notifyNow.event()`** enqueues on the **hi-priority** queue. After the current handler and its transitions finish, the runtime drains all hi-priority jobs before normal `notify` notifications from that handler.
 
-Only available **inside** handlers. Clients use ordinary generated notification methods.
+Only available **inside** handlers (`this.notifyNow`). External clients use `actor.notifyNow` when they need the same priority semantics.
 
 ## UML statechart
 
@@ -17,7 +17,7 @@ Only available **inside** handlers. Clients use ordinary generated notification 
 left to right direction
 state OrderTop {
   [*] --> Draft
-  Draft : confirm / immediate.lock(); immediate.capture(); actor.cancel()
+  Draft : confirm / immediate.lock(); immediate.capture(); actor.notify.cancel()
   Draft --> Confirmed : confirm
 }
 @enduml
@@ -30,9 +30,9 @@ state OrderTop {
 ```typescript
 confirm(): void {
   this.ctx.steps.push('confirm-start');
-  this.hsm.actor.cancel();           // normal — runs after immediate steps
-  this.hsm.immediate.lockInventory();
-  this.hsm.immediate.capturePayment();
+  this.notify.cancel();           // normal — runs after immediate steps
+  this.notifyNow.lockInventory();
+  this.notifyNow.capturePayment();
   this.ctx.steps.push('confirm-end');
   this.hsm.transition(Confirmed);
 }
@@ -43,14 +43,14 @@ confirm(): void {
 ## Client
 
 ```typescript
-sm.confirm();
+sm.notify.confirm();
 await sm.hsm.sync(); // through confirm + transition
 await sm.hsm.sync(); // drain immediate follow-ups
 ```
 
 Compare with [Notifications & sync](../08-post-and-sync/README.md): plain `this.hsm.actor` from a handler is FIFO **after** the handler returns — `immediate` cuts ahead of those normal notifications.
 
-Use **`hsm.immediate`** for internal orchestration in the same dispatch turn — see also [Complex workflow](../15-complex-workflow/README.md).
+Use **`notifyNow`** for internal orchestration in the same dispatch turn — see also [Complex workflow](../15-complex-workflow/README.md).
 
 ## Verify
 

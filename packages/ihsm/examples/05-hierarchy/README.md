@@ -42,7 +42,7 @@ External transitions only (arrows). Handlers that stay in the same state use in-
 ### Handler (state machine)
 
 ```typescript
-export class TraceTop extends TopState<TraceCtx, TraceProtocol> {
+export class TraceTop extends TopState<TraceCtxConfig> {
 	onEntry(): void {
 		this.ctx.log.push('enter:Top');
 	}
@@ -152,7 +152,7 @@ When exercising the deep stacks below, use the embedded playground on the [docum
 
 Transition paths are **cached** keyed by `FromState=>ToState`.
 
-Reference: [§5 Transitions](../../docs/REFERENCE.md#_5-transitions) · [§5 Transition taxonomy](../../docs/REFERENCE.md#transition-taxonomy).
+Reference: [§5 Transitions](../reference/REFERENCE.md#_5-transitions) · [§5 Transition taxonomy](../reference/REFERENCE.md#transition-taxonomy).
 
 ## Transition cases
 

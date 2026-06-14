@@ -15,22 +15,20 @@ export interface QueueCtx {
 
 export interface QueueConfig {
 	context: QueueCtx;
-notifications: {
+	notifications: {
 		start(): void;
 		tick(): void;
 		done(): void;
 	};
 }
 
-
 export class QueueTop extends PlaygroundTopState<QueueConfig> {
-
 	start(): void {
 		this.ctx.events.push('start');
 		// These run after start() returns — not inline during start.
-		this.hsm.actor.tick();
-		this.hsm.actor.tick();
-		this.hsm.actor.done();
+		this.notify.tick();
+		this.notify.tick();
+		this.notify.done();
 	}
 
 	tick(): void {

@@ -13,7 +13,7 @@ Use this pattern when behaviour depends on **mode** (open vs closed, idle vs bus
 
 **Why classes instead of flags:** a single class with \`isOpen\` / \`isClosed\` booleans forces every method to re-check flags; two states can both be true in memory. One **leaf state class** is always active; events are methods on that class.
 
-**When to reach for \`makeHsm\`:** you need actor semantics (serialized, run-to-completion dispatch), typed \`post('event')\`, and optional tracing — not a one-off callback. For a single open/close loop, this is the smallest correct shape: \`DoorCtx\`, \`DoorProtocol\`, \`@InitialState\`, and \`transition()\` between siblings under one root.
+**When to reach for \`makeActor\`:** you need actor semantics (serialized, run-to-completion dispatch), typed \`notify\` / \`call\`, and optional tracing — not a one-off callback. For a single open/close loop, this is the smallest correct shape: \`DoorConfig\`, \`@InitialState\`, and \`transition()\` between siblings under one root.
 `,
 	},
 	{
@@ -26,7 +26,7 @@ Use tracing when you are **debugging transition order**, cache behaviour, or han
 
 **Why not only \`console.log\` in handlers:** the runtime already knows LCA paths, cache hits, and dispatch phases. \`TraceLevel.VERBOSE_DEBUG\` plus a \`TraceWriter\` (here \`CollectingTraceWriter\`) gives a consistent timeline without sprinkling logs in every \`onEntry\`/\`onExit\`.
 
-**When to inject a custom writer:** tests (assert on trace lines), structured logging, or the docs site trace panel. Pass \`makeHsm(Top, ctx, true, TraceLevel.VERBOSE_DEBUG, writer)\` once; handlers use \`this.traceWriter\` indirectly via the framework.
+**When to inject a custom writer:** tests (assert on trace lines), structured logging, or the docs site trace panel. Pass \`makeActor(Top, ctx, port, { traceLevel: TraceLevel.VERBOSE_DEBUG, traceWriter: writer })\` once; handlers use \`this.hsm.traceWriter\` indirectly via the framework.
 `,
 	},
 	{
@@ -37,7 +37,7 @@ Use tracing when you are **debugging transition order**, cache behaviour, or han
 		whenAndWhy: `
 Use a dedicated **context object** when the machine owns **mutable domain data** that survives across events and transitions (counters, session fields, order totals).
 
-**Why not store everything on the state instance:** \`ctx\` is created once in \`makeHsm\` and stays the same object reference; transitions swap the **state class**, not the bag of data. That matches UML “extended state” and keeps serialization straightforward.
+**Why not store everything on the state instance:** \`ctx\` is created once in \`makeActor\` and stays the same object reference; transitions swap the **state class**, not the bag of data. That matches UML “extended state” and keeps serialization straightforward.
 
 **When internal transitions are enough:** handlers only update \`this.ctx\` and never call \`transition()\` — no exit/entry cost (see tutorial 07). This example stays in one state class while incrementing and resetting \`value\`.
 `,
@@ -48,9 +48,9 @@ Use a dedicated **context object** when the machine owns **mutable domain data**
 		title: 'Protocol typing',
 		grepLabel: 'Tutorial 04',
 		whenAndWhy: `
-Use a \`Protocol\` interface whenever **callers** \`post\` or \`call\` on the machine — the compiler should reject typos in event names and wrong payload types before runtime.
+Use a \`Config\` interface whenever **callers** \`notify\` or \`call\` on the machine — the compiler should reject typos in event names and wrong payload types before runtime.
 
-**Why ihsm invests in generics:** stringly-typed event names (\`'setTargt'\`) fail in production. Binding \`Hsm<Context, Protocol>\` to your vocabulary catches mistakes at build time, including service methods with \`resolve\`/\`reject\` parameters (not passed by the client).
+**Why ihsm invests in generics:** stringly-typed event names (\`'setTargt'\`) fail in production. Binding \`TopState<YourConfig>\` to your vocabulary catches mistakes at build time, including service methods with \`resolve\`/\`reject\` parameters (not passed by the client).
 
 **When to keep the protocol small:** one interface per machine actor; split orthogonal concerns into **multiple machines** (tutorial 14) instead of one mega-protocol.
 `,
@@ -89,11 +89,11 @@ Use internal transitions when the **state mode is unchanged** but domain data up
 		title: 'post and sync',
 		grepLabel: 'Tutorial 08',
 		whenAndWhy: `
-Use \`post\` + \`sync()\` when the **client** must wait for asynchronous side effects — tests, HTTP handlers, or scripts that enqueue several events and need a single barrier.
+Use \`notify\` + \`sync()\` when the **client** must wait for asynchronous side effects — tests, HTTP handlers, or scripts that enqueue several events and need a single barrier.
 
-**Why \`post\` chains inside a handler defer:** \`this.post('tick')\` from \`start()\` schedules work **after** \`start\` finishes and any transition it requested. Without \`sync()\`, the client might observe partial \`ctx.events\`.
+**Why chained \`this.notify\` inside a handler defer:** \`this.notify.tick()\` from \`start()\` schedules work **after** \`start\` finishes and any transition it requested. Without \`sync()\`, the client might observe partial \`ctx.events\`.
 
-**When one \`sync()\` is enough:** after a burst of posts from one handler, one marker drains the whole queue through \`done\`. After \`call()\`, you usually \`await\` the returned Promise instead.
+**When one \`sync()\` is enough:** after a burst of notifications from one handler, one marker drains the whole queue through \`done\`. After \`call()\`, you usually \`await\` the returned Promise instead.
 `,
 	},
 	{
@@ -102,9 +102,9 @@ Use \`post\` + \`sync()\` when the **client** must wait for asynchronous side ef
 		title: 'Deferred post',
 		grepLabel: 'Tutorial 09',
 		whenAndWhy: `
-Use \`deferredPost\` when a handler must **schedule a follow-up event after a delay** without blocking the current handler — reminders, retries, or UI debouncing.
+Use \`hsm.port.defer(ms)\` when a handler must **schedule a follow-up notification after a delay** without blocking the current handler — reminders, retries, or UI debouncing.
 
-**Why not \`setTimeout\` + manual \`post\` in app code:** \`deferredPost\` still goes through the actor's run-to-completion dispatch (serialized with other events) and respects the same state instance. The delay is implemented by the machine's **port timer service** — a \`Port\` the runtime always instantiates when you don't supply one — so you stay in the protocol vocabulary. It is handler-only and never reaches the external actor surface.
+**Why not \`setTimeout\` + manual \`notify\` in app code:** \`port.defer\` still goes through the actor's run-to-completion dispatch (serialized with other events) and respects the same state instance. The delay is implemented by the machine's **port timer service** — a \`Port\` the runtime always instantiates when you don't supply one — so you stay in the protocol vocabulary. It is handler-only and never reaches the external actor surface.
 
 **When to prefer explicit timers outside:** cross-process scheduling or when the machine may be destroyed before the delay fires — persist a job id in \`ctx\` instead.
 `,
@@ -119,7 +119,7 @@ Use \`call\` when the client needs a **typed Promise result** from the same acto
 
 **Why services use \`resolve\`/\`reject\` in the protocol:** the runtime injects callbacks; the client never passes them. Sync services call \`resolve\` before return; async services \`await\` then resolve.
 
-**When to use \`post\` instead:** fire-and-forget side effects where nobody awaits an outcome. Mix both on one machine: events mutate state; services answer questions.
+**When to use \`notify\` instead:** fire-and-forget side effects where nobody awaits an outcome. Mix both on one machine: notifications mutate state; services answer questions.
 `,
 	},
 	{
@@ -130,7 +130,7 @@ Use \`call\` when the client needs a **typed Promise result** from the same acto
 		whenAndWhy: `
 Use \`restore\` when you **hydrate** a machine from storage after restart — DB session, checkpoint, or test fixture — without replaying init entry/exit.
 
-**Why \`makeHsm(..., false)\` then \`restore\`:** initialization runs \`onEntry\` descent; snapshots already represent “where we were”. \`restore(StateClass, ctx)\` sets leaf class and context atomically.
+**Why \`makeActor(..., { initialize: false })\` then \`restore\`:** initialization runs \`onEntry\` descent; snapshots already represent “where we were”. \`restore(StateClass, ctx)\` sets leaf class and context atomically.
 
 **When to record state names:** JSON cannot store class constructors — map string names to classes (\`SESSION_STATES\`) on resume. Keep \`ctx\` JSON-serializable.
 `,
@@ -156,7 +156,7 @@ Use \`onError\` / \`onUnhandled\` when handlers can throw or when unknown events
 		whenAndWhy: `
 Use **async handlers** when one event performs a **multi-step I/O pipeline** and staying in one state until completion is correct — open/read/write/close without inventing substates per syscall.
 
-**Why ihsm awaits before \`transition()\`:** the leaf class stays \`Idle\` through all \`await\`s; queued \`post\`/\`call\` messages wait. Add substates only when “in flight” is a **domain mode** (cancellable upload, different events allowed).
+**Why ihsm awaits before \`transition()\`:** the leaf class stays \`Idle\` through all \`await\`s; queued \`notify\`/\`call\` messages wait. Add substates only when “in flight” is a **domain mode** (cancellable upload, different events allowed).
 
 **When \`sync()\` matters:** client waits until the whole \`transfer\` handler and its transition to \`Done\` finish.
 `,
@@ -164,14 +164,27 @@ Use **async handlers** when one event performs a **multi-step I/O pipeline** and
 	{
 		id: '14-nested-machines',
 		importName: 'nestedPlayground',
-		title: 'Nested machines (orthogonal regions)',
+		title: 'Nested machines (sibling actors)',
 		grepLabel: 'Tutorial 14',
 		whenAndWhy: `
-Use **multiple \`Hsm\` instances** when two concerns evolve independently — payment vs shipping — but your app coordinates them. This is ihsm’s answer to orthogonal regions: one queue per actor, explicit messaging between them.
+Use **multiple \`makeActor\` instances** when two concerns evolve independently — payment vs shipping — but your app coordinates them. This is ihsm’s answer to UML orthogonal regions **without** \`type: 'parallel'\` in one chart: one queue per actor, explicit messaging between them.
 
-**Why not one giant hierarchy:** coupling unrelated lifecycles into one tree forces artificial LCA transitions. Two machines stay simple; \`OrderCoordinator\` posts to each and \`sync()\`s.
+**Why not one giant hierarchy:** coupling unrelated lifecycles into one tree forces artificial LCA transitions. Two machines stay simple; \`OrderCoordinator\` notifies each and \`sync()\`s.
 
 **When to merge into one machine:** true shared parent state and a single run-to-completion ordering requirement across both concerns.
+`,
+	},
+	{
+		id: '18-chained-child-actors',
+		importName: 'chainedChildPlayground',
+		title: 'Chained child actors (not parallel states)',
+		grepLabel: 'Tutorial 18',
+		whenAndWhy: `
+ihsm **rejects UML parallel regions** inside one chart — they share one queue, one \`Config\`, and one port. Real systems need independent dispatch, per-concern protocols, optional lifecycles, and typed \`await child.call…\` across boundaries.
+
+**Use \`makeChildActor(asParentActor(this), ChildTop, ctx, port)\`** when a parent state **owns** a child: spawn in \`onEntry\`, drop the handle in \`onExit\`, orchestrate with \`child.notify\` / \`child.call\`. Stronger than parallel states: phased concerns, internal child vocabulary, isolated DST mocks, parent-orchestrated retries.
+
+**Versus tutorial 14:** siblings + external coordinator when no parent state owns the regions; chained children when lifecycle is tied to a composite parent state.
 `,
 	},
 	{
@@ -180,24 +193,24 @@ Use **multiple \`Hsm\` instances** when two concerns evolve independently — pa
 		title: 'Complex workflow',
 		grepLabel: 'Tutorial 15',
 		whenAndWhy: `
-Use **\`postNow\` from \`onEntry\`** when a composite state must run **immediate internal steps** (validation, guards) before normal-priority \`post\` work from the same turn — classic “decision pseudo-state” without a separate class per micro-step.
+Use **\`notifyNow\` from \`onEntry\`** when a composite state must run **immediate internal steps** (validation, guards) before normal-priority \`notify\` work from the same turn — classic “decision pseudo-state” without a separate class per micro-step.
 
-**Why not \`transition()\` inside \`onEntry\`:** transitions scheduled from lifecycle hooks are **cleared** at end of dispatch. Branch with \`postNow\` (hi-priority) or move branching into the event handler.
+**Why not \`transition()\` inside \`onEntry\`:** transitions scheduled from lifecycle hooks are **cleared** at end of dispatch. Branch with \`notifyNow\` (hi-priority) or move branching into the event handler.
 
-**When async handlers plus transitions:** \`submit\` awaits work then \`transition(Validating)\`; validating uses \`postNow('applyValidation')\` to approve or reject before deferred side effects.
+**When async handlers plus transitions:** \`submit\` awaits work then \`transition(Validating)\`; validating uses \`this.notifyNow.applyValidation()\` to approve or reject before deferred side effects.
 `,
 	},
 	{
 		id: '17-post-now',
 		importName: 'postNowPlayground',
-		title: 'postNow',
+		title: 'notifyNow',
 		grepLabel: 'Tutorial 17',
 		whenAndWhy: `
-Use \`postNow\` for **extended transitions**: several internal steps (lock inventory, capture payment) that must complete in order **before** normal \`post\` messages from the same handler — e.g. \`cancel\` posted in the same \`confirm()\` must not run until hi-priority steps finish.
+Use \`notifyNow\` for **extended transitions**: several internal steps (lock inventory, capture payment) that must complete in order **before** normal \`notify\` messages from the same handler — e.g. \`cancel\` notified in the same \`confirm()\` must not run until hi-priority steps finish.
 
-**Why handler-only:** external clients use ordinary \`post\`; priority is a runtime scheduling rule inside one dispatch generation.
+**Why handler-only:** external clients use ordinary \`notify\`; priority is a runtime scheduling rule inside one dispatch generation.
 
-**When hi-priority is overkill:** a single handler body with straight-line code and no competing \`post\` from the same turn.
+**When hi-priority is overkill:** a single handler body with straight-line code and no competing \`notify\` from the same turn.
 `,
 	},
 ];
@@ -215,11 +228,11 @@ export const testingExamples = [
 		grepLabel: 'Testing 01',
 		sourceFiles: ['machine.ts', 'tutorial.spec.ts'],
 		whenAndWhy: `
-Start every testable machine here: never wait on the wall clock. A \`Heartbeat\` machine ticks **every hour** via \`deferredPost\`, which is backed by the machine's **standard port timer service**. In a test you substitute a controllable clock and simulate 48 hours in microseconds — zero flakiness.
+Start every testable machine here: never wait on the wall clock. A \`Heartbeat\` machine ticks **every hour** via \`hsm.port.defer(ms)\`, backed by the port timer service. In a test you substitute a \`TestPort\` and \`advance()\` it to simulate 48 hours in microseconds — zero flakiness.
 
-**Test actor vs. test port:** \`makeTestActor\` returns the test surface — the **merged** protocol (post the internal \`onTick\` directly), typed access to \`port\`, and a \`subscribe()\` channel that observes every event. A production \`Actor\` from \`makeActor\` exposes only the public protocol. A **test port** (\`TestPort\`) *records* what flows through it and supplies a virtual clock you \`advance()\` by hand to fire due \`deferredPost\` timers deterministically. Wire \`TestActor.subscribe\` to \`port.record\` to trace every posted event.
+**Test actor vs. test port:** \`makeTestActor\` returns the merged protocol (drive internal \`onTick\` directly), typed access to \`port\`, and a \`subscribe()\` channel that observes every event. A production handle from \`makeActor\` exposes only the public protocol. \`TestPort\` *records* outbound work and supplies a virtual clock you \`advance()\` by hand to fire due deferred timers deterministically.
 
-**Positional arguments, no wrappers:** the factories take the three mandatory arguments — \`topState\`, \`ctx\`, \`port\` — positionally, then an optional options bag. Set only what you need, never wrap \`makeActor\` in a helper, never pass \`undefined\` placeholders. Import the test surface from \`ihsm/testing\`.
+**Positional arguments, no wrappers:** factories take \`topState\`, \`ctx\`, and \`port\` positionally, then an optional options bag. Import the test surface from \`ihsm/testing\`.
 `,
 	},
 	{
@@ -233,7 +246,7 @@ Network calls are the classic flaky dependency. Put \`fetch()\` (against, say, \
 
 **Why stub + send:** \`request\` is an abstract \`@mock\` method scripted with \`port.request.default(...)\` to return an id and an abort \`Disposable\` — but it delivers **no response** from the synchronous call. The test settles the request *when it wants* by pushing \`onResponse\` / \`onFailure\` inward with \`port.send(...)\`. That separation makes the in-flight \`Fetching\` state reachable and the whole flow timer-free; \`cancel()\` disposes the request so a late response is provably dropped.
 
-**How to test it:** one abstract \`@mock\` serves every scenario — drive it through the public path (\`fetch\` → assert \`Fetching\` → \`send('onResponse', …)\` → assert \`Done\`/\`Failed\`), or pin \`Fetching\` directly with \`initialize: false\` and post the settled event.
+**How to test it:** one abstract \`@mock\` serves every scenario — drive it through the public path (\`actor.notify.fetch()\` → assert \`Fetching\` → \`port.send('onResponse', …)\` → assert \`Done\`/\`Failed\`), or pin \`Fetching\` directly with \`initialize: false\` and notify the settled event.
 `,
 	},
 	{
@@ -245,11 +258,11 @@ Network calls are the classic flaky dependency. Put \`fetch()\` (against, say, \
 		whenAndWhy: `
 Use a port whenever the machine depends on a push source whose timing you do not control — OS input, a file watcher, a network socket, a WebSocket/SSE feed. The port is the single seam where impurity lives; everything above it is pure and deterministically testable.
 
-**Why a public/internal protocol split:** clients post \`listen\` / \`stopListening\`; the *source* pushes \`onMouseMove\`. Keeping them separate means a client can never forge a stream event, and a test can drive either side. \`stopListening\` \`dispose()\`s the subscription, so the source provably goes quiet.
+**Why a public/internal protocol split:** clients call \`notify.listen\` / \`notify.stopListening\`; the *source* pushes \`onMouseMove\`. Keeping them separate means a client can never forge a stream event, and a test can drive either side. \`stopListening\` \`dispose()\`s the subscription, so the source provably goes quiet.
 
 **Device state lives in the mock, not the actor:** the OS owns the cursor and keeps moving it whether or not you are subscribed, so the abstract \`@mock\` holds the pointer position in **public** fields (\`cursor\`, \`live\`) and exposes drive commands (\`moveTo\` / \`moveBy\` / \`path\`) the tester calls; the machine stores only the moves it *observed while listening*. The two legitimately diverge — model the simulated world inside the test double, and let the machine own only what it perceived.
 
-**How to test it:** script \`subscribe\` with \`port.subscribe.default(...)\` so it only delivers while live, then drive the mock and post internal events directly with \`makeTestActor\`. Either way there are no timers and no races — advance with \`sync()\`. Press **listen** below, then move the pointer over the pad (or **run simulated session**) and watch the trace.
+**How to test it:** script \`subscribe\` with \`port.subscribe.default(...)\` so it only delivers while live, then drive the mock and notify internal events directly with \`makeTestActor\`. Either way there are no timers and no races — barrier with \`await actor.hsm.sync()\`.
 `,
 	},
 	{
@@ -263,7 +276,7 @@ Deterministic Simulation Testing (DST) makes *failure* reproducible. A worker re
 
 **One \`@mock\`, scripted per scenario:** \`attempt\` is an abstract \`@mock\` method whose calls are auto-recorded (\`port.trace\` is the golden list of attempts that ran). The test scripts it with \`port.attempt.default(...)\` — either \`port.feedRandom(...)\` plus \`port.random()\` for a seeded fault injector that pushes \`onResult\` inward, or a no-op so the test drives \`onResult\` by hand. Retries are ordinary run-to-completion events, so there is nothing to race.
 
-**How to test it:** seeded (run twice with one seed; assert \`port.trace\`, \`ctx.log\`, and outcome are identical; pin \`failRate\` to 0/1 for guaranteed terminals), or hand-injected (a no-op \`attempt.default\`; post \`onResult(false)\`/\`onResult(true)\` to walk the retry budget, asserting \`port.attempt.calls\`).
+**How to test it:** seeded (run twice with one seed; assert \`port.trace\`, \`ctx.log\`, and outcome are identical; pin \`failRate\` to 0/1 for guaranteed terminals), or hand-injected (a no-op \`attempt.default\`; \`port.send('onResult', …)\` to walk the retry budget, asserting \`port.attempt.calls\`).
 `,
 	},
 	{

@@ -29,7 +29,6 @@ interface ChildConfig {
 }
 
 export class ChildTop extends TopState<ChildConfig> {
-
 	open(): void {}
 
 	async initialize(seed: number): Promise<number> {
@@ -60,9 +59,8 @@ interface ParentConfig {
 }
 
 export class ParentTop extends TopState<ParentConfig> {
-
 	async boot(seed: number): Promise<number> {
-		const doubled = await this.ctx.child!.initialize(seed);
+		const doubled = await this.ctx.child!.call.initialize(seed);
 		this.ctx.sum = doubled;
 		return doubled;
 	}
@@ -84,15 +82,15 @@ registerSpecStateNames(self);
 
 describe('internal-services', function (): void {
 	it('parent ChildActor awaits child internalServices', async () => {
-		const parentPort = new Port<ParentTop>();
+		const parentPort = new Port<typeof ParentTop>();
 		const parentCtx: ParentCtx = { sum: 0 };
 		const parent = makeActor(ParentTop, parentCtx, parentPort);
 		await parent.hsm.sync();
-		const doubled = await parent.boot(3);
+		const doubled = await parent.call.boot(3);
 		expect(doubled).equals(6);
 		expect(parentCtx.sum).equals(6);
-		expect(parentCtx.child).to.exist;
-		expect(await parentCtx.child!.ping()).equals('v3');
+		expect(parentCtx.child).to.not.equal(undefined);
+		expect(await parentCtx.child!.call.ping()).equals('v3');
 	});
 
 	it('makeActor port.actor exposes discovered services on the internal port handle', async () => {
@@ -100,9 +98,9 @@ describe('internal-services', function (): void {
 		const childCtx = { value: 0 };
 		makeActor(ChildTop, childCtx, port);
 		await port.actor!.hsm.sync();
-		expect(port.actor).to.exist;
-		expect(typeof (port.actor as { initialize?: unknown }).initialize).equals('function');
-		(port.actor as InboundActor<ChildConfig>).onReady();
+		expect(port.actor).to.not.equal(undefined);
+		expect(typeof (port.actor as { call: { initialize?: unknown } }).call.initialize).equals('function');
+		(port.actor as InboundActor<ChildConfig>).notify.onReady();
 		await port.actor!.hsm.sync();
 	});
 
@@ -111,8 +109,8 @@ describe('internal-services', function (): void {
 		const childCtx = { value: 0 };
 		makeActor(ChildTop, childCtx, port);
 		await port.actor.hsm.sync();
-		expect(port.actor).to.exist;
-		const doubled = await port.actor.initialize(4);
+		expect(port.actor).to.not.equal(undefined);
+		const doubled = await port.actor.call.initialize(4);
 		expect(doubled).equals(8);
 		expect(childCtx.value).equals(4);
 	});
@@ -122,8 +120,8 @@ describe('internal-services', function (): void {
 		const childCtx = { value: 1 };
 		makeActor(ChildTop, childCtx, port);
 		await port.actor!.hsm.sync();
-		port.actor!.onReady();
+		port.actor!.notify.onReady();
 		await port.actor!.hsm.sync();
-		expect(await port.actor!.ping()).equals('v1');
+		expect(await port.actor!.call.ping()).equals('v1');
 	});
 });

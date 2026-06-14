@@ -18,8 +18,7 @@ interface CacheConfig {
 	};
 }
 
-export class HsmTop extends TopState<CacheConfig> {
-}
+export class HsmTop extends TopState<CacheConfig> {}
 
 @InitialState
 export class A extends HsmTop {
@@ -50,13 +49,13 @@ for (const traceLevel of TRACE_LEVELS) {
 		let sm: TestActor<CacheConfig>;
 		it(`run a process`, async () => {
 			const ctx = new Report();
-			const port = new TestPort<HsmTop>();
+			const port = new TestPort<typeof HsmTop>();
 			sm = makeTestActor(HsmTop, ctx, port, { traceLevel });
 			traceActorOnPort(sm, port);
 			await sm.hsm.sync();
-			sm.task();
-			sm.task();
-			sm.task();
+			sm.notify.task();
+			sm.notify.task();
+			sm.notify.task();
 			await sm.hsm.sync();
 			expect(ctx.stateTrace).eqls(['A', 'B', 'A', 'B']);
 			expect(port.events).eqls(['task', 'task', 'task']);

@@ -12,7 +12,7 @@ import { WatcherTop, Idle, Watching, WatcherCtx } from './machine';
  * separate, explicit {@link ihsm.BasePort.send | send} channel. One mock, many tests.
  */
 @ihsm.mock('watch')
-abstract class WatcherMock extends ihsm.TestPort<WatcherTop> {
+abstract class WatcherMock extends ihsm.TestPort<typeof WatcherTop> {
 	abstract watch(path: string): ihsm.ResultWithSubscription<number>;
 }
 
@@ -41,7 +41,7 @@ describe('Testing 05: subscriptions & disposables', () => {
 		await sm.hsm.sync();
 		expect(sm.hsm.currentState).equals(Idle);
 
-		sm.start('/etc/hosts');
+		sm.notify.start('/etc/hosts');
 		await sm.hsm.sync();
 		expect(sm.hsm.currentState).equals(Watching);
 		expect(sm.ctx.watchId).equals(7); // the value the test scripted
@@ -52,7 +52,7 @@ describe('Testing 05: subscriptions & disposables', () => {
 		await sm.hsm.sync();
 		expect(sm.ctx.changes).to.deep.equal([1, 2]);
 
-		sm.stop();
+		sm.notify.stop();
 		await sm.hsm.sync();
 		expect(sm.hsm.currentState).equals(Idle);
 		expect(disposeCount).equals(1); // disposed exactly once — no leak, no double-free
@@ -68,11 +68,11 @@ describe('Testing 05: subscriptions & disposables', () => {
 
 		const sm = ihsm.makeTestActor(WatcherTop, new WatcherCtx(), port);
 		await sm.hsm.sync();
-		sm.start('/var/log');
+		sm.notify.start('/var/log');
 		await sm.hsm.sync();
 		port.send('onChange', 10);
 		await sm.hsm.sync();
-		sm.stop();
+		sm.notify.stop();
 		await sm.hsm.sync();
 		expect(sm.hsm.currentState).equals(Idle);
 
@@ -98,7 +98,7 @@ describe('Testing 05: subscriptions & disposables', () => {
 
 		const sm = ihsm.makeTestActor(WatcherTop, new WatcherCtx(), port);
 		await sm.hsm.sync();
-		sm.start('/tmp');
+		sm.notify.start('/tmp');
 		await sm.hsm.sync();
 		expect(sm.hsm.currentState).equals(Watching);
 
@@ -116,12 +116,12 @@ describe('Testing 05: subscriptions & disposables', () => {
 			port.watch.default(() => ({ value: 1, subscription: { dispose: () => port.record('dispose') } }));
 			const sm = ihsm.makeTestActor(WatcherTop, new WatcherCtx(), port);
 			await sm.hsm.sync();
-			sm.start('/p');
+			sm.notify.start('/p');
 			await sm.hsm.sync();
 			port.send('onChange', 1);
 			port.send('onChange', 2);
 			await sm.hsm.sync();
-			sm.stop();
+			sm.notify.stop();
 			await sm.hsm.sync();
 			return [...port.trace];
 		};
@@ -168,12 +168,14 @@ describe('Testing 05: subscriptions & disposables', () => {
 			port.watch.default(() => 123);
 			port.watch.default(() => ({ value: 1, subscription: { dispose: () => {} } })); // ok
 
-			interface CollidingInternal {
-				// Collides with WatcherPublic.start — must be rejected by the disjointness gate.
-				start(path: string): void;
+			interface CollidingWatcherConfig {
+				context: WatcherCtx;
+				notifications: { start(path: string): void };
+				internalNotifications: { start(path: string): void };
 			}
+			class CollidingWatcherTop extends ihsm.TopState<CollidingWatcherConfig> {}
 			// @ts-expect-error public and internal protocols must not share keys ('start').
-			makeTestActor<WatcherCtx, { start(p: string): void }, CollidingInternal>(WatcherTop, new WatcherCtx(), port);
+			ihsm.makeTestActor(CollidingWatcherTop, new WatcherCtx(), port);
 		};
 
 		expect(typeof _typeChecks).to.equal('function');

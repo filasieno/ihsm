@@ -1,9 +1,9 @@
 > **TestActor**\<`C`\> = [`ChildActor`](../../index/type-aliases/ChildActor.mdx)\<`C`\> & `object`
 
-Full-access owner actor returned by [makeTestActor](../functions/makeTestActor.mdx) for **deterministic testing**.
+Full-access test actor returned by [makeTestActor](../functions/makeTestActor.mdx) for **deterministic testing**.
 
-Exposes the full [ActorConfig](../../index/interfaces/ActorConfig.mdx) protocol (services, notifications, internal buckets) as flat
-methods, with `hsm.port` and `hsm.subscribe` for test instrumentation.
+Same faceted surface as [ChildActor](../../index/type-aliases/ChildActor.mdx) (`notify`, `notifyNow`, `call`, `hsm`), with
+`hsm.port` and `hsm.subscribe` for test instrumentation.
 
 ## Type Declaration
 

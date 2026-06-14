@@ -9,15 +9,15 @@ describe('Tutorial 00: Config and generated handles', () => {
 		await conn.hsm.sync();
 		expect(conn.hsm.currentStateName).equals('Closed');
 
-		conn.open('example.com');
+		conn.notify.open('example.com');
 		await conn.hsm.sync();
 		expect(conn.hsm.currentStateName).equals('Open');
 		expect(conn.ctx.host).equals('example.com');
 
-		const frames = await conn.fetchFrames(10);
+		const frames = await conn.call.fetchFrames(10);
 		expect(frames).equals(0);
 
-		conn.close();
+		conn.notify.close();
 		await conn.hsm.sync();
 		expect(conn.ctx.host).equals('');
 	});

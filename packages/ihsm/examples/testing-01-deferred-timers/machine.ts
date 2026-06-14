@@ -12,7 +12,7 @@
  * - Internal protocol: `onTick` — raised only by the deferred timer, never by a client.
  *
  * The two protocols are disjoint (enforced at compile time), so `onTick` never appears on the
- * public {@link ihsm.Actor} surface.
+ * public {@link ihsm.ExternalActor} surface.
  */
 import * as ihsm from '../../src';
 import * as self from './machine';
@@ -30,7 +30,7 @@ export class HeartbeatCtx {
 
 export interface HeartbeatConfig {
 	context: HeartbeatCtx;
-notifications: {
+	notifications: {
 		start(): void;
 		stop(): void;
 	};
@@ -39,14 +39,8 @@ notifications: {
 	};
 }
 
-export type HeartbeatPublic = ihsm.ActorNotificationsOf<HeartbeatConfig>;
-
-export type HeartbeatInternal = ihsm.ActorInternalNotificationsOf<HeartbeatConfig>;
-
-
 /** Root state. Stray events in the "wrong" state are safe no-ops. */
 export class HeartbeatTop extends ihsm.TopState<HeartbeatConfig> {
-
 	start(): void {} // ignored unless Stopped
 	stop(): void {} // ignored unless Running
 	onTick(): void {} // ignored unless Running (e.g. a tick scheduled just before stop)

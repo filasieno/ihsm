@@ -26,7 +26,7 @@ Recovery keeps the machine in `Working` when hooks swallow the failure.
 `risky` simulates a fault; `unknown` triggers unhandled:
 
 ```typescript
-export class WorkerTop extends TopState<WorkerCtx, WorkerProtocol> {
+export class WorkerTop extends TopState<WorkerCtxConfig> {
 	risky(): void {
 		throw new Error('simulated failure');
 	}
@@ -57,7 +57,7 @@ export class Working extends WorkerTop {
 ```
 
 ```typescript
-worker.risky();
+worker.notify.risky();
 await worker.hsm.sync();
 // still Working, recovered === 1
 ```

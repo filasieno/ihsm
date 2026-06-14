@@ -36,7 +36,7 @@ export interface CounterCtx {
 Handlers live on the top state and **only touch ctx** — no `transition()`:
 
 ```typescript
-export class CounterTop extends TopState<CounterCtx, CounterProtocol> {
+export class CounterTop extends TopState<CounterCtxConfig> {
 	increment(): void {
 		this.ctx.value += this.ctx.step; // ← ctx update, same state
 	}
@@ -64,7 +64,7 @@ makeActor seeds initial data:
 const counter = makeActor(CounterTop, { value: 10, step: 5 });
 await counter.hsm.sync();
 
-counter.increment();
+counter.notify.increment();
 await counter.hsm.sync();
 // counter.ctx.value === 15, currentState still Running
 ```

@@ -8,9 +8,9 @@ describe('Tutorial 08: post and sync', () => {
 		const sm = createQueueMachine();
 		await sm.hsm.sync();
 
-		sm.tick();
-		sm.tick();
-		sm.done();
+		sm.notify.tick();
+		sm.notify.tick();
+		sm.notify.done();
 		await sm.hsm.sync(); // one sync for the whole batch
 
 		expect(sm.ctx.events).to.deep.equal(['tick', 'tick', 'done']);
@@ -20,7 +20,7 @@ describe('Tutorial 08: post and sync', () => {
 		const sm = createQueueMachine();
 		await sm.hsm.sync();
 
-		sm.start();
+		sm.notify.start();
 		await sm.hsm.sync(); // handler finishes; chained posts are queued
 		await sm.hsm.sync(); // drain tick, tick, done
 

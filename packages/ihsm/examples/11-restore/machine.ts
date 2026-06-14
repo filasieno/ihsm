@@ -18,14 +18,12 @@ export interface SessionCtx {
 
 export interface SessionConfig {
 	context: SessionCtx;
-notifications: {
+	notifications: {
 		navigate(page: string): void;
 	};
 }
 
-
 export class SessionTop extends PlaygroundTopState<SessionConfig> {
-
 	navigate(page: string): void {
 		this.ctx.lastPage = page;
 	}

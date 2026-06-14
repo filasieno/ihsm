@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { EventHandlerError, FatalErrorState, InitialState, StateClass, TopState} from '../';
+import { EventHandlerError, FatalErrorState, InitialState, StateClass, TopState } from '../';
 import type { ActorNotificationsOf } from '../';
 import type { TestActor } from '../testing';
 import { makeTestActor, TestPort } from '../testing';
@@ -24,7 +24,6 @@ interface ErrorEventConfig {
 }
 
 export class HsmTop extends TopState<ErrorEventConfig> {
-
 	transitionTo(s: State): void {
 		this.hsm.transition(s);
 	}
@@ -105,44 +104,44 @@ for (const traceLevel of TRACE_LEVELS) {
 
 		it(`recovers a number error`, async () => {
 			expect(sm.hsm.currentState).equals(Recovery);
-			sm.executeWithError01();
+			sm.notify.executeWithError01();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(Recovery);
 			expect(port.events).to.include('executeWithError01');
 
-			sm.executeWithError02();
+			sm.notify.executeWithError02();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(B);
 		});
 
 		it(`it does not recover`, async () => {
 			expect(sm.hsm.currentState).equals(Recovery);
-			sm.transitionTo(NoRecovery);
+			sm.notify.transitionTo(NoRecovery);
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(NoRecovery);
-			sm.executeWithError01();
+			sm.notify.executeWithError01();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(FatalErrorState);
 		});
 
 		it(`it does not recover: Error in onError()`, async () => {
 			expect(sm.hsm.currentState).equals(Recovery);
-			sm.executeWithError03();
+			sm.notify.executeWithError03();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(FatalErrorState);
 		});
 
 		it(`it does not recover: Error in a transition following onError()`, async () => {
 			expect(sm.hsm.currentState).equals(Recovery);
-			sm.executeWithError04();
+			sm.notify.executeWithError04();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(FatalErrorState);
 		});
 
 		it(`it does not recover: another error is thrown while going to the FatalErrorState`, async () => {
 			expect(sm.hsm.currentState).equals(Recovery);
-			sm.transitionTo(D);
-			sm.executeWithError05();
+			sm.notify.transitionTo(D);
+			sm.notify.executeWithError05();
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).equals(FatalErrorState);
 		});

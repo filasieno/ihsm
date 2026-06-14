@@ -13,15 +13,13 @@ export interface WorkerCtx {
 
 export interface WorkerConfig {
 	context: WorkerCtx;
-notifications: {
+	notifications: {
 		risky(): void;
 		unknown(): void;
 	};
 }
 
-
 export class WorkerTop extends PlaygroundTopState<WorkerConfig> {
-
 	risky(): void {
 		throw new Error('simulated failure');
 	}

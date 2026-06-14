@@ -9,7 +9,7 @@ describe('Tutorial 13: async handlers', () => {
 		await sm.hsm.sync();
 		expect(sm.hsm.currentState).equals(Idle);
 
-		sm.transfer('/inbox/a.dat', '/archive/a.dat');
+		sm.notify.transfer('/inbox/a.dat', '/archive/a.dat');
 		await sm.hsm.sync();
 
 		expect(sm.hsm.currentState).equals(Done);
@@ -21,7 +21,7 @@ describe('Tutorial 13: async handlers', () => {
 		const sm = createFileActor();
 		await sm.hsm.sync();
 
-		sm.transfer('/a', '/b');
+		sm.notify.transfer('/a', '/b');
 		// Handler is async; sync waits until open/read/write/close finish + transition.
 		await sm.hsm.sync();
 		expect(sm.hsm.currentState).equals(Done);

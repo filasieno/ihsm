@@ -9,17 +9,17 @@ describe('Tutorial 15: complex workflow', () => {
 		await order.hsm.sync();
 		expect(order.hsm.currentState).equals(Draft);
 
-		order.submit();
+		order.notify.submit();
 		await order.hsm.sync();
 		expect(order.hsm.currentState).equals(Approved);
 		expect(order.ctx.validationNotes).includes('fraud-check-ok');
 
-		order.approve();
+		order.notify.approve();
 		await order.hsm.sync();
 		expect(order.hsm.currentState).equals(Completing);
 		expect(order.ctx.phase).equals('completed');
 
-		const phase = await order.getStatus();
+		const phase = await order.call.getStatus();
 		expect(phase).equals('completed');
 	});
 
@@ -27,7 +27,7 @@ describe('Tutorial 15: complex workflow', () => {
 		const order = createCheckout('ORD-200', 5000, 1000);
 		await order.hsm.sync();
 
-		order.submit();
+		order.notify.submit();
 		await order.hsm.sync();
 		expect(order.hsm.currentState).equals(Rejected);
 		expect(order.ctx.phase).equals('rejected');

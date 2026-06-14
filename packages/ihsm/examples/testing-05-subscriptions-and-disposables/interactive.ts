@@ -11,7 +11,7 @@ import { WatcherTop, WatcherCtx, WatcherConfig, WatcherPort } from './machine';
  * `onClosed` directly onto the test actor, so this port only needs to open the watch and return a
  * `Disposable` that records its teardown — the surface the machine actually drives.
  */
-class PlaygroundWatcherPort extends TestPort<WatcherTop> implements WatcherPort {
+class PlaygroundWatcherPort extends TestPort<typeof WatcherTop> implements WatcherPort {
 	private watchId = 0;
 
 	watch(path: string): ResultWithSubscription<number> {
@@ -36,7 +36,7 @@ function summarize(sm: { hsm: { currentStateName: string }; ctx: WatcherCtx }): 
 
 async function emitChange(runtime: InteractiveRuntime): Promise<void> {
 	const sm = getSenderHsm<WatcherConfig>(runtime, 'machine');
-	sm.onChange(nextVersion++);
+	sm.notify.onChange(nextVersion++);
 	await sm.hsm.sync();
 }
 
@@ -95,7 +95,7 @@ export const interactive: TutorialInteractiveMeta = {
 			label: 'source closes',
 			run: async (runtime): Promise<void> => {
 				const sm = getSenderHsm<WatcherConfig>(runtime, 'machine');
-				sm.onClosed();
+				sm.notify.onClosed();
 				await sm.hsm.sync();
 			},
 		},

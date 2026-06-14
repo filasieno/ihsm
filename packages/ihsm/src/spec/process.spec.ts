@@ -31,7 +31,7 @@ export class A extends HsmTop {
 	}
 
 	next(): void {
-		this.hsm.actor.next();
+		this.notify.next();
 		this.ctx.steps.push('A');
 		this.hsm.transition(B);
 	}
@@ -39,7 +39,7 @@ export class A extends HsmTop {
 
 export class B extends HsmTop {
 	onEntry(): void {
-		this.hsm.actor.next();
+		this.notify.next();
 	}
 	next(): void {
 		this.ctx.steps.push('B');
@@ -59,19 +59,19 @@ registerSpecStateNames(self);
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Process(traceLevel = ${traceLevel})`, () => {
 		let sm: TestActor<ProcessConfig>;
-		let clock: TestPort<HsmTop>;
+		let clock: TestPort<typeof HsmTop>;
 		beforeEach(async () => {
 			clearLastError();
 		});
 
 		it(`run a process`, async () => {
 			const ctx = new Report();
-			clock = new TestPort<HsmTop>();
+			clock = new TestPort<typeof HsmTop>();
 			sm = makeTestActor(HsmTop, ctx, clock, { traceLevel });
 			traceActorOnPort(sm, clock);
 			await sm.hsm.sync();
 			expect(sm.hsm.currentState).eq(A);
-			sm.start();
+			sm.notify.start();
 			await sm.hsm.sync();
 			clock.advance(500);
 			await sm.hsm.sync();

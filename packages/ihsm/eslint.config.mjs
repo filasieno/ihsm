@@ -40,4 +40,11 @@ export default tseslint.config(
 			'no-empty': 'off',
 		},
 	},
+	{
+		files: ['src/internal/runtime.ts'],
+		rules: {
+			'@typescript-eslint/no-this-alias': 'off',
+			'ihsm/no-multiline-import': 'off',
+		},
+	},
 );

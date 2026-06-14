@@ -36,10 +36,10 @@ registerSpecStateNames(self);
 for (const traceLevel of TRACE_LEVELS) {
 	describe(`Deferred post (traceLevel = ${traceLevel})`, function (): void {
 		let sm: TestActor<DeferredConfig>;
-		let clock: TestPort<HsmTop>;
+		let clock: TestPort<typeof HsmTop>;
 
 		beforeEach(async () => {
-			clock = new TestPort<HsmTop>();
+			clock = new TestPort<typeof HsmTop>();
 			sm = makeTestActor(HsmTop, {}, clock, { traceLevel });
 			traceActorOnPort(sm, clock);
 			await sm.hsm.sync();
@@ -48,8 +48,8 @@ for (const traceLevel of TRACE_LEVELS) {
 		it(`fires deferred posts in deadline order when the virtual clock advances`, async () => {
 			expect(sm.hsm.currentState).equals(A);
 			const obj: Any = { value: '' };
-			sm.schedule(600, 'first', obj);
-			sm.schedule(10, 'second', obj);
+			sm.notify.schedule(600, 'first', obj);
+			sm.notify.schedule(10, 'second', obj);
 			await sm.hsm.sync();
 
 			expect(clock.pending).equals(2);
@@ -65,7 +65,7 @@ for (const traceLevel of TRACE_LEVELS) {
 
 		it(`does not fire a deferred post before its deadline is reached`, async () => {
 			const obj: Any = { value: 'untouched' };
-			sm.schedule(1000, 'late', obj);
+			sm.notify.schedule(1000, 'late', obj);
 			await sm.hsm.sync();
 
 			clock.advance(999);

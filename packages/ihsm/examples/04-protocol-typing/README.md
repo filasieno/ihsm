@@ -2,17 +2,17 @@
 
 ## Problem
 
-String event names and untyped payloads fail at runtime after refactors — `'setTargt'` compiles until the first `post` in production.
+String event names and untyped payloads fail at runtime after refactors — a typo in an event name compiles until the first dispatch in production.
 
 ## Solution
 
-Declare a **`Protocol` interface**. TypeScript checks `post('setTarget', celsius)` against method names and parameter types.
+Declare a **`Config`** bag with typed `notifications` and `services` buckets. TypeScript checks `thermostat.notify.setTarget(22)` against method names and parameter types.
 
 Other HSM libraries use runtime strings or untyped event objects; they **cannot**
-tie `post()` / `call()` argument lists and Promise return types to the same
+tie `notify` / `call` argument lists and Promise return types to the same
 method signatures your state classes implement. ihsm does — see the reference
 manual:
-[Advanced: Protocol typing and compile-time safety](../../docs/REFERENCE.md#advanced-protocol-typing-and-compile-time-safety).
+[Advanced: Protocol typing and compile-time safety](../reference/REFERENCE.md#advanced-protocol-typing-and-compile-time-safety).
 
 ## UML statechart
 
@@ -28,33 +28,35 @@ state ThermostatTop {
 
 Typing is compile-time; at runtime this is an internal transition in `Idle`.
 
-The protocol is the machine’s **event vocabulary**:
+The protocol is the machine’s **event vocabulary** (here, folded into `Config`):
 
 ```typescript
-export interface ThermostatProtocol {
-	setTarget(celsius: number): void;
-	readTarget(): number;
+interface ThermostatConfig extends Config {
+  context: ThermostatCtx;
+  notifications: {
+    setTarget(celsius: number): void;
+    readTarget(): void;
+  };
+  services: {
+    readTarget(): Promise<number>;
+  };
 }
 ```
 
-Generics wire context and protocol through the hierarchy:
+State classes implement the buckets; the factory is typed end-to-end:
 
 ```typescript
-export class ThermostatTop extends TopState<ThermostatCtx, ThermostatProtocol> {
-	setTarget(celsius: number): void {
-		this.ctx.celsius = celsius; // ← payload type enforced at post()
-	}
+export class ThermostatTop extends TopState<ThermostatConfig> {
+  setTarget(celsius: number): void {
+    this.ctx.celsius = celsius; // ← payload type enforced at notify.setTarget
+  }
 }
-```
 
-The factory is typed end-to-end:
+const t = makeActor(ThermostatTop, { celsius: 18 }, new Port());
 
-```typescript
-const t = makeActor(ThermostatTop, { celsius: 18 });
-
-t.setTarget(22);   // ✓
-// t.setTargt(22); // ✗ compile error: unknown event
-// t.setTarget('hot'); // ✗ compile error: string ≠ number
+t.notify.setTarget(22);   // ✓
+// t.notify.setTargt(22); // ✗ compile error: unknown event
+// t.notify.setTarget('hot'); // ✗ compile error: string ≠ number
 ```
 
 ## Reading the trace

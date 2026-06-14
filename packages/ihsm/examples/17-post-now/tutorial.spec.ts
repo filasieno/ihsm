@@ -8,7 +8,7 @@ describe('Tutorial 17: postNow', () => {
 		const sm = createCheckout();
 		await sm.hsm.sync();
 
-		sm.confirm();
+		sm.notify.confirm();
 		await sm.hsm.sync();
 		await sm.hsm.sync();
 
