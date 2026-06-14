@@ -1,3 +1,4 @@
+import { useLocation } from '@docusaurus/router';
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { InteractiveRuntime, TutorialInteractiveMeta, TutorialMessage } from '@examples/shared/interactive-types';
 import { dispatchMessage, resetRuntime, traceFromRuntime } from '@examples/shared/interactive-helpers';
@@ -5,6 +6,8 @@ import styles from './styles.module.css';
 
 export interface InteractiveTutorialProps {
 	meta: TutorialInteractiveMeta;
+	/** Matches the markdown heading id (`#example-…`) — scrolls the playground into view on TOC / hash navigation. */
+	anchorId?: string;
 }
 
 function defaultFieldValues(message: TutorialMessage): Record<string, string> {
@@ -15,7 +18,9 @@ function defaultFieldValues(message: TutorialMessage): Record<string, string> {
 	return values;
 }
 
-export default function InteractiveTutorial({ meta }: InteractiveTutorialProps): React.ReactElement {
+export default function InteractiveTutorial({ meta, anchorId }: InteractiveTutorialProps): React.ReactElement {
+	const location = useLocation();
+	const panelRef = useRef<HTMLElement>(null);
 	const [runtime, setRuntime] = useState<InteractiveRuntime>(() => meta.createRuntime());
 	const [senderId, setSenderId] = useState(meta.senders[0]?.id ?? 'machine');
 	const messages = meta.messagesBySender[senderId] ?? [];
@@ -37,6 +42,18 @@ export default function InteractiveTutorial({ meta }: InteractiveTutorialProps):
 		}
 		trace.scrollTop = trace.scrollHeight;
 	}, [traceText]);
+
+	useLayoutEffect(() => {
+		if (!anchorId || location.hash !== `#${anchorId}`) {
+			return;
+		}
+		const scrollToPlayground = (): void => {
+			panelRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' });
+		};
+		scrollToPlayground();
+		const frame = requestAnimationFrame(scrollToPlayground);
+		return () => cancelAnimationFrame(frame);
+	}, [anchorId, location.hash]);
 
 	const onSenderChange = useCallback(
 		(nextSenderId: string) => {
@@ -134,7 +151,7 @@ export default function InteractiveTutorial({ meta }: InteractiveTutorialProps):
 	);
 
 	return (
-		<section className={styles.panel} aria-label={`Tutorial playground: ${meta.title}`}>
+		<section ref={panelRef} className={styles.panel} aria-label={`Tutorial playground: ${meta.title}`}>
 			<div className={styles.playgroundHeader}>
 				<span className={styles.playgroundBadge}>Interactive playground</span>
 				<span className={styles.playgroundTitle}>{meta.title}</span>

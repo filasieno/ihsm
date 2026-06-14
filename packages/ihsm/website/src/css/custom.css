@@ -327,7 +327,14 @@ body {
 	margin-top: 0.5rem;
 }
 
-/* Table of contents — long reference page */
+/* Table of contents — long reference page; keep all tutorial entries reachable */
+.theme-doc-toc-desktop nav.table-of-contents {
+	max-height: calc(100vh - var(--ifm-navbar-height) - 2rem);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding-bottom: 0.5rem;
+}
+
 .theme-doc-toc-desktop .table-of-contents__link {
 	font-size: 0.82rem;
 }
@@ -335,6 +342,20 @@ body {
 .theme-doc-toc-desktop .table-of-contents__link--active {
 	color: var(--ifm-color-primary);
 	font-weight: 600;
+}
+
+/* Tutorial anchors — TOC lands on the heading; playground panel is scrolled into view via anchorId */
+.markdown h4[id^='example-'] {
+	scroll-margin-top: calc(var(--ifm-navbar-height) + 0.75rem);
+}
+
+section[aria-label^='Tutorial playground'] {
+	scroll-margin-top: calc(var(--ifm-navbar-height) + 0.75rem);
+}
+
+/* Room to scroll the last playground (19) above “Learning path” */
+.tutorial-playgrounds-end {
+	height: min(40vh, 20rem);
 }
 
 /* Admonitions */

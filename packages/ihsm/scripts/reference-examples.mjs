@@ -238,15 +238,9 @@ export function buildExampleIndexTable(specs) {
 	return ['| # | Topic | Playground |', '| - | ----- | ---------- |', ...rows].join('\n');
 }
 
-/** Markdown table + TOC headings for every standard interactive example. */
+/** Markdown table for the interactive-examples index (TOC entries come from playground headings). */
 export function buildExampleIndexSection(specs) {
-	const sorted = [...specs].sort((a, b) => a.id.localeCompare(b.id));
-	const table = buildExampleIndexTable(specs);
-	const tocHeadings = sorted.map(ex => {
-		const num = ex.id.slice(0, 2);
-		return `#### ${num} · ${ex.title}`;
-	});
-	return [table, '', ...tocHeadings].join('\n');
+	return buildExampleIndexTable(specs);
 }
 
 /**

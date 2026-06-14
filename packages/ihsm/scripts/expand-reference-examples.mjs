@@ -62,7 +62,11 @@ ${s.content}
 		? `Runnable code lives under [\`${spec.id}\`](https://github.com/filasieno/ihsm/tree/master/examples/${spec.id}). First the **machine** (the code under test), then the **mocha + chai spec** that drives it — the same tests run headlessly with \`npm run test:examples -- --grep '${spec.grepLabel}'\`.`
 		: `Runnable code lives under [\`${spec.id}\`](https://github.com/filasieno/ihsm/tree/master/examples/${spec.id}). The listings below are the complete, commented sources used by the trace panel.`;
 
+	const num = spec.id.slice(0, 2);
+
 	return `
+**${num} · ${spec.title}**
+
 **When and why: ${spec.title}**
 
 ${spec.whenAndWhy.trim()}
@@ -79,11 +83,9 @@ ${sourceIntro}
 
 ${sourceSections}
 
-##### Playground {#example-${spec.id}}
+#### ${num} · ${spec.title} {#example-${spec.id}}
 
-Use the **interactive playground** below — pick a message, send it, and read the **Trace** panel. Compare with the diagram and source listings.
-
-<InteractiveTutorial meta={${spec.importName}} />
+<InteractiveTutorial meta={${spec.importName}} anchorId="example-${spec.id}" />
 `.trim();
 }
 

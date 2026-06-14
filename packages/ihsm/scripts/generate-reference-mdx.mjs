@@ -17,12 +17,47 @@ const testingPath = path.join(repoRoot, 'reference/TESTING.md');
 const docsOut = process.env.IHSM_DOCS_DIR ? path.resolve(process.env.IHSM_DOCS_DIR) : path.join(repoRoot, 'website/docs');
 const sidebarsPath = path.join(repoRoot, 'website/sidebars.ts');
 
+const EXAMPLE_MARKER_RE = /<!-- @example:([a-z0-9-]+) -->\n?/g;
+
+/** Replace inline markers with jump links; return sorted appendix markers for the playground block. */
+function stripInlineExampleMarkers(body, specs) {
+	const found = new Set();
+	body = body.replace(EXAMPLE_MARKER_RE, (_, id) => {
+		found.add(id);
+		const spec = specs.find(s => s.id === id);
+		if (!spec) {
+			throw new Error(`unknown example marker: ${id}`);
+		}
+		const num = spec.id.slice(0, 2);
+		return `\n> **Playground:** [${num} · ${spec.title}](#example-${spec.id})\n\n`;
+	});
+	for (const spec of specs) {
+		if (!found.has(spec.id)) {
+			throw new Error(`reference marker not found: <!-- @example:${spec.id} -->`);
+		}
+	}
+	return body;
+}
+
+function buildPlaygroundAppendix(specs) {
+	const sorted = [...specs].sort((a, b) => a.id.localeCompare(b.id));
+	return sorted.map(s => `<!-- @example:${s.id} -->`).join('\n\n');
+}
+
 function prepareReferenceBody(raw) {
 	let body = convertTypedocLinks(raw);
 	body = transformSiteLinks(body);
 	body = applySectionAnchors(body);
+	body = stripInlineExampleMarkers(body, referenceExamples);
 	if (body.includes('<!-- @example-index -->')) {
 		body = body.replace('<!-- @example-index -->', buildExampleIndexSection(referenceExamples));
+	}
+	const appendix = buildPlaygroundAppendix(referenceExamples);
+	const playgroundBlock = `## Playgrounds (01–19) {#playgrounds-01-19}\n\n${appendix}`;
+	if (body.includes('<!-- @example-playgrounds -->')) {
+		body = body.replace('<!-- @example-playgrounds -->', playgroundBlock);
+	} else {
+		throw new Error('reference marker not found: <!-- @example-playgrounds -->');
 	}
 	return body.replace(/^# .+\n+/, '').trimEnd();
 }

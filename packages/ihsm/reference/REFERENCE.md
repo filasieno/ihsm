@@ -60,7 +60,7 @@ parallel regions, or deep frontend/Stately integration. See
 
 ### Interactive examples (01–19) {#interactive-examples-01-19}
 
-Standard tutorials (`01`–`19`, no `06` / `16`). Each row jumps to that example’s **playground** on this page.
+Standard tutorials (`01`–`19`, no `06` / `16`). Use the table or the right-hand **Table of contents** under [Playgrounds (01–19)](#playgrounds-01-19) — each entry scrolls to that tutorial’s interactive playground.
 
 <!-- @example-index -->
 
@@ -1344,6 +1344,10 @@ non-state values are ignored. Recommended for minified browser bundles. See
 [§6 State display names](#state-display-names-node-and-minified-browsers).
 
 ---
+
+<!-- @example-playgrounds -->
+
+<div class="tutorial-playgrounds-end" aria-hidden="true"></div>
 
 ## Learning path
 
