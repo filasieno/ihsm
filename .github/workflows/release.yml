@@ -40,8 +40,6 @@ jobs:
 
       - name: Setup Nix
         uses: ./.github/actions/nix
-        with:
-          attic-token: ${{ secrets.ATTIC_TOKEN }}
 
       - name: Verify version matches tag
         run: |
@@ -103,27 +101,6 @@ jobs:
             fi
             npm publish --access public --ignore-scripts
           fi
-
-      - name: Build @ihsm/core
-        run: |
-          set -euo pipefail
-          VERSION="$(jq -r .version packages/ihsm/package.json)"
-          jq --arg v "$VERSION" '.dependencies.ihsm = $v' packages/core/package.json > packages/core/package.json.tmp
-          mv packages/core/package.json.tmp packages/core/package.json
-          cd packages/core
-          npm install --no-save --ignore-scripts "file:../ihsm"
-          npm run build
-
-      - name: Publish @ihsm/core to npm
-        run: |
-          set -euo pipefail
-          VERSION="$(jq -r .version packages/ihsm/package.json)"
-          if npm view "@ihsm/core@${VERSION}" version >/dev/null 2>&1; then
-            echo "@ihsm/core@${VERSION} is already published — skipping."
-            exit 0
-          fi
-          cd packages/core
-          npm publish --access public --ignore-scripts
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
