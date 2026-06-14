@@ -37,7 +37,7 @@ The foundation: never block on real time. A `Heartbeat` machine ticks **every ho
 **DST takeaways from this example:**
 
 - **Virtual clock (checklist A1, D):** `TestPort.advance(ms)` fires due deferred timers on demand — no `sleep`, no flaky CI.
-- **Two test surfaces:** `makeTestActor` exposes the merged protocol (post `onTick` directly); `TestPort` records outbound work and drives time.
+- **Two test surfaces:** `makeTestActor` exposes the merged protocol (notify `onTick` directly); `TestPort` records outbound work and drives time.
 - **Reproducibility (A7):** run the same `advance` loop twice; `ctx.ticks` and `clock.now` match byte-for-byte.
 - **Production path vs white-box:** `makeActor` + `TestPort` exercises the public `start`/`stop` path; `makeTestActor` can drive `notify.onTick()` with no clock at all.
 
@@ -53,7 +53,7 @@ pushing `onResponse` / `onFailure` inward with `send`.
 
 - **Virtualized I/O (A4):** no sockets, DNS, or real latency — the mock is the entire network.
 - **Outbound vs inbound channels:** `request.default` scripts what the machine *calls*; `port.send('onResponse', …)` is when the test *settles* the request — never both in one synchronous stub call.
-- **In-flight states without timers:** pin `Fetching` with `initialize: false`, then post the settled event — the flaky window is observable and deterministic.
+- **In-flight states without timers:** pin `Fetching` with `initialize: false`, then notify the settled event — the flaky window is observable and deterministic.
 - **Golden trace:** `port.trace` lists `request:…` and `abort` in order; cancelled requests provably drop late responses.
 
 <!-- @example:testing-02-network-fetch -->
@@ -79,7 +79,7 @@ scripted into the `@mock`'s `attempt` — never `Math.random()` or the clock.
 **DST takeaways from this example:**
 
 - **Seed-driven faults (C):** `feedRandom` + `port.random()` in `attempt.default` — same seed ⇒ same `ctx.log` and `port.trace`.
-- **Hand injection vs seeded:** script `attempt` as a no-op and post `onResult` yourself to walk the retry budget deterministically.
+- **Hand injection vs seeded:** script `attempt` as a no-op and notify `onResult` yourself to walk the retry budget deterministically.
 - **Oracle (F):** assert `port.attempt.calls`, `ctx.log`, and terminal state together — not just "no throw".
 - **Replay workflow (G):** capture seed + trace on failure; re-run the spec with that seed in CI.
 

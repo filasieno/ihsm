@@ -16,11 +16,26 @@ grep -q 'Deterministic Simulation Testing' "$DIST/testing/index.html"
 grep -q 'UML state diagram' "$DIST/testing/index.html"
 for page in reference testing; do
 	if grep -q '@startuml' "$DIST/$page/index.html"; then
-		echo "ERROR: PlantUML source leaked into $page HTML — diagrams were not rendered" >&2
+		echo "FATAL: PlantUML source leaked into $page HTML — statecharts were not rendered" >&2
+		exit 1
+	fi
+	if ! grep -q 'UML state diagram' "$DIST/$page/index.html"; then
+		echo "FATAL: $page HTML has no rendered UML diagram images" >&2
 		exit 1
 	fi
 done
-test -f "$DIST/img/plantuml/reference-0.svg"
-test -f "$DIST/img/plantuml/testing-0.svg"
+
+PLANTUML_DIR="$DIST/img/plantuml"
+if [[ ! -d "$PLANTUML_DIR" ]]; then
+	echo "FATAL: missing $PLANTUML_DIR" >&2
+	exit 1
+fi
+SVG_COUNT="$(find "$PLANTUML_DIR" -maxdepth 1 -name '*.svg' | wc -l)"
+if [[ "$SVG_COUNT" -lt 2 ]]; then
+	echo "FATAL: expected multiple PlantUML SVG assets, found $SVG_COUNT in $PLANTUML_DIR" >&2
+	exit 1
+fi
+test -f "$PLANTUML_DIR/reference-0.svg"
+test -f "$PLANTUML_DIR/testing-0.svg"
 
 echo "Documentation site output OK ($DIST)"

@@ -6,7 +6,7 @@ Domain counters and configuration must survive many events. Storing them outside
 
 ## Solution
 
-Pass a **context object** to `create(ctx)`. Handlers mutate `this.ctx`; the active state class can stay unchanged.
+Pass **context** as the second argument to `makeActor(CounterTop, ctx, port)`. Handlers mutate `this.ctx`; the active state class can stay unchanged.
 
 ## UML statechart
 

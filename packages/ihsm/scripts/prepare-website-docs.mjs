@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertDocsPlantumlRendered } from './render-plantuml.mjs';
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const docsSrc = path.join(repoRoot, 'website/docs-src');
@@ -18,7 +19,11 @@ function run(script) {
 	const result = spawnSync(process.execPath, [path.join(repoRoot, 'scripts', script)], {
 		cwd: repoRoot,
 		stdio: 'inherit',
-		env: { ...process.env, IHSM_DOCS_DIR: staging },
+		env: {
+			...process.env,
+			IHSM_DOCS_DIR: staging,
+			IHSM_REQUIRE_PLANTUML: '1',
+		},
 	});
 	if (result.status !== 0) {
 		process.exit(result.status ?? 1);
@@ -49,6 +54,13 @@ fs.rmSync(path.join(staging, 'README.md'), { force: true });
 run('generate-reference-mdx.mjs');
 
 assertPrepared();
+
+try {
+	assertDocsPlantumlRendered(repoRoot, staging);
+} catch (err) {
+	console.error(err instanceof Error ? err.message : err);
+	process.exit(1);
+}
 
 fs.rmSync(docsOut, { recursive: true, force: true });
 fs.renameSync(staging, docsOut);

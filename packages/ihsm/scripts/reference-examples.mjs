@@ -86,7 +86,7 @@ Use internal transitions when the **state mode is unchanged** but domain data up
 	{
 		id: '08-post-and-sync',
 		importName: 'postSyncPlayground',
-		title: 'post and sync',
+		title: 'Notifications and sync',
 		grepLabel: 'Tutorial 08',
 		whenAndWhy: `
 Use \`notify\` + \`sync()\` when the **client** must wait for asynchronous side effects — tests, HTTP handlers, or scripts that enqueue several events and need a single barrier.
@@ -164,14 +164,14 @@ Use **async handlers** when one event performs a **multi-step I/O pipeline** and
 	{
 		id: '14-nested-machines',
 		importName: 'nestedPlayground',
-		title: 'Nested machines (sibling actors)',
+		title: 'Nested machines (parent + child regions)',
 		grepLabel: 'Tutorial 14',
 		whenAndWhy: `
-Use **multiple \`makeActor\` instances** when two concerns evolve independently — payment vs shipping — but your app coordinates them. This is ihsm’s answer to UML orthogonal regions **without** \`type: 'parallel'\` in one chart: one queue per actor, explicit messaging between them.
+\`OrderTop\` is a **parent actor**; payment and shipping are **child actors** from \`makeChildActor\`. This models UML orthogonal regions without \`type: 'parallel'\` in one chart.
 
-**Why not one giant hierarchy:** coupling unrelated lifecycles into one tree forces artificial LCA transitions. Two machines stay simple; \`OrderCoordinator\` notifies each and \`sync()\`s.
+**Event-only between actors:** parent drives \`child.notify.markPaid()\`; children report \`orderEvents.paymentDone()\` back through wired notify bridges — no \`await child.call…\` across boundaries. Sequence fulfill with parent \`internalNotifications\` (\`beginPayment\` → \`paymentDone\` → \`beginShipping\`).
 
-**When to merge into one machine:** true shared parent state and a single run-to-completion ordering requirement across both concerns.
+**Multi-queue sync:** each actor has its own FIFO — drain parent and children (\`syncOrderRegions\`) after driving events in tests.
 `,
 	},
 	{
@@ -184,7 +184,20 @@ ihsm **rejects UML parallel regions** inside one chart — they share one queue,
 
 **Use \`makeChildActor(asParentActor(this), ChildTop, ctx, port)\`** when a parent state **owns** a child: spawn in \`onEntry\`, drop the handle in \`onExit\`, orchestrate with \`child.notify\` / \`child.call\`. Stronger than parallel states: phased concerns, internal child vocabulary, isolated DST mocks, parent-orchestrated retries.
 
-**Versus tutorial 14:** siblings + external coordinator when no parent state owns the regions; chained children when lifecycle is tied to a composite parent state.
+**Versus tutorial 14:** sibling regions under one parent actor with event bridges; tutorial 18 when a single child is owned by a composite parent state with a narrower lifecycle.
+`,
+	},
+	{
+		id: '19-request-manager',
+		importName: 'requestManagerPlayground',
+		title: 'Request manager (table + cancellable commands)',
+		grepLabel: 'Tutorial 19',
+		whenAndWhy: `
+Use a **manager parent actor** plus **per-request child command actors** when you need a **request table**, heterogeneous command types, and **cancellation** while work is in flight.
+
+**Event-only IPC:** \`submit\` / \`cancel\` / \`child.notify.start\` / \`manager.finished\` — no cross-actor \`call\`. Commands arm \`hsm.port.defer(ms).complete()\` so a cancel notification can win before the deferred complete; tests \`advance\` the child \`TestPort\` clock.
+
+**Versus tutorial 14:** many short-lived children tracked in \`ctx.table\` instead of two long-lived region children.
 `,
 	},
 	{
@@ -214,6 +227,27 @@ Use \`notifyNow\` for **extended transitions**: several internal steps (lock inv
 `,
 	},
 ];
+
+/** Markdown table linking every standard interactive example (for REFERENCE.md index). */
+export function buildExampleIndexTable(specs) {
+	const sorted = [...specs].sort((a, b) => a.id.localeCompare(b.id));
+	const rows = sorted.map(ex => {
+		const num = ex.id.slice(0, 2);
+		return `| ${num} | ${ex.title} | [§${num}](#example-${ex.id}) |`;
+	});
+	return ['| # | Topic | Playground |', '| - | ----- | ---------- |', ...rows].join('\n');
+}
+
+/** Markdown table + TOC headings for every standard interactive example. */
+export function buildExampleIndexSection(specs) {
+	const sorted = [...specs].sort((a, b) => a.id.localeCompare(b.id));
+	const table = buildExampleIndexTable(specs);
+	const tocHeadings = sorted.map(ex => {
+		const num = ex.id.slice(0, 2);
+		return `#### ${num} · ${ex.title}`;
+	});
+	return [table, '', ...tocHeadings].join('\n');
+}
 
 /**
  * Interactive examples for the dedicated **Deterministic testing** chapter

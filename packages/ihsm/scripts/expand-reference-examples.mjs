@@ -46,7 +46,9 @@ export function buildExampleBlock(spec, repoRoot) {
 	const hasSpec = sources.some(s => s.rel.endsWith('.spec.ts'));
 	const sourceSections = sources
 		.map(s => {
-			const caption = s.rel.endsWith('.spec.ts') ? `#### \`${s.rel}\` — mocha + chai tests, executed against the mocks` : `#### \`${s.rel}\``;
+			const caption = s.rel.endsWith('.spec.ts')
+				? `**\`${s.rel}\`** — mocha + chai tests, executed against the mocks`
+				: `**\`${s.rel}\`**`;
 			return `${caption}
 
 \`\`\`typescript
@@ -55,17 +57,17 @@ ${s.content}
 		})
 		.join('\n\n');
 
-	const sourceHeading = hasSpec ? '### Machine source, then the unit tests' : '### Full example source';
+	const sourceHeading = hasSpec ? '**Machine source, then the unit tests**' : '**Full example source**';
 	const sourceIntro = hasSpec
 		? `Runnable code lives under [\`${spec.id}\`](https://github.com/filasieno/ihsm/tree/master/examples/${spec.id}). First the **machine** (the code under test), then the **mocha + chai spec** that drives it — the same tests run headlessly with \`npm run test:examples -- --grep '${spec.grepLabel}'\`.`
 		: `Runnable code lives under [\`${spec.id}\`](https://github.com/filasieno/ihsm/tree/master/examples/${spec.id}). The listings below are the complete, commented sources used by the trace panel.`;
 
 	return `
-### When and why: ${spec.title}
+**When and why: ${spec.title}**
 
 ${spec.whenAndWhy.trim()}
 
-### State diagram
+**State diagram**
 
 \`\`\`plantuml
 ${plantuml}
@@ -77,7 +79,7 @@ ${sourceIntro}
 
 ${sourceSections}
 
-### Try it
+##### Playground {#example-${spec.id}}
 
 Use the **interactive playground** below — pick a message, send it, and read the **Trace** panel. Compare with the diagram and source listings.
 

@@ -37,7 +37,7 @@ Useful as a no-op external transition; rare in production.
 ## Code
 
 ```typescript
-sm.goSelfWest();
+sm.notify.goSelfWest();
 await sm.hsm.sync();
 ```
 

@@ -1,21 +1,42 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { PaymentDone, PaymentPending, ShippingDone, ShippingWaiting, createOrderCoordinator } from './machine';
+import { Fulfilled, Fulfilling, Open, PaymentDone, PaymentPending, ShippingDone, ShippingWaiting, createOrder, syncOrderRegions } from './machine';
 
 describe('Tutorial 14: nested machines', () => {
-	it('coordinates orthogonal payment and shipping actors', async () => {
-		const order = createOrderCoordinator();
-		await order.sync();
+	it('coordinates payment and shipping child actors via parent events only', async () => {
+		const order = createOrder();
+		await syncOrderRegions(order);
 
-		expect(order.payment.hsm.currentState).equals(PaymentPending);
-		expect(order.shipping.hsm.currentState).equals(ShippingWaiting);
+		expect(order.hsm.currentState).equals(Open);
+		expect(order.ctx.payment!.hsm.currentState).equals(PaymentPending);
+		expect(order.ctx.shipping!.hsm.currentState).equals(ShippingWaiting);
 
-		await order.fulfill();
+		order.notify.fulfill();
+		await syncOrderRegions(order);
 
-		expect(order.payment.hsm.currentState).equals(PaymentDone);
-		expect(order.shipping.hsm.currentState).equals(ShippingDone);
-		expect(order.payment.ctx.paid).equals(true);
-		expect(order.shipping.ctx.shipped).equals(true);
+		expect(order.hsm.currentState).equals(Fulfilled);
+		expect(order.ctx.payment!.hsm.currentState).equals(PaymentDone);
+		expect(order.ctx.shipping!.hsm.currentState).equals(ShippingDone);
+		expect(order.ctx.paymentCtx!.paid).equals(true);
+		expect(order.ctx.shippingCtx!.shipped).equals(true);
+	});
+
+	it('sequences fulfill through Fulfilling without cross-actor call', async () => {
+		const order = createOrder();
+		await syncOrderRegions(order);
+
+		order.notify.fulfill();
+		await order.hsm.sync();
+		expect(order.hsm.currentState).equals(Fulfilling);
+
+		await order.ctx.payment!.hsm.sync();
+		await order.hsm.sync();
+		expect(order.ctx.payment!.hsm.currentState).equals(PaymentDone);
+		expect(order.hsm.currentState).equals(Fulfilling);
+
+		await order.ctx.shipping!.hsm.sync();
+		await order.hsm.sync();
+		expect(order.hsm.currentState).equals(Fulfilled);
 	});
 });

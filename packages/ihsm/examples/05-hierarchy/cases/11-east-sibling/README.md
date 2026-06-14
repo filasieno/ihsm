@@ -26,7 +26,7 @@ See the **Trace** panel on the [interactive docs site](https://filasieno.github.
 ```typescript
 const sm = createDeepMachine();
 await sm.hsm.sync();
-sm.restore(LeafEastB, { ...sm.ctx, trace: [...sm.ctx.trace] });
+sm.hsm.restore(LeafEastB, { ...sm.ctx, trace: [...sm.ctx.trace] });
 ```
 
 ## What happens
@@ -42,7 +42,7 @@ The exit/entry pattern matches a sibling move under `MidWest`; only the stack an
 ## Code
 
 ```typescript
-sm.goSiblingEast();
+sm.notify.goSiblingEast();
 await sm.hsm.sync();
 ```
 

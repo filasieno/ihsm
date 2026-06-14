@@ -39,9 +39,9 @@ See the **Trace** panel on the [interactive docs site](https://filasieno.github.
 ## Code
 
 ```typescript
-sm.goSiblingWest();
+sm.notify.goSiblingWest();
 await sm.hsm.sync();
-sm.goAncestorWest();
+sm.notify.goAncestorWest();
 await sm.hsm.sync();
 ```
 

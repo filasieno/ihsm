@@ -56,6 +56,13 @@ parallel regions, or deep frontend/Stately integration. See
 12. [Code coverage](#_12-code-coverage)
 13. [Comparison with XState](#_13-comparison-with-xstate)
 14. [Quick reference](#_14-quick-reference)
+15. [Interactive examples (01–19)](#interactive-examples-01-19)
+
+### Interactive examples (01–19) {#interactive-examples-01-19}
+
+Standard tutorials (`01`–`19`, no `06` / `16`). Each row jumps to that example’s **playground** on this page.
+
+<!-- @example-index -->
 
 ---
 
@@ -169,6 +176,7 @@ await door.hsm.sync();
 | History | `ctx` + `restore()` | Implicit (data) |
 | Orthogonal regions | multiple actors (not `type: 'parallel'`) | Composition |
 | Chained child actors | `makeChildActor` in parent `onEntry` | Yes |
+| Request table + cancellable commands | manager parent + per-request child actors | Composition |
 | Notifications | `actor.notify.event()` — fire-and-forget | Yes |
 | `hsm.port.defer(ms)` | port timer (`Port.setTimeout`) + queue | Yes |
 | Services | `await actor.call.service()` — Promise | Yes |
@@ -273,11 +281,13 @@ one `Port` — which is too weak for production domains that need:
 - **Per-actor restore, tracing, and DST** — each region gets its own `TestPort` and isolated tests
 - **Phased or optional regions** without combinatorial state products (N active modes × M link states)
 
-Compose **multiple full actors** and coordinate with `notify` / `call` / `sync()` instead.
-[Tutorial 14](../examples/14-nested-machines/README.md) uses **sibling** actors and an
-external coordinator. [Tutorial 18](../examples/18-chained-child-actors/README.md) uses
-**chained child actors** when a parent state owns the nested concern — stronger semantics
-than a parallel chart.
+Compose **multiple full actors** and coordinate with `notify` between them (avoid
+`await child.call…` across boundaries when event choreography is enough).
+[Tutorial 14](../examples/14-nested-machines/README.md) is a **parent order actor** with
+payment/shipping **child regions** wired by event bridges.
+[Tutorial 18](../examples/18-chained-child-actors/README.md) owns a single child for a
+narrower lifecycle. [Tutorial 19](../examples/19-request-manager/README.md) tracks
+many cancellable command children in a request table.
 
 <!-- @example:14-nested-machines -->
 
@@ -285,10 +295,20 @@ than a parallel chart.
 
 When one machine **owns** another (session owns connection, checkout owns payment link),
 spawn the child in parent `onEntry` with `makeChildActor(asParentActor(this), ChildTop, ctx, port)`,
-drive it with `child.notify` / `child.call`, and clear `ctx.child` in `onExit`. The child
-is a full `Hsm` with its own queue and protocol — not a passive parallel region.
+drive it with `child.notify` (and `child.call` when you need a typed Promise), and clear
+`ctx.child` in `onExit`. The child is a full `Hsm` with its own queue and protocol — not a
+passive parallel region.
 
 <!-- @example:18-chained-child-actors -->
+
+### Request manager (cancellable command children)
+
+A **manager actor** keeps a **request table**, spawns `AlphaTop` / `BetaTop` command children
+per `submit`, and updates rows from `commandFinished` / `commandCancelled` internal events.
+Use `child.notify.cancel()` and deferred `hsm.port.defer` on commands so cancellation can
+race completion without cross-actor `call`.
+
+<!-- @example:19-request-manager -->
 
 ---
 
@@ -359,7 +379,7 @@ Five rules define how a `Protocol` interface maps to the runtime dispatch:
 | **1. Two type parameters everywhere** | `Context` (domain data) and `Protocol` (vocabulary) flow through `makeActor`, `TopState`, `Hsm`, and errors. |
 | **2. Events are void handlers** | A **event** is a `Protocol` method whose return type is `void` or `Promise<void>`. Payload types are everything before that return. |
 | **3. Services are resolve/reject handlers** | A **service** (for `call`) is a method whose **first two parameters** are `resolve: (result: T) => void` and `reject: (error: Error) => void`. Request args follow; `Promise` return type is `T`. |
-| **4. Reserved names are excluded** | Keys that exist on `State` (e.g. `transition`, `post`, `ctx`) cannot be used as event or service names — they become `never` at the type level. |
+| **4. Reserved names are excluded** | Keys reserved on `State` / handlers (e.g. `transition`, `notify`, `ctx`, `hsm`) cannot be protocol keys — they become `never` at the type level. |
 | **5. Disjoint protocol buckets** | `notifications`, `internalNotifications`, `services`, and `internalServices` must not share keys — enforced at compile time via `Config`. |
 
 State classes declare handler methods on the `Config` buckets; `TopState<YourConfig>` binds typing for `makeActor`, `notify`, and `call`:
@@ -384,16 +404,20 @@ signature that uses it.
 
 ##### 1. Generic type parameters
 
-`Context` and `Protocol` are declared once and threaded through the whole API:
+`ActorConfig` is inferred from `TopState<YourConfig>` and threaded through factories and handles:
 
 ```typescript
-export function makeActor<Context, Protocol>(topState, ctx, initialize?, traceLevel?, traceWriter?, dispatchErrorCallback?): Hsm<Context, Protocol>
-export abstract class TopState<Context = Any, Protocol extends {} | undefined = undefined> { /* … */ }
-export interface Hsm<Context = Any, Protocol extends {} | undefined = undefined> { /* … */ }
+export function makeActor<T extends TopStateArg<ActorConfig>>(
+  topState: T,
+  ctx: ActorContextOf<ActorConfigOf<T>>,
+  port?: MachinePortInput<ActorConfigOf<T>>,
+  options?: ActorOptions<ActorConfigOf<T>>,
+): ExternalActor<ActorConfigOf<T>>
+
+export abstract class TopState<C extends ActorConfig = ActorConfig> { /* … */ }
 ```
 
-**Effect:** `makeActor(Top, ctx)` returns `Hsm<Context, Protocol>` — callers
-inherit the same `Protocol` used on the state classes.
+**Effect:** `makeActor(Top, ctx, port)` returns `ExternalActor<YourConfig>` — callers use `notify` / `call` facets typed from your `Config` buckets.
 
 ##### 2. Generic constraints (`extends`)
 
@@ -408,13 +432,10 @@ for untyped mode. Event names must be keys of that interface.
 ##### 3. `keyof` and literal event names
 
 ```typescript
-post<EventName extends keyof Protocol>(
-  eventName: PostedEvent<Protocol, EventName>,
-  …
-): void;
+actor.notify.open(…);  // method name must exist on notifications bucket
 ```
 
-**Effect:** `notify.open(, …)` only accepts strings that exist on `Protocol`.
+**Effect:** `notify.open(…)` only accepts notification names from your `Config` buckets.
 Autocomplete in the IDE lists valid event names.
 
 ##### 4. Indexed access types
@@ -501,50 +522,41 @@ For `getBalance(resolve: (n: number) => void, reject: …): void`, `Reply` is
 EventName extends keyof State<any, any> ? never : EventName
 ```
 
-If you add `transition` or `post` to `Protocol`, those keys collide with
-`State` and become `never`, producing a type error at call sites.
+If you add `transition` or `notify` to a protocol bucket key set, those keys collide with
+handler machinery and become `never`, producing a type error at call sites.
 
 Payload `never` also blocks wrong arity:
 
 ```typescript
 // Protocol: setTarget(celsius: number): void
-wallet.setTarget();        // ✗ missing argument
-wallet.setTarget(1, 2);  // ✗ too many arguments
+wallet.notify.setTarget();        // ✗ missing argument
+wallet.notify.setTarget(1, 2);  // ✗ too many arguments
 ```
 
-##### 8. Generic methods on interfaces and classes
+##### 8. Faceted handles (`notify` / `call`)
 
-Both `Base` and `TopState` declare:
+Generated actor handles expose protocol members on facets — not as flat methods:
 
 ```typescript
-post<EventName extends keyof Protocol>(
-  eventName: PostedEvent<Protocol, EventName>,
-  ...eventPayload: EventPayload<Protocol, EventName>
-): void;
+// ExternalActor<C> — production shell
+actor.notify.charge(10);
+await actor.call.getBalance();
 
-call<EventName extends keyof Protocol>(
-  eventName: ServiceName<Protocol, EventName>,
-  ...eventPayload: ServiceRequest<Protocol, EventName>
-): Promise<ServiceResponse<Protocol, EventName>>;
+// HandlerHsm — inside state methods
+this.notify.tick();
+await this.call.lookup(id);
 ```
 
-**Effect:** each call site gets a **specialized** check for the literal event
-string you pass; TypeScript narrows `EventName` and applies the matching
-`Protocol[EventName]` signature.
+**Effect:** each call site gets a **specialized** check for the method name;
+TypeScript applies the matching handler signature from your `Config` buckets.
 
 ##### 9. Rest parameters with inferred tuples
 
-`...eventPayload: EventPayload<…>` types the variadic tail of `post`
-as an exact tuple derived from the handler, not as `any[]`.
+`...payload` on `notify.event(…)` is typed as an exact tuple derived from the handler, not as `any[]`.
 
-##### 10. `implements Protocol` (optional)
+##### 10. Structural `Config` (no `extends Config`)
 
-`TopState<YourConfig>` already binds the protocol for `makeActor`, `post`,
-and `call` — you do **not** need `implements Protocol` for client typing.
-
-Add `implements Protocol` only when you want an extra compile-time check that a
-state class (usually the root) declares every protocol method with a compatible
-signature. Handlers on child states inherit without re-implementing the interface.
+Declare a plain `interface` with `context`, `notifications`, `services`, and optional internal buckets. `TopState<YourConfig>` binds typing for factories and facets.
 
 ##### 11. Separate aliases for services vs events
 
@@ -595,10 +607,10 @@ extracts from service methods.
 | Typo in event name | `Argument of type '"setTargt"' is not assignable to parameter of type 'keyof Protocol'` (or `never`) |
 | Wrong payload type | `Argument of type 'string' is not assignable to parameter of type 'number'` |
 | Wrong payload count | Tuple arity mismatch on rest parameters |
-| Calling service with `post` | Service-shaped method may yield `never` payload or wrong inference — use `call` |
+| Calling service with `notify` | Service-shaped method may yield `never` payload or wrong inference — use `call` |
 | Calling event with `call` | Request/response inference fails; return type may be `never` |
 | Using reserved name | Event name resolves to `never` |
-| Drift between handler and Protocol | Optional `implements Protocol` on the class that owns handlers; or wrong runtime dispatch |
+| Drift between handler and `Config` | Mismatched handler signature vs bucket declaration; or wrong runtime dispatch |
 
 #### End-to-end flow
 
@@ -919,7 +931,13 @@ to propagate failures to application code.
 | `DEBUG` | 1 | Transition and handler boundaries |
 | `VERBOSE_DEBUG` | 2 | Lookup walks, cache hit/miss |
 
-Set trace level: `makeActor(Top, ctx, true, TraceLevel.DEBUG)`.
+Set trace level when creating the actor:
+
+```typescript
+const door = makeActor(DoorTop, { openCount: 0 }, new Port(), {
+  traceLevel: TraceLevel.DEBUG,
+});
+```
 
 ### Trace writer
 
@@ -1055,8 +1073,8 @@ const json = JSON.stringify({
 });
 
 // resume — new instance after restart
-const sm = makeActor(TopState, emptyCtx, false);
-sm.restore(STATE_BY_NAME[stateName], parsed.ctx);
+const sm = makeActor(TopState, emptyCtx, new Port(), { initialize: false });
+sm.hsm.restore(STATE_BY_NAME[stateName], parsed.ctx);
 ```
 
 Use for:
@@ -1329,5 +1347,6 @@ non-state values are ignored. Recommended for minified browser bundles. See
 
 ## Learning path
 
-1. Read [Key concepts](#_1-key-concepts) and [Tracing](#_6-tracing), then use the interactive examples on this page.
-2. Study [Rules of thumb](#rules-of-thumb) for integration patterns.
+1. Read [Key concepts](#_1-key-concepts) and [Tracing](#_6-tracing), then work through the [interactive examples (01–19)](#interactive-examples-01-19) on this page.
+2. Study [Rules of thumb](#rules-of-thumb) for integration patterns (includes [tutorial 15](#example-15-complex-workflow)).
+3. For multi-actor composition after [tutorial 14](#example-14-nested-machines), continue with [tutorial 18](#example-18-chained-child-actors) and [tutorial 19](#example-19-request-manager).

@@ -46,11 +46,14 @@ state FileTop {
 
 The arrow to `Done` is the only **external** transition. All I/O is **inside** the handler — not separate states.
 
-Protocol — one async event for the whole file copy:
+`FileConfig` — one async notification for the whole file copy:
 
 ```typescript
-export interface FileProtocol {
-	transfer(from: string, to: string): Promise<void>;
+export interface FileConfig {
+	context: FileCtx;
+	notifications: {
+		transfer(from: string, to: string): Promise<void>;
+	};
 }
 ```
 
@@ -98,7 +101,7 @@ await sm.hsm.sync();
 sm.notify.transfer('/inbox/a.dat', '/archive/a.dat');
 await sm.hsm.sync(); // waits through entire open/read/write/close chain
 
-expect(sm.currentState).equals(Done);
+expect(sm.hsm.currentState).equals(Done);
 expect(sm.ctx.bytesWritten).greaterThan(0);
 ```
 

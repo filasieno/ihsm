@@ -29,7 +29,7 @@ state CheckoutTop {
 @enduml
 ```
 
-`submit` runs async validation, then enters `Validating`. The guard runs via **``notifyNow`('applyValidation')`** in `onEntry` — not inline in the handler.
+`submit` runs async validation, then enters `Validating`. The guard runs via **`this.notifyNow.applyValidation()`** in `onEntry` — not inline in the handler.
 
 Context tracks phase and audit trail:
 
@@ -50,7 +50,7 @@ Async `submit` hands off to the decision state:
 export class Draft extends CheckoutTop {
 	async submit(): Promise<void> {
 		this.ctx.phase = 'validating';
-		await this.sleep(10);
+		await new Promise<void>(resolve => this.hsm.port.setTimeout(resolve, 10));
 		this.ctx.validationNotes.push('fraud-check-ok');
 		this.hsm.transition(Validating);
 	}
@@ -89,7 +89,7 @@ export class Approved extends CheckoutTop {
 
 export class Completing extends CheckoutTop {
 	async onEntry(): Promise<void> {
-		await this.sleep(10);
+		await new Promise<void>(resolve => this.hsm.port.setTimeout(resolve, 10));
 		this.ctx.phase = 'completed'; // finalize in entry
 	}
 }
@@ -101,7 +101,7 @@ Typed status query:
 const phase = await order.call.getStatus(); // Promise<OrderPhase>
 ```
 
-For extended transitions that must run internal events before other queued work, see [`notifyNow`()](../17-post-now/README.md).
+For extended transitions that must run internal events before other queued work, see [Hi-priority notifications (`notifyNow`)](../17-post-now/README.md).
 
 ## Reading the trace
 

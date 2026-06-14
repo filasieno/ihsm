@@ -69,7 +69,7 @@ export default function InteractiveTutorial({ meta }: InteractiveTutorialProps):
 		setBusy(true);
 		setError(undefined);
 		try {
-			const result = await dispatchMessage(runtime, senderId, selectedMessage, fieldValues);
+			const result = await dispatchMessage(runtime, senderId, selectedMessage, fieldValues, meta.afterDispatch);
 			setLastCallResult(result);
 			setRuntime({ ...runtime });
 		} catch (err) {

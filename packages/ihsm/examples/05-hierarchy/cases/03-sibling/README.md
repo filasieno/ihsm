@@ -37,7 +37,7 @@ Ancestors above the LCA do **not** run `onExit` / `onEntry`.
 ## Code
 
 ```typescript
-sm.goSiblingWest();
+sm.notify.goSiblingWest();
 await sm.hsm.sync();
 ```
 

@@ -7,7 +7,7 @@ After restart or loading from a database, you must resume at a specific mode wit
 ## Solution
 
 1. **Suspend** — read `currentState` + `ctx`, serialize to JSON (DB row or file).
-2. **Resume** — `makeActor(..., false)` on a **new** instance, then `restore(stateClass, ctx)`.
+2. **Resume** — `makeTestActor(…, { initialize: false })` on a **new** instance, then `sm.hsm.restore(stateClass, ctx)`.
 
 `restore` sets active state and context **without** running `onEntry` or `onExit`.
 
@@ -53,10 +53,10 @@ export interface PersistedSession {
 const live = createSession('user-42');
 await live.hsm.sync(); // onEntry: Anonymous
 
-live.restore(Authenticated, {
+live.hsm.restore(Authenticated, {
 	userId: 'user-42',
 	lastPage: 'settings',
-	entryLog: live.ctx.entryLog,
+	entryLog: [...live.ctx.entryLog],
 });
 live.notify.navigate('billing');
 await live.hsm.sync();
@@ -67,15 +67,12 @@ await live.hsm.sync();
 Serialize **state name + ctx** — not the class reference:
 
 ```typescript
-export function suspendSession(sm: Hsm<SessionCtx, SessionProtocol>): string {
+export function suspendSession(sm: TestActor<SessionConfig>): string {
 	return JSON.stringify({
-		stateName: stateNameOf(sm), // 'Authenticated'
-		ctx: { ...sm.ctx },
+		stateName: stateNameOf(sm),
+		ctx: { ...sm.ctx, entryLog: [...sm.ctx.entryLog] },
 	} satisfies PersistedSession);
 }
-
-// DB column or file write
-sessionDb.set(sessionId, suspendSession(live));
 ```
 
 ### 3. New process — instantiate and restore
@@ -85,17 +82,12 @@ Skip initialization (`initialize: false`), then jump to the saved leaf:
 ```typescript
 export function resumeSession(json: string) {
 	const { stateName, ctx } = JSON.parse(json) as PersistedSession;
-	const sm = sessionFactory.create(
-		{ userId: '', lastPage: '', entryLog: [] },
-		false // ← no onEntry descent
-	);
-	sm.restore(SESSION_STATES[stateName], ctx);
+	const sm = makeTestActor(SessionTop, { userId: '', lastPage: '', entryLog: [] }, new Port(), {
+		initialize: false,
+	});
+	(sm.hsm as ChildHsm<SessionConfig>).restore(SESSION_STATES[stateName], ctx);
 	return sm;
 }
-
-const afterRestart = resumeSessionFromDb('sess-7');
-await afterRestart.hsm.sync();
-// Authenticated, lastPage === 'dashboard', no fresh onEntry
 ```
 
 ### 4. Continue from the snapshot

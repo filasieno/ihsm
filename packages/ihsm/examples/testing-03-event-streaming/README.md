@@ -45,7 +45,7 @@ machine own only what it actually perceived.
 - **Black-box** (`makeActor` + mock stream): press `listen`, call `moveTo(...)` / `path([...])` to
   simulate the OS pushing moves, assert recorded points, the mock's `position`, and that
   `unsubscribe` happened on `stopListening`.
-- **White-box** (`makeTestActor`): post `onMouseMove` directly — no source needed — to focus on
+- **White-box** (`makeTestActor`): `notify.onMouseMove` directly — no source needed — to focus on
   the machine's reaction.
 
 Run headless: `npm run test:examples -- --grep 'Testing 03'`. In the interactive panel below,

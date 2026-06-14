@@ -71,7 +71,7 @@ export class Active extends GatewayTop {
 				new Port<typeof LinkTop>(),
 			);
 		}
-		this.ctx.link.notify.open(this.ctx.host);
+		this.ctx.link.notifyNow.open(this.ctx.host);
 	}
 
 	onExit(): void {
@@ -98,8 +98,8 @@ tests can drive `makeTestActor(LinkTop, …)` alone without the gateway.
 
 | Pattern | When |
 | ------- | ---- |
-| **Sibling actors + coordinator** (14) | Payment and shipping evolve independently; no parent state owns them |
-| **Chained child actors** (this) | Child exists only while parent is in a composite; parent orchestrates `call`/`notify` |
+| **Sibling region children** (14) | Payment + shipping under `OrderTop`; event bridges, no cross-actor `call` |
+| **Chained child actors** (this) | Single owned child; lifecycle tied to parent `onEntry`/`onExit` |
 
 Both replace parallel regions. Chained children add **ownership**, **lifecycle**,
 and **parent `onEntry`/`onExit` coupling** that a single parallel chart cannot

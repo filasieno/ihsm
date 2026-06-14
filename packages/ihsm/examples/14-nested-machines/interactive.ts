@@ -1,50 +1,46 @@
 import { TraceLevel } from '../../src';
-import type { CoordinatorRuntime, TutorialInteractiveMeta } from '../shared/interactive-types';
+import { makeTestActor } from '../../src/testing';
+import type { TutorialInteractiveMeta } from '../shared/interactive-types';
 import { CollectingTraceWriter } from '../shared/trace';
-import * as machine from './machine';
-import { createOrderCoordinator } from './machine';
 import { registerStateNamesFromExports } from '../shared/state-names';
+import * as machine from './machine';
+import { OrderTop, createOrder, syncOrderRegions } from './machine';
+import * as ihsm from '../../src';
 
 registerStateNamesFromExports(machine);
 
-function createCoordinatorRuntime(): CoordinatorRuntime {
-	const writer = new CollectingTraceWriter();
-	const coordinator = createOrderCoordinator();
-	coordinator.payment.hsm.traceLevel = TraceLevel.VERBOSE_DEBUG;
-	coordinator.payment.hsm.traceWriter = writer;
-	coordinator.shipping.hsm.traceLevel = TraceLevel.VERBOSE_DEBUG;
-	coordinator.shipping.hsm.traceWriter = writer;
-	return { kind: 'coordinator', coordinator, writer };
-}
-
 export const interactive: TutorialInteractiveMeta = {
-	title: 'Order coordinator',
-	senders: [
-		{ id: 'payment', label: 'Payment region' },
-		{ id: 'shipping', label: 'Shipping region' },
-	],
+	title: 'Order parent actor',
+	senders: [{ id: 'order', label: 'Order parent' }],
 	messagesBySender: {
-		payment: [{ id: 'markPaid', label: 'markPaid', kind: 'notification' }],
-		shipping: [{ id: 'markShipped', label: 'markShipped', kind: 'notification' }],
+		order: [{ id: 'fulfill', label: 'fulfill', kind: 'notification' }],
 	},
-	createRuntime: createCoordinatorRuntime,
+	afterDispatch: async runtime => {
+		await syncOrderRegions(runtime.sm as ReturnType<typeof createOrder>);
+	},
+	createRuntime: () => {
+		const writer = new CollectingTraceWriter();
+		const sm = makeTestActor(OrderTop, {}, new ihsm.Port<typeof OrderTop>(), {
+			traceLevel: TraceLevel.VERBOSE_DEBUG,
+			traceWriter: writer,
+		});
+		return { kind: 'single', sm, writer };
+	},
 	stateSummary: runtime => {
-		if (runtime.kind !== 'coordinator') {
-			return '';
-		}
-		const { payment, shipping } = runtime.coordinator;
-		return `Payment: ${payment.hsm.currentStateName} (paid=${payment.ctx.paid}) · Shipping: ${shipping.hsm.currentStateName} (shipped=${shipping.ctx.shipped})`;
+		const order = runtime.sm;
+		const payment = order.ctx.payment;
+		const shipping = order.ctx.shipping;
+		const paymentPart = payment ? ` · payment: ${payment.hsm.currentStateName} (paid=${order.ctx.paymentCtx?.paid})` : '';
+		const shippingPart = shipping ? ` · shipping: ${shipping.hsm.currentStateName} (shipped=${order.ctx.shippingCtx?.shipped})` : '';
+		return `Order: ${order.hsm.currentStateName}${paymentPart}${shippingPart}`;
 	},
 	extraActions: [
 		{
-			id: 'fulfill',
-			label: 'Coordinator fulfill()',
+			id: 'syncRegions',
+			label: 'Sync parent + children',
 			run: async runtime => {
-				if (runtime.kind !== 'coordinator') {
-					return;
-				}
-				runtime.writer.lines.push('↳ coordinator.fulfill()');
-				await runtime.coordinator.fulfill();
+				runtime.writer.lines.push('↳ syncOrderRegions()');
+				await syncOrderRegions(runtime.sm as ReturnType<typeof createOrder>);
 			},
 		},
 	],

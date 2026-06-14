@@ -42,7 +42,7 @@ Transitioning to the root **does not** leave you “bare” at the root class �
 ## Code
 
 ```typescript
-sm.goRoot();
+sm.notify.goRoot();
 await sm.hsm.sync();
 ```
 

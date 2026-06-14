@@ -41,9 +41,9 @@ slow networks without waiting. Two gates keep things honest:
 
 One abstract `@mock` serves every scenario with `makeTestActor`:
 
-- **Through the public path**: post `fetch`, assert `Fetching`, `port.send('onResponse', …)` (or
+- **Through the public path**: `notify.fetch`, assert `Fetching`, `port.send('onResponse', …)` (or
   `onFailure`), assert `Done`/`Failed`.
-- **Pin the in-flight state**: build with `initialize: false` to start in `Fetching` and post the
+- **Pin the in-flight state**: build with `initialize: false` to start in `Fetching` and notify the
   settled event directly — to focus on the routing logic.
 
 Run headless: `npm run test:examples -- --grep 'Testing 02'`. In the interactive panel below,

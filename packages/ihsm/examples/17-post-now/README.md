@@ -17,7 +17,7 @@ Only available **inside** handlers (`this.notifyNow`). External clients use `act
 left to right direction
 state OrderTop {
   [*] --> Draft
-  Draft : confirm / immediate.lock(); immediate.capture(); actor.notify.cancel()
+  Draft : confirm / notifyNow.lockInventory(); notifyNow.capturePayment(); actor.notify.cancel()
   Draft --> Confirmed : confirm
 }
 @enduml
@@ -25,12 +25,12 @@ state OrderTop {
 
 ## Handler
 
-`confirm` schedules a normal `cancel` (deferred side effect) plus critical steps via `immediate`:
+`confirm` schedules a normal `cancel` (deferred side effect) plus critical steps via `notifyNow`:
 
 ```typescript
 confirm(): void {
   this.ctx.steps.push('confirm-start');
-  this.notify.cancel();           // normal — runs after immediate steps
+  this.notify.cancel();           // normal — runs after notifyNow steps
   this.notifyNow.lockInventory();
   this.notifyNow.capturePayment();
   this.ctx.steps.push('confirm-end');
@@ -38,17 +38,17 @@ confirm(): void {
 }
 ```
 
-`immediate` handlers run **after** `confirm-end` is recorded but **before** `cancel`.
+`notifyNow` handlers run **after** `confirm-end` is recorded but **before** `cancel`.
 
 ## Client
 
 ```typescript
 sm.notify.confirm();
 await sm.hsm.sync(); // through confirm + transition
-await sm.hsm.sync(); // drain immediate follow-ups
+await sm.hsm.sync(); // drain notifyNow follow-ups
 ```
 
-Compare with [Notifications & sync](../08-post-and-sync/README.md): plain `this.hsm.actor` from a handler is FIFO **after** the handler returns — `immediate` cuts ahead of those normal notifications.
+Compare with [Notifications & sync](../08-post-and-sync/README.md): plain `this.notify` from a handler is FIFO **after** the handler returns — `notifyNow` cuts ahead of those normal notifications.
 
 Use **`notifyNow`** for internal orchestration in the same dispatch turn — see also [Complex workflow](../15-complex-workflow/README.md).
 

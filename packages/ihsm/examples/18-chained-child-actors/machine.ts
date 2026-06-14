@@ -1,6 +1,6 @@
 /**
  * Chained child actors — parent session owns a Link child via makeChildActor.
- * Contrasts with UML parallel regions and with sibling coordinators (tutorial 14).
+ * Contrasts with UML parallel regions; see tutorial 14 for a multi-child parent actor.
  */
 import * as ihsm from '../../src';
 import type { ChildActor } from '../../src';

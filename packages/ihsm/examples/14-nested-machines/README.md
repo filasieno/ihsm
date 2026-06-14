@@ -1,86 +1,90 @@
-# Nested Machines
+# Nested machines (parent actor + child actors)
 
 ## Problem
 
 Payment and shipping in one chart couples unrelated concerns — hard to test and evolve independently.
 
+A plain **`OrderCoordinator` class** with `async fulfill()` that `await`s child `sync()` is **not** an actor — it is imperative glue code. ihsm models coordination as **notifications** on real machines.
+
 ## Solution
 
-Run **separate `Hsm` instances** (orthogonal regions) and coordinate with a small coordinator class.
-
-## UML statechart
-
-Two parallel machines:
+`OrderTop` is a **parent actor** (`makeTestActor(OrderTop, …)`). Payment and shipping are **child actors** from `makeChildActor`. The parent sequences `fulfill` with **sync notification handlers only** — no `async` handlers, no `await child.call…` between actors.
 
 ```plantuml
 @startuml
-left to right direction
-skinparam ranksep 25
+skinparam ranksep 28
+state OrderTop {
+  [*] --> Open
+  Open --> Fulfilling : fulfill
+  Fulfilling --> Fulfilled : shippingDone
+}
 state PaymentTop {
   [*] --> PaymentPending
   PaymentPending --> PaymentDone : markPaid
 }
---
 state ShippingTop {
   [*] --> ShippingWaiting
   ShippingWaiting --> ShippingDone : markShipped
 }
+OrderTop --> PaymentTop : child.notify.markPaid
+PaymentTop --> OrderTop : orderEvents.paymentDone
+OrderTop --> ShippingTop : child.notify.markShipped
+ShippingTop --> OrderTop : orderEvents.shippingDone
 @enduml
 ```
 
-The `OrderCoordinator` owns both actors and orchestrates `fulfill()`.
-
-Payment region:
+Parent actor — **all handlers are synchronous**; orchestration is events:
 
 ```typescript
-export class PaymentTop extends TopState<PaymentCtxConfig> {
-	markPaid(): void {
-		this.ctx.paid = true;
-		this.hsm.transition(PaymentDone); // ← payment actor only
+export class OrderTop extends TopState<OrderConfig> {
+	fulfill(): void {
+		this.hsm.transition(Fulfilling);
+	}
+
+	beginPayment(): void {
+		this.ctx.payment!.notify.markPaid();
+	}
+
+	paymentDone(): void {
+		this.notifyNow.beginShipping();
+	}
+
+	beginShipping(): void {
+		this.ctx.shipping!.notify.markShipped();
+	}
+
+	shippingDone(): void {
+		this.hsm.transition(Fulfilled);
+	}
+}
+
+export class Fulfilling extends OrderTop {
+	onEntry(): void {
+		this.notifyNow.beginPayment();
 	}
 }
 ```
 
-Shipping region — independent queue and cache:
+Spawn children on `Open.onEntry`:
 
 ```typescript
-export class ShippingTop extends TopState<ShippingCtxConfig> {
-	markShipped(): void {
-		this.ctx.shipped = true;
-		this.hsm.transition(ShippingDone);
-	}
-}
+this.ctx.payment = makeChildActor(asParentActor(this), PaymentTop, paymentCtx, new Port<typeof PaymentTop>());
+this.ctx.shipping = makeChildActor(asParentActor(this), ShippingTop, shippingCtx, new Port<typeof ShippingTop>());
 ```
 
-Coordinator composes both:
+Children report back through a wired **event bridge** (not services, not `async`):
 
 ```typescript
-export class OrderCoordinator {
-	readonly payment = makeActor(PaymentTop, { paid: false });
-	readonly shipping = makeActor(ShippingTop, { shipped: false });
-
-	async fulfill(): Promise<void> {
-		this.payment.markPaid();
-		await this.payment.sync();
-		this.shipping.markShipped();
-		await this.shipping.sync();
-	}
-}
+paymentCtx.orderEvents = {
+	paymentDone: () => this.notifyNow.paymentDone(),
+	shippingDone: () => this.notifyNow.shippingDone(),
+};
 ```
 
-## Reading the trace
-
-With `TraceLevel.VERBOSE_DEBUG` and a custom `TraceWriter`, ihsm logs each dispatch step. Trace line format is covered in [Tracing](../02-tracing/README.md).
-
-Each line is **`domain|…|StateName: message`**. Domains nest as the runtime descends: `initialize` → `#eventName` → `execute` → `transition from X to Y`.
-
-On the [documentation page](https://filasieno.github.io/ihsm/reference), use the embedded playground to dispatch events and inspect the **Trace** panel. Or run `npm run test:examples` headlessly.
-
-**What to notice:** Each actor has its own trace stream — payment and shipping queues are independent.
+Client code notifies `order.notify.fulfill()` — same as any actor. Tests drain each queue with `syncOrderRegions(order)` (harness only, not part of the machine).
 
 ## Verify
 
 ```shell
 npm run test:examples -- --grep 'Tutorial 14'
 ```
-

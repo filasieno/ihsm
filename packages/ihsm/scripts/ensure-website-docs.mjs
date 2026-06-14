@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertDocsPlantumlRendered } from './render-plantuml.mjs';
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const docsDir = path.join(repoRoot, 'website/docs');
@@ -47,5 +48,18 @@ if (stalePlantuml.length > 0) {
 const result = spawnSync(process.execPath, [path.join(repoRoot, 'scripts/prepare-website-docs.mjs')], {
 	cwd: repoRoot,
 	stdio: 'inherit',
+	env: {
+		...process.env,
+		IHSM_REQUIRE_PLANTUML: '1',
+	},
 });
-process.exit(result.status ?? 1);
+if ((result.status ?? 1) !== 0) {
+	process.exit(result.status ?? 1);
+}
+
+try {
+	assertDocsPlantumlRendered(repoRoot, docsDir);
+} catch (err) {
+	console.error(err instanceof Error ? err.message : err);
+	process.exit(1);
+}

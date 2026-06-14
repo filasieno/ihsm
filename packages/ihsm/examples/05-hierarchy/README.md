@@ -73,11 +73,11 @@ const sm = createTracer();
 await sm.hsm.sync();
 // log: enter:Top, enter:A
 
-sm.goToB();
+sm.notify.goToB();
 await sm.hsm.sync();
 // exit:A, enter:B — TraceTop stays active
 
-sm.goToC();
+sm.notify.goToC();
 await sm.hsm.sync();
 // exit:B, enter:C — still no exit:Top
 ```
@@ -102,7 +102,7 @@ DeepTop                          ← root / LCA for cross-stack moves
         └── LeafEastB
 ```
 
-After `create()` + `await sync()`, the active leaf is **`LeafWestA`**. Handlers live on `DeepTop`; `ctx.trace` records `enter:` / `exit:` / `handler:` lines.
+After `createDeepMachine()` + `await sync()`, the active leaf is **`LeafWestA`**. Handlers live on `DeepTop`; `sm.ctx.trace` records `enter:` / `exit:` / `handler:` lines.
 
 ## Full statechart (both stacks)
 

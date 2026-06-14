@@ -46,7 +46,7 @@ Cross-stack works **both directions** with the same LCA rule.
 ## Code
 
 ```typescript
-sm.goCrossToLeafWestB();
+sm.notify.goCrossToLeafWestB();
 await sm.hsm.sync();
 ```
 

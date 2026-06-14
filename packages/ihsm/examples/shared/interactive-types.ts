@@ -29,18 +29,7 @@ export interface SingleHsmRuntime<C extends ActorConfig = ActorConfig> {
 	writer: CollectingTraceWriter;
 }
 
-export interface CoordinatorRuntime {
-	kind: 'coordinator';
-	coordinator: {
-		payment: TestActor<ActorConfig>;
-		shipping: TestActor<ActorConfig>;
-		fulfill(): Promise<void>;
-		sync(): Promise<void>;
-	};
-	writer: CollectingTraceWriter;
-}
-
-export type InteractiveRuntime = SingleHsmRuntime | CoordinatorRuntime;
+export type InteractiveRuntime = SingleHsmRuntime;
 
 export interface TutorialExtraAction {
 	id: string;
@@ -65,6 +54,8 @@ export interface TutorialInteractiveMeta {
 	messagesBySender: Record<string, TutorialMessage[]>;
 	createRuntime: () => InteractiveRuntime;
 	stateSummary: (runtime: InteractiveRuntime) => string;
+	/** Optional hook after each dispatch (e.g. drain child actor queues). */
+	afterDispatch?: (runtime: InteractiveRuntime) => Promise<void>;
 	extraActions?: TutorialExtraAction[];
 	mousePad?: TutorialMousePad;
 }

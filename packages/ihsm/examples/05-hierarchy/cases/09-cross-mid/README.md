@@ -49,7 +49,7 @@ When the **initial leaf chain** from the branch root matches, `transition(StackE
 ## Code
 
 ```typescript
-sm.goCrossToMidEast();
+sm.notify.goCrossToMidEast();
 await sm.hsm.sync();
 ```
 

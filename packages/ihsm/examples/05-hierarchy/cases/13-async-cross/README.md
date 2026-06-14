@@ -45,7 +45,7 @@ See the **Trace** panel on the [interactive docs site](https://filasieno.github.
 ## Code
 
 ```typescript
-sm.goAsyncCrossEast();
+sm.notify.goAsyncCrossEast();
 await sm.hsm.sync();
 ```
 

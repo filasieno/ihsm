@@ -42,7 +42,7 @@ state QueueTop {
 Notifications are plain methods on the state class — return `void` (or `Promise<void>` for async):
 
 ```typescript
-interface QueueConfig extends Config {
+interface QueueConfig {
   context: QueueCtx;
   notifications: {
     start(): void;
@@ -87,7 +87,7 @@ One `sync` after the batch — not after every notification.
 
 ---
 
-## Example 2 · Handler chains `this.hsm.actor` — client needs extra `sync`
+## Example 2 · Handler chains `this.notify` — client needs extra `sync`
 
 ### Handler
 
@@ -124,9 +124,9 @@ await sm.hsm.sync(); // through tick, tick, done
 When the client needs a **return value**, use a service — not a notification + `sync`. See [Call services](../10-call-services/README.md).
 
 ```typescript
-const balance = await wallet.getBalance();
+const balance = await wallet.call.getBalance();
 
-wallet.deposit(10);
+wallet.notify.deposit(10);
 await wallet.hsm.sync(); // optional: wait for deposit side effect
 ```
 

@@ -1,19 +1,28 @@
 /**
- * Orthogonal regions — two Hsm actors (payment + shipping) coordinated by OrderCoordinator.
+ * Parallel regions — Order parent actor owns payment and shipping child actors.
+ * Parent/child coordination uses notifications only (no cross-actor call/await).
  */
 import * as ihsm from '../../src';
-import { makeTestActor, type TestActor } from '../../src/testing';
+import type { ChildActor } from '../../src';
+import { makeTestActor } from '../../src/testing';
 import { PlaygroundTopState } from '../shared/playground-top';
 import * as self from './machine';
 
-/** Payment region — own run-to-completion dispatch and transition cache. */
+/** Events children fire back to the order parent (wired at spawn). */
+export interface OrderRegionEvents {
+	paymentDone(): void;
+	shippingDone(): void;
+}
+
+/** Payment child — own queue and transition cache. */
 export interface PaymentCtx {
 	paid: boolean;
+	orderEvents?: OrderRegionEvents;
 }
 
 export interface PaymentConfig {
 	context: PaymentCtx;
-	notifications: {
+	internalNotifications: {
 		markPaid(): void;
 	};
 }
@@ -22,6 +31,7 @@ export class PaymentTop extends PlaygroundTopState<PaymentConfig> {
 	markPaid(): void {
 		this.ctx.paid = true;
 		this.hsm.transition(PaymentDone);
+		this.ctx.orderEvents?.paymentDone();
 	}
 }
 
@@ -30,14 +40,15 @@ export class PaymentPending extends PaymentTop {}
 
 export class PaymentDone extends PaymentTop {}
 
-/** Shipping region — independent lifecycle from payment. */
+/** Shipping child — independent lifecycle from payment. */
 export interface ShippingCtx {
 	shipped: boolean;
+	orderEvents?: OrderRegionEvents;
 }
 
 export interface ShippingConfig {
 	context: ShippingCtx;
-	notifications: {
+	internalNotifications: {
 		markShipped(): void;
 	};
 }
@@ -46,6 +57,7 @@ export class ShippingTop extends PlaygroundTopState<ShippingConfig> {
 	markShipped(): void {
 		this.ctx.shipped = true;
 		this.hsm.transition(ShippingDone);
+		this.ctx.orderEvents?.shippingDone();
 	}
 }
 
@@ -54,32 +66,94 @@ export class ShippingWaiting extends ShippingTop {}
 
 export class ShippingDone extends ShippingTop {}
 
-/** Coordinator — not an Hsm; owns two actors and sequences notifications/sync between them. */
-export class OrderCoordinator {
-	readonly payment: TestActor<PaymentConfig>;
-	readonly shipping: TestActor<ShippingConfig>;
+/** Order parent — spawns region children and sequences fulfill via events. */
+export interface OrderCtx {
+	payment?: ChildActor<PaymentConfig>;
+	paymentCtx?: PaymentCtx;
+	shipping?: ChildActor<ShippingConfig>;
+	shippingCtx?: ShippingCtx;
+}
 
-	constructor() {
-		this.payment = makeTestActor(PaymentTop as ihsm.TopStateArg<PaymentConfig>, { paid: false }, new ihsm.Port());
-		this.shipping = makeTestActor(ShippingTop as ihsm.TopStateArg<ShippingConfig>, { shipped: false }, new ihsm.Port());
+export interface OrderConfig {
+	context: OrderCtx;
+	notifications: {
+		fulfill(): void;
+	};
+	internalNotifications: {
+		beginPayment(): void;
+		paymentDone(): void;
+		beginShipping(): void;
+		shippingDone(): void;
+	};
+}
+
+export class OrderTop extends PlaygroundTopState<OrderConfig> {
+	fulfill(): void {
+		this.hsm.transition(Fulfilling);
 	}
 
-	async sync(): Promise<void> {
-		await this.payment.hsm.sync();
-		await this.shipping.hsm.sync();
+	beginPayment(): void {
+		this.ctx.payment!.notify.markPaid();
 	}
 
-	async fulfill(): Promise<void> {
-		this.payment.notify.markPaid();
-		await this.payment.hsm.sync();
+	paymentDone(): void {
+		this.notifyNow.beginShipping();
+	}
 
-		this.shipping.notify.markShipped();
-		await this.shipping.hsm.sync();
+	beginShipping(): void {
+		this.ctx.shipping!.notify.markShipped();
+	}
+
+	shippingDone(): void {
+		this.hsm.transition(Fulfilled);
+	}
+
+	protected spawnRegions(): void {
+		if (this.ctx.payment) {
+			return;
+		}
+		const orderEvents: OrderRegionEvents = {
+			paymentDone: () => this.notifyNow.paymentDone(),
+			shippingDone: () => this.notifyNow.shippingDone(),
+		};
+		const paymentCtx: PaymentCtx = { paid: false, orderEvents };
+		const shippingCtx: ShippingCtx = { shipped: false, orderEvents };
+		this.ctx.paymentCtx = paymentCtx;
+		this.ctx.shippingCtx = shippingCtx;
+		this.ctx.payment = ihsm.makeChildActor(ihsm.asParentActor(this), PaymentTop, paymentCtx, new ihsm.Port<typeof PaymentTop>());
+		this.ctx.shipping = ihsm.makeChildActor(ihsm.asParentActor(this), ShippingTop, shippingCtx, new ihsm.Port<typeof ShippingTop>());
 	}
 }
 
+@ihsm.InitialState
+export class Open extends OrderTop {
+	onEntry(): void {
+		this.spawnRegions();
+	}
+}
+
+export class Fulfilling extends OrderTop {
+	onEntry(): void {
+		this.notifyNow.beginPayment();
+	}
+}
+
+export class Fulfilled extends OrderTop {}
+
 ihsm.registerStateNames(self);
 
-export function createOrderCoordinator() {
-	return new OrderCoordinator();
+export function createOrder() {
+	return makeTestActor(OrderTop, {}, new ihsm.Port<typeof OrderTop>());
+}
+
+/** Drain parent and both region queues (tests / playground). */
+export async function syncOrderRegions(order: ReturnType<typeof createOrder>): Promise<void> {
+	await order.hsm.sync();
+	if (order.ctx.payment) {
+		await order.ctx.payment.hsm.sync();
+	}
+	if (order.ctx.shipping) {
+		await order.ctx.shipping.hsm.sync();
+	}
+	await order.hsm.sync();
 }

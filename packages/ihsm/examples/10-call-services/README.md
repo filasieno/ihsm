@@ -30,7 +30,7 @@ state WalletTop {
 ## Config
 
 ```typescript
-interface WalletConfig extends Config {
+interface WalletConfig {
   context: WalletCtx;
   notifications: { deposit(amount: number): void };
   services: {
@@ -60,7 +60,7 @@ export class WalletTop extends TopState {
   }
 
   async fetchBalanceDelayed(delayMs: number): Promise<number> {
-    await this.hsm.sleep(delayMs);
+    await new Promise<void>(resolve => this.hsm.port.setTimeout(resolve, delayMs));
     return this.ctx.balance;
   }
 }

@@ -72,7 +72,7 @@ door.notify.close();
 await door.hsm.sync();
 
 console.log(door.hsm.currentStateName); // 'Closed'
-console.log(door.ctx.openCount);          // 2
+// openCount is on ctx — use makeTestActor in tests, or inspect via a call service in production
 ```
 
 | Side | Call | Blocks? |
@@ -80,7 +80,7 @@ console.log(door.ctx.openCount);          // 2
 | Client | `door.notify.open()` | No — returns immediately |
 | Client | `await door.hsm.sync()` | Yes — drains enqueued work |
 
-See [Post & sync](../08-post-and-sync/README.md) for batching and handler chaining.
+See [Notifications & sync](../08-post-and-sync/README.md) for batching and handler chaining.
 
 ## Verify
 

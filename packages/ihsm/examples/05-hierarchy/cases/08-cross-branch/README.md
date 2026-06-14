@@ -47,7 +47,7 @@ You call `transition(StackEast)`; ihsm always activates a **leaf**.
 ## Code
 
 ```typescript
-sm.goCrossToBranchEast();
+sm.notify.goCrossToBranchEast();
 await sm.hsm.sync();
 ```
 

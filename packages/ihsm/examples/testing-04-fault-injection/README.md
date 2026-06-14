@@ -37,7 +37,7 @@ debug a perfectly reproducible failure.
 
 - **Seeded black-box** (`makeActor` + seeded port): run twice with one seed and assert the fault
   sequence and outcome are byte-identical; pin `failRate` to `0` / `1` for guaranteed terminals.
-- **Hand-injected white-box** (`makeTestActor` + stub port): post `onResult(false)` /
+- **Hand-injected white-box** (`makeTestActor` + stub port): `port.send('onResult', false)` /
   `onResult(true)` yourself to walk the retry budget deliberately.
 
 Run headless: `npm run test:examples -- --grep 'Testing 04'`. In the interactive panel below,

@@ -31,7 +31,7 @@ Typing is compile-time; at runtime this is an internal transition in `Idle`.
 The protocol is the machine’s **event vocabulary** (here, folded into `Config`):
 
 ```typescript
-interface ThermostatConfig extends Config {
+interface ThermostatConfig {
   context: ThermostatCtx;
   notifications: {
     setTarget(celsius: number): void;

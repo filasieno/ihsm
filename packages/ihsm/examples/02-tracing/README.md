@@ -26,7 +26,7 @@ Tracing is orthogonal to state structure — same chart with observability layer
 
 ## Tracing API reference
 
-Everything below is exported from `ihsm` (`src/index.ts`). Handlers see the same fields on **`this`** (via `TopState` getters) and on **`this.hsm`**; clients use the **`Hsm`** handle returned by `makeActor`.
+Everything below is exported from `ihsm` (`src/index.ts`). Handlers see the same fields on **`this`** (via `TopState` getters) and on **`this.hsm`**; tests use **`TestActor`** from `ihsm/testing` (`ctx`, `port`, `subscribe`, full protocol).
 
 ### `TraceLevel` (enum)
 
@@ -38,26 +38,27 @@ Controls **which dispatch implementation** runs. Changing `traceLevel` on a live
 | `DEBUG` | `1` | `dispatch.debug` | Boundaries: init frame, event frame, transitions, error/unhandled recovery, `execute` — **no** prototype lookup walk, **no** per-state “skipped onEntry/onExit”, **no** transition cache hit/miss lines |
 | `VERBOSE_DEBUG` | `2` | `dispatch.trace` | Full detail: lookup domains, cache hit/miss, skipped default hooks, every `onEntry`/`onExit` step |
 
-**Defaults:** `makeActor(...)` uses `TraceLevel.DEBUG` and `ConsoleTraceWriter` unless you pass overrides.
+**Defaults:** `makeActor(…)` uses `TraceLevel.DEBUG` and `ConsoleTraceWriter` unless you pass options.
 
 ```typescript
-import { makeActor, TraceLevel, TraceWriter } from 'ihsm';
+import { makeActor, Port, TraceLevel, TraceWriter } from 'ihsm';
 
-const sm = makeActor(Top, ctx, true, TraceLevel.VERBOSE_DEBUG, myWriter);
-sm.traceLevel = TraceLevel.DEBUG; // downgrade live instance
+const sm = makeTestActor(Top, ctx, new Port(), {
+  traceLevel: TraceLevel.VERBOSE_DEBUG,
+  traceWriter: myWriter,
+});
+sm.hsm.traceLevel = TraceLevel.DEBUG; // downgrade live instance
 ```
 
-Factory signature (tracing-related parameters only):
+Factory signature (tracing-related options only):
 
 ```typescript
-makeActor(
-  topState,
-  ctx,
-  initialize?,           // default true — enqueue init task (traced when level ≠ PRODUCTION)
-  traceLevel?,           // default TraceLevel.DEBUG
-  traceWriter?,          // default: console logger
-  dispatchErrorCallback? // default: traceWriter.write(...) then rethrow
-);
+makeActor(topState, ctx, port?, {
+  initialize?: boolean,           // default true
+  traceLevel?: TraceLevel,       // default DEBUG
+  traceWriter?: TraceWriter,
+  dispatchErrorCallback?: …,
+});
 ```
 
 ### `TraceWriter` (interface)

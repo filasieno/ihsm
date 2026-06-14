@@ -21,6 +21,7 @@ import '../../../examples/14-nested-machines/tutorial.spec.ts';
 import '../../../examples/15-complex-workflow/tutorial.spec.ts';
 import '../../../examples/17-post-now/tutorial.spec.ts';
 import '../../../examples/18-chained-child-actors/tutorial.spec.ts';
+import '../../../examples/19-request-manager/tutorial.spec.ts';
 import '../../../examples/shared/interactive.spec.ts';
 import '../../../examples/testing-01-deferred-timers/tutorial.spec.ts';
 import '../../../examples/testing-02-network-fetch/tutorial.spec.ts';

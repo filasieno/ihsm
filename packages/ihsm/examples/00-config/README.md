@@ -8,7 +8,7 @@ Start here for the protocol model.
 2. **`TopState<YourConfig>`** — the root state class takes your config interface as its single type parameter.
 3. **State handler methods** — protocol keys are discovered from methods on your state classes (`async` → services, sync → notifications).
 4. **Actor handles** — `makeActor` returns `notify`, `notifyNow`, and `call`: `conn.notify.open()`, `await conn.call.fetchFrames(n)`.
-5. **`this.hsm` in handlers** — machinery only behind `hsm`: `this.hsm.transition(Open)`, `this.notify.close()`, `this.notifyNow…`, `this.hsm.port.defer(ms)…`, `this.hsm.sleep(ms)`.
+5. **`this.hsm` in handlers** — machinery only behind `hsm`: `this.hsm.transition(Open)`, `this.notify.close()`, `this.notifyNow…`, `this.hsm.port.defer(ms)…`, `await new Promise(r => this.hsm.port.setTimeout(r, ms))` for delays.
 6. **Reserved names** — `ctx`, `hsm`, `onEntry`, `onExit`, `onError`, `onUnhandled` cannot be protocol keys.
 
 ## Run

@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { plantumlAssetDir, plantumlUrlPrefix, renderPlantumlInMarkdown } from './render-plantuml.mjs';
 import { expandExampleMarkers } from './expand-reference-examples.mjs';
-import { referenceExamples, testingExamples } from './reference-examples.mjs';
+import { referenceExamples, testingExamples, buildExampleIndexSection } from './reference-examples.mjs';
 import { applySectionAnchors, convertTypedocLinks, prepareMarkdownBody, transformSiteLinks } from './doc-transforms.mjs';
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -21,6 +21,9 @@ function prepareReferenceBody(raw) {
 	let body = convertTypedocLinks(raw);
 	body = transformSiteLinks(body);
 	body = applySectionAnchors(body);
+	if (body.includes('<!-- @example-index -->')) {
+		body = body.replace('<!-- @example-index -->', buildExampleIndexSection(referenceExamples));
+	}
 	return body.replace(/^# .+\n+/, '').trimEnd();
 }
 
@@ -40,6 +43,8 @@ title: Reference
 slug: /reference
 id: reference
 sidebar_position: 2
+toc_min_heading_level: 2
+toc_max_heading_level: 4
 description: Concepts, semantics, and interactive examples for ihsm hierarchical state machines.
 ---
 

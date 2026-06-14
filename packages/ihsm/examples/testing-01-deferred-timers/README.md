@@ -15,13 +15,12 @@ Running --> Stopped : stop
 
 ## The shape
 
-`TopState<Context, Public, Internal, Port>`:
+`TopState<HeartbeatConfig>` with disjoint buckets:
 
-- **`Public`** — `start` / `stop`: events clients may `post`.
-- **`Internal`** — `onTick`: raised only by the deferred timer (or a test). Disjoint from `Public`,
-  enforced at compile time, so `onTick` never appears on the public `ExternalActor`.
+- **`notifications`** — `start` / `stop`: events clients may `notify`.
+- **`internalNotifications`** — `onTick`: raised only by the deferred timer (or a test). Disjoint from public notifications, so `onTick` never appears on the production `ExternalActor`.
 - **Context is a class** (`HeartbeatCtx`) — constructed fresh per actor.
-- **No domain port:** the hourly follow-up is scheduled with `this.hsm.port.defer(HOUR_MS, 'onTick')`.
+- **No domain port:** the hourly follow-up is scheduled with `this.hsm.port.defer(HOUR_MS).onTick()`.
   `hsm.port.defer(ms)` delegates to the port timer service — a `Port` (real `setTimeout`) in
   production, or a `TestPort` you advance by hand in tests.
 
@@ -29,8 +28,8 @@ Running --> Stopped : stop
 
 | Surface | What it provides |
 |---|---|
-| **Test actor** (`makeTestActor`) | The machine handle for white-box tests: the **merged** protocol (post internal `onTick` directly), typed access to `port`, and a `subscribe()` channel that observes every event. A production `ExternalActor` (`makeActor`) has none of these — only the public protocol. |
-| **Test port** (`TestPort`) | A port test double that **records** what flows through it (`messages` / `events` / `trace`) and can `send` internal events inward. Use `advance(ms)` to fire due `hsm.port.defer(ms)` callbacks deterministically; wire `TestActor.subscribe` to `port.record` to trace every posted event. |
+| **Test actor** (`makeTestActor`) | The machine handle for white-box tests: the **merged** protocol (notify internal `onTick` directly), typed access to `port`, and a `subscribe()` channel that observes every event. A production `ExternalActor` (`makeActor`) has none of these — only the public protocol. |
+| **Test port** (`TestPort`) | A port test double that **records** what flows through it (`messages` / `events` / `trace`) and can `send` internal events inward. Use `advance(ms)` to fire due `hsm.port.defer(ms)` callbacks deterministically; wire `TestActor.subscribe` to `port.record` to trace every notified event. |
 
 ## Positional arguments, no wrappers (see [`tutorial.spec.ts`](./tutorial.spec.ts))
 
