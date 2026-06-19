@@ -1,4 +1,5 @@
 {
+	"markdown.styles": [".vscode/markdown-preview.css"],
 	"typescript.tsdk": "packages/ihsm/node_modules/typescript/lib",
 	"typescript.enablePromptUseWorkspaceTsdk": true,
 	"eslint.workingDirectories": [{ "directory": "packages/ihsm", "changeProcessCWD": true }],
