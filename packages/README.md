@@ -30,7 +30,7 @@ import { TestPort } from '@ihsm/core/testing';
 import { startOtelNode } from '@ihsm/otel/node';
 ```
 
-Release (`.github/workflows/release.yml`) publishes **`ihsm`**, then **`@ihsm/core`**, then **`@ihsm/otel`** on every tag (all three `package.json` versions must match the tag). Current release line: **0.1.22** (`ihsm` on npm; scoped packages require [Trusted Publishing](https://docs.npmjs.com/trusted-publishers) on each package — see [`RELEASING.md`](../RELEASING.md)).
+Release (`.github/workflows/release.yml`) publishes **`ihsm`**, then **`@ihsm/core`**, then **`@ihsm/otel`** on every tag (all three `package.json` versions must match the tag).
 
 ### `@ihsm/tools` (in progress)
 

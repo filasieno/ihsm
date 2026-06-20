@@ -26,8 +26,6 @@ It uses event-driven programming, class-based hierarchical statecharts, and the 
 
 🧪 [Deterministic Testing](https://filasieno.github.io/ihsm/testing)
 
-💬 [Open an issue](https://github.com/filasieno/ihsm/issues)
-
 ---
 
 ## Development (from source)
@@ -461,18 +459,6 @@ Inspired by Harel statecharts and the SCXML family of notations.
 | Source: example machines | [examples/](./examples/) |
 
 The reference page combines the manual with embedded playgrounds. The testing chapter runs five DST examples first, then the full technique.
-
----
-
-## Contributing
-
-Contributions are welcome — bug reports, docs, and code. See **[CONTRIBUTING.md](./CONTRIBUTING.md)** for the development environment, build commands, and PR guidelines.
-
-- Bug reports → [issue template](https://github.com/filasieno/ihsm/issues/new?template=bug_report.yml)
-- Features → [issue template](https://github.com/filasieno/ihsm/issues/new?template=feature_request.yml)
-- Security → [GitHub Security Advisories](https://github.com/filasieno/ihsm/security/advisories/new)
-
-Please follow [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 
 ---
 

@@ -152,5 +152,5 @@
 		"pretypecheck": "npm run prepare:ide"
 	},
 	"types": "./lib/cjs/index.d.ts",
-	"version": "0.1.22"
+	"version": "0.1.23"
 }

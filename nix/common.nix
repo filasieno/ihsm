@@ -52,7 +52,7 @@ let
   mkCoreSrc = mkPackageSrc ../packages/core (_p: _type: _base: true);
 
   mkOtelSrc = mkPackageSrc ../packages/otel (
-    _p: _type: base: base != "ihsm-dev.tgz" && base != "ihsm-0.1.22.tgz"
+    _p: _type: base: base != "ihsm-dev.tgz" && base != "ihsm-0.1.23.tgz"
   );
 
   mkBuildNpmPackage =

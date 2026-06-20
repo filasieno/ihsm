@@ -166,7 +166,7 @@ const config: Config = {
 		},
 		footer: {
 			style: 'dark',
-			copyright: `Copyright © ${copyrightYear()} ihsm contributors · MIT License`,
+			copyright: `Copyright © ${copyrightYear()} Fabio N. Filasieno, Roberto Boati · MIT License`,
 		},
 		prism: {
 			theme: prismThemes.github,
