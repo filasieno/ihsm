@@ -210,11 +210,9 @@
               "--legacy-peer-deps"
             ];
 
-            preBuild =
-              npmPreBuild
-              + ''
-                ${linkBuiltIhsmNodeModules ihsm}
-              '';
+            preBuild = npmPreBuild + ''
+              ${linkBuiltIhsmNodeModules ihsm}
+            '';
 
             npmScript = "build";
 
@@ -245,7 +243,15 @@
 
         in
         {
-          inherit ihsm core otel lint docs release ihsmDevTarball;
+          inherit
+            ihsm
+            core
+            otel
+            lint
+            docs
+            release
+            ihsmDevTarball
+            ;
           default = ihsm;
         }
       );
@@ -304,7 +310,13 @@
           packages = self.packages.${system};
         in
         {
-          inherit (packages) ihsm core otel lint docs;
+          inherit (packages)
+            ihsm
+            core
+            otel
+            lint
+            docs
+            ;
           default = packages.ihsm;
         }
       );
