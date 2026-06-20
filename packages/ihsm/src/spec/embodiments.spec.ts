@@ -54,6 +54,7 @@ export class DemoTop extends TopState<DemoConfig> {
 export class Idle extends DemoTop {
 	go(): void {
 		// Handler embodiment: self-directed facets, transition via hsm.
+		this.ctx.log.push(`id:${this.hsm.id}`);
 		this.notify.ping();
 		this.notifyNow.tick();
 		this.hsm.transition(Busy);
@@ -159,6 +160,7 @@ describe('embodiments', function (): void {
 			await actor.hsm.sync();
 			expect(ctx.log).to.include('ping');
 			expect(ctx.log).to.include('tick');
+			expect(ctx.log.some(line => line.startsWith('id:'))).equals(true);
 			expect(actor.hsm.currentStateName).equals('Busy');
 			expect(actor.id).equals(actor.hsm.id);
 		});

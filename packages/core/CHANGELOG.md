@@ -2,6 +2,12 @@
 
 All notable changes to `@ihsm/core` are documented in this file.
 
+## [0.1.22] - 2026-06-20
+
+### Changed
+
+- Lockstep semver with `ihsm@0.1.22`.
+
 ## [0.1.21] - 2026-06-20
 
 ### Added

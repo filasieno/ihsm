@@ -2,7 +2,7 @@
 
 OpenTelemetry bridge for [ihsm](https://www.npmjs.com/package/ihsm) — traces and structured logs via the native `Instrumentation` seam (`registerCollector` / `createConsoleInstrumentation`).
 
-Peer-depends on **`ihsm`** (≥ 0.1.21). No tracing code in actor handlers; register a provider once, then every spawned actor reports automatically.
+Peer-depends on **`ihsm`** (≥ 0.1.22). No tracing code in actor handlers; register a provider once, then every spawned actor reports automatically.
 
 ## Install
 

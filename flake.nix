@@ -21,7 +21,7 @@
       #         (file:ihsm-dev.tgz is stripped — see nix/common.nix otelSrcForNpmDeps)
       npmDepsHash = {
         ihsm = "sha256-u2ra/DJ0yTM+Xcemb9JuuwJuzoqn0Rc/wcA+oxDOlTE=";
-        otel = "sha256-5WZQJte6WhFJkB5s19qTO3HK4C/NioS1/CEt5aHZ5ZE=";
+        otel = "sha256-4FgPANn/V3bNClXSYXVGjnNqWDDHZxQzYk3WlbOOVaU=";
       };
 
       nixpkgsRev = (builtins.fromJSON (builtins.readFile ./flake.lock)).nodes.nixpkgs.locked.rev;

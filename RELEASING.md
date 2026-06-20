@@ -27,7 +27,7 @@ bash packages/ihsm/scripts/verify-docs-site.sh packages/ihsm/docs-build
 `nix flake check` already runs `scripts/verify-no-generated-in-source.sh` (via the
 `lint` and `docs` derivations), so no separate generated-artifact check is needed.
 
-Confirm **`packages/ihsm/package.json`**, **`packages/core/package.json`**, and **`packages/otel/package.json`** **`version`** values all match the tag you will push (`0.1.21` → tag `0.1.21`, no `v` prefix). Bump **patch +1** each release (`0.1.21` → `0.1.22`); stay on **`0.1.x`** — do not jump to **`0.2.0`** until a deliberate minor release. `@ihsm/core` depends on the same `ihsm` version; `@ihsm/otel` peer-depends on `ihsm` ≥ that version.
+Confirm **`packages/ihsm/package.json`**, **`packages/core/package.json`**, and **`packages/otel/package.json`** **`version`** values all match the tag you will push (`0.1.22` → tag `0.1.22`, no `v` prefix). Bump **patch +1** each release (`0.1.22` → `0.1.23`); stay on **`0.1.x`** — do not jump to **`0.2.0`** until a deliberate minor release. `@ihsm/core` depends on the same `ihsm` version; `@ihsm/otel` peer-depends on `ihsm` ≥ that version.
 
 Update **`CHANGELOG.md`** in each published package for the new version.
 
@@ -47,8 +47,8 @@ Edit sources: `examples/`, `reference/REFERENCE.md`, `website/docs-src/`.
 2. Tag and push the release:
 
    ```shell
-   git tag 0.1.21
-   git push upstream 0.1.21
+   git tag 0.1.22
+   git push upstream 0.1.22
    ```
 
 3. **Release workflow** (`.github/workflows/release.yml`) runs on the tag:

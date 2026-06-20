@@ -21,6 +21,7 @@ interface RuntimeCoverageConfig {
 		ping(): void;
 		schedule(ms: number): void;
 		readHsm(): void;
+		exerciseLog(): void;
 	};
 	internalServices: Record<string, never>;
 	internalNotifications: {
@@ -45,6 +46,14 @@ export class RuntimeCoverageTop extends TopState<RuntimeCoverageConfig> {
 		void this.hsm.actorUuid;
 		void this.hsm.actorName;
 		void this.hsm.actorPath;
+	}
+
+	exerciseLog(): void {
+		this.hsm.log.trace('t');
+		this.hsm.log.debug('d');
+		this.hsm.log.warn('w');
+		this.hsm.log.error(new Error('e'));
+		this.hsm.log.fatal('f');
 	}
 
 	onUnhandled(): void {}
@@ -502,12 +511,131 @@ describe('runtime-coverage', function (): void {
 
 	it('forwards user logs to instrumentation collectors', async () => {
 		const bodies: string[] = [];
-		registerCollector({ onLog: record => bodies.push(record.body) });
+		const severities: string[] = [];
+		registerCollector({
+			onLog: record => {
+				bodies.push(record.body);
+				severities.push(record.severity);
+			},
+		});
 		const actor = makeTestActor(RuntimeCoverageLeaf, { n: 0 }, new Port(), { initialize: true });
 		await actor.hsm.sync();
 		actor.notify.readHsm();
+		actor.notify.exerciseLog();
 		await actor.hsm.sync();
 		expect(bodies.some(body => body.includes('seen'))).equals(true);
+		expect(severities).to.include.members(['info', 'trace', 'debug', 'warn', 'error', 'fatal']);
+	});
+
+	it('proxies sync port calls without instrumentation', async () => {
+		clearCollectors();
+		class PlainPort extends Port<typeof PlainPortTop> {
+			syncPing(): number {
+				return 7;
+			}
+		}
+		interface PlainPortConfig {
+			context: Record<string, never>;
+			services: { go(): Promise<void> };
+			notifications: Record<string, never>;
+			internalServices: Record<string, never>;
+			internalNotifications: Record<string, never>;
+			port: PlainPort;
+		}
+		class PlainPortTop extends TopState<PlainPortConfig> {
+			async go(): Promise<void> {
+				expect(this.hsm.port.syncPing()).equals(7);
+				expect(this.hsm.id).equals(this.hsm.actorUuid);
+			}
+		}
+		@InitialState
+		class PlainPortLeaf extends PlainPortTop {}
+		const actor = makeTestActor(PlainPortLeaf, {}, new PlainPort(), { initialize: true });
+		await actor.hsm.sync();
+		await actor.call.go();
+	});
+
+	it('proxies async port calls through instrumentation', async () => {
+		const portCalls: string[] = [];
+		registerCollector({
+			onPortCallBegin: info => portCalls.push(info.method),
+			onPortCallEnd: () => portCalls.push('end'),
+		});
+		class AsyncPort extends Port<typeof AsyncPortTop> {
+			async later(): Promise<string> {
+				return 'ok';
+			}
+		}
+		interface AsyncPortConfig {
+			context: { seen: string };
+			services: { go(): Promise<void> };
+			notifications: Record<string, never>;
+			internalServices: Record<string, never>;
+			internalNotifications: Record<string, never>;
+			port: AsyncPort;
+		}
+		class AsyncPortTop extends TopState<AsyncPortConfig> {
+			async go(): Promise<void> {
+				this.ctx.seen = await this.hsm.port.later();
+			}
+		}
+		@InitialState
+		class AsyncPortLeaf extends AsyncPortTop {}
+		const actor = makeTestActor(AsyncPortLeaf, { seen: '' }, new AsyncPort(), { initialize: true });
+		await actor.hsm.sync();
+		await actor.call.go();
+		expect(actor.ctx.seen).equals('ok');
+		expect(portCalls).to.include('later');
+		expect(portCalls).to.include('end');
+	});
+
+	it('proxies synchronous port throws through instrumentation', async () => {
+		const portCalls: string[] = [];
+		registerCollector({
+			onPortCallBegin: info => portCalls.push(info.method),
+			onPortCallEnd: () => portCalls.push('end'),
+		});
+		class SyncThrowPort extends Port<typeof SyncThrowPortTop> {
+			boom(): never {
+				throw new Error('sync boom');
+			}
+		}
+		interface SyncThrowPortConfig {
+			context: Record<string, never>;
+			services: { go(): Promise<void> };
+			notifications: Record<string, never>;
+			internalServices: Record<string, never>;
+			internalNotifications: Record<string, never>;
+			port: SyncThrowPort;
+		}
+		class SyncThrowPortTop extends TopState<SyncThrowPortConfig> {
+			async go(): Promise<void> {
+				this.hsm.port.boom();
+			}
+		}
+		@InitialState
+		class SyncThrowPortLeaf extends SyncThrowPortTop {}
+		const actor = makeTestActor(SyncThrowPortLeaf, {}, new SyncThrowPort(), { initialize: true });
+		await actor.hsm.sync();
+		try {
+			await actor.call.go();
+			expect.fail('expected sync port error');
+		} catch (err) {
+			expect((err as Error).message).equals('sync boom');
+		}
+		expect(portCalls).to.include('boom');
+		expect(portCalls).to.include('end');
+	});
+
+	it('arms deferred notifications with instrumentation cause tracking', async () => {
+		const enqueues: string[] = [];
+		registerCollector({ onEnqueue: info => enqueues.push(info.event) });
+		const actor = makeTestActor(RuntimeCoverageLeaf, { n: 0 }, new Port(), { initialize: true });
+		await actor.hsm.sync();
+		actor.notify.schedule(1);
+		await new Promise(resolve => setTimeout(resolve, 5));
+		await actor.hsm.sync();
+		expect(enqueues).to.include('ping');
 	});
 
 	it('asParentActor rejects handlers without an active machine', () => {

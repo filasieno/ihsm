@@ -105,6 +105,11 @@ describe('ihsm/testing', () => {
 	beforeEach(() => clearLastError());
 
 	describe('settleAll()', () => {
+		it('returns immediately when called with no actors', async () => {
+			const result = await settleAll();
+			expect(result).deep.equals({ rounds: 0, settled: true });
+		});
+
 		it('settles a test actor system and reports settled=true when quiescence is observed', async () => {
 			const port = makeTestPort(MockDevicePort);
 			port.connect.default(() => ({ value: 1, subscription: { dispose: () => undefined } }));

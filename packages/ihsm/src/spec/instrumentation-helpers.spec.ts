@@ -169,12 +169,20 @@ describe('internal/instrumentation global collector registry (cross-cutting trac
 	it('fans every callback out to each collector in registration order', () => {
 		const seen: string[] = [];
 		registerCollector({ onMacrostepBegin: () => seen.push('a'), onLog: () => seen.push('a.log') });
-		registerCollector({ onMacrostepBegin: () => seen.push('b') });
+		registerCollector({
+			onMacrostepBegin: () => seen.push('b'),
+			onMacrostepEnd: () => seen.push('b.macro.end'),
+			onMicrostepEnd: () => seen.push('b.micro.end'),
+			onError: () => seen.push('b.error'),
+		});
 		const agg = getActiveInstrumentation()!;
 		expect(agg).to.not.equal(undefined);
 		notifyMacrostepBegin(agg, {} as never);
+		notifyMacrostepEnd(agg, {} as never);
+		notifyMicrostepEnd(agg, {} as never);
+		notifyError(agg, {} as never);
 		notifyLog(agg, {} as never); // only the first collector implements onLog
-		expect(seen).eqls(['a', 'b', 'a.log']);
+		expect(seen).eqls(['a', 'b', 'b.macro.end', 'b.micro.end', 'b.error', 'a.log']);
 	});
 
 	it('isolates a throwing collector so the others still observe', () => {
