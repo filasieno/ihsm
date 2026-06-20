@@ -1,0 +1,283 @@
+---
+id: specification
+title: Specification (RFC)
+sidebar_label: Specification (RFC)
+slug: /specification
+sidebar_position: 9
+toc_min_heading_level: 2
+toc_max_heading_level: 4
+description: Formal, normative rules for ihsm actors, dispatch, ports, and deterministic execution.
+---
+
+# ihsm Specification
+
+This document specifies the normative behaviour of the `ihsm` runtime. It is the authoritative
+reference for the rules an actor obeys, the guarantees the runtime makes, and the edge cases an
+implementer or advanced user must understand. The [User Guide](/guide/setup) is the gentle path; the
+[Reference](/reference) adds concepts and interactive playgrounds. This page is the contract.
+
+## 1. Conformance
+
+The key words **MUST**, **MUST NOT**, **REQUIRED**, **SHALL**, **SHALL NOT**, **SHOULD**,
+**SHOULD NOT**, **RECOMMENDED**, **MAY**, and **OPTIONAL** are to be interpreted as described in
+RFC 2119 and RFC 8174 when, and only when, they appear in all capitals.
+
+An implementation or program is **conformant** if it observes every **MUST**/**MUST NOT** rule.
+Rules marked **SHOULD** are strong recommendations whose violation is permitted only with a
+documented reason. The determinism guarantees in §8 hold **only** for conformant programs.
+
+## 2. Terminology
+
+- **Actor** — a state machine instance with a serialized mailbox and run-to-completion dispatch.
+- **State** — a class extending `TopState` (directly or transitively). The set of states forms a
+  tree by class inheritance.
+- **Top state** — the unique root class extending `TopState<C>`; it has no state parent.
+- **Leaf / composite** — a state with no substates / a state with substates.
+- **Handler** — a method on a state class implementing a protocol member (notification or service)
+  or a lifecycle hook (`onEntry`, `onExit`, `onError`, `onUnhandled`).
+- **Event** — an invocation of a protocol member through a facet.
+- **Microstep** — a single run-to-completion turn: dispatch of exactly one event to its handler,
+  including any synchronous transition it triggers.
+- **Macrostep** — the complete cascade of microsteps initiated by one external stimulus, ending at
+  **stability** (both queues empty).
+- **Stability** — the actor state in which the default and priority queues are both empty and no
+  handler is executing.
+- **Port** — the sole boundary between an actor and impure effects (time, randomness, I/O).
+- **Embodiment** — the facet surface exposed for a role: `root`, `inbound`, `child`, or `test`.
+
+## 3. The state model
+
+3.1. A state **MUST** be a class that extends `TopState<C>` directly or transitively. Instances of
+state classes **MUST NOT** be constructed by user code; the runtime binds handler `this` to an
+internal instance. Attempting `new SomeState()` **MUST** throw.
+
+3.2. Exactly one class per machine **MUST** be the top state (`extends TopState<C>`). The class
+inheritance chain from a leaf up to (but excluding) `TopState` **is** the state hierarchy.
+
+3.3. A state **MAY** be annotated `@InitialState`. Under each composite state exactly one direct
+substate **SHOULD** be the initial substate; the top state **SHOULD** have an initial leaf. When a
+composite state is entered and no initial substate is defined, entry stops at that composite.
+
+3.4. The names `ctx`, `hsm`, `notify`, `notifyNow`, `onEntry`, `onExit`, `onError`, and
+`onUnhandled` are **reserved**. A state class **MUST NOT** define a protocol member with any of
+these names; doing so **MUST** raise `ProtocolCollisionError` at index-build time.
+
+3.5. Programs **SHOULD** call `registerStateNames({...})` (or `registerStateNames(self)`) once per
+module, after all state classes are declared, so state identities survive minification. Tracing,
+persistence, and telemetry **MUST** use these stable names rather than `Function.name`.
+
+3.6. A protocol member declared in the machine `Config` **MUST** be reachable through exactly one
+facet determined by its bucket (§5). The static facet types are the compile-time gate; the runtime
+**MUST NOT** infer a member's delivery mode from its signature.
+
+## 4. Dispatch and run-to-completion
+
+4.1. Each actor owns a **default** (FIFO) queue and a **priority** queue. The runtime **MUST**
+process at most one event at a time (run-to-completion): a handler runs to its return (or, if async,
+to the settling of its returned promise) before the next event is dequeued.
+
+4.2. The priority queue **MUST** be drained before the default queue. Within a queue, ordering
+**MUST** be first-in-first-out.
+
+4.3. Protocol handlers (notifications, services) are resolved by walking **up** the prototype chain:
+the handler on the active state, else the nearest ancestor that defines it. Therefore:
+
+- **Omitting** a handler delegates to the ancestor (verdict *P*).
+- An **empty override** `m() {}` handles the event *here* and **MUST** block the inherited handler
+  (verdict *E*).
+
+4.4. The lifecycle hooks `onEntry` and `onExit` are **NOT** inherited by dispatch: only a state that
+defines its **own** hook runs it during entry/exit of that state. (This is the deliberate exception
+to 4.3.)
+
+4.5. Events posted from inside a handler (`this.notify.*`, `this.notifyNow.*`) **MUST** be enqueued,
+not executed inline. They run in subsequent microsteps of the same macrostep, after the current
+handler returns.
+
+4.6. An event with no handler anywhere on the chain **MUST** trigger `onUnhandled` resolution (§7).
+`this.hsm.unhandled()` **MUST** raise the same condition deliberately.
+
+4.7. `hsm.sync()` **MUST** resolve only when the actor next reaches **stability** (§2). It is the
+supported way to await the completion of a macrostep. A program **MUST NOT** assume an event has
+been processed until a subsequent `sync()` resolves.
+
+> **Edge case — pipelined stimuli.** An external event delivered while a macrostep is in flight is
+> enqueued and processed within the current run; it does not start a second macrostep until the
+> actor returns to stability. Two stimuli delivered while idle produce two macrosteps.
+
+## 5. Messaging and services
+
+5.1. **Notifications** are `void` methods reached through `notify` (default queue) or `notifyNow`
+(priority queue). A notification **MUST NOT** return a value to the caller.
+
+5.2. **Services** are methods reached through `call` that return `T` or `Promise<T>`. A service
+handler **MAY** be synchronous (`return value`) or asynchronous (`async`/`return promise`); the
+caller **MUST** always receive a `Promise<T>`.
+
+5.3. A throw inside a service handler **MUST** reject the caller's promise. A throw inside a
+notification handler **MUST** be routed through error resolution (§7), not surfaced to the poster.
+
+5.4. A `call` **MAY** carry a trailing `{ timeoutMs }` option. If the service does not settle within
+`timeoutMs`, the call **MUST** reject with `CallTimeoutError`. A `timeoutMs` of `0` **MUST** reject
+immediately. The timeout **MUST** be armed through the actor's port timer service (§6.5) so that it
+honours a virtual clock under test.
+
+5.5. Awaiting a service on the **same** actor from inside that actor's own dispatch is a deadlock. At
+non-`PRODUCTION` trace levels the runtime **MUST** detect this and throw `SelfCallDeadlockError`; at
+`PRODUCTION` level the call simply never settles (detection is a development aid, not a guarantee).
+
+> **Edge case — async `onEntry` and the final transition.** Only the **last** `transition()` issued
+> by a handler takes effect. A handler **SHOULD NOT** finish an async `onEntry` with a
+> `transition()`; instead it **SHOULD** post an internal notification and transition from that
+> handler. A `transition()` scheduled solely from `onEntry`/`onExit` during an in-progress
+> transition **MAY** be cleared by the runtime.
+
+## 6. Ports and side effects
+
+6.1. **All** interaction between an actor and the impure world — wall-clock time, scheduling,
+randomness, and domain I/O — **MUST** flow through a port. A handler **MUST NOT** call `setTimeout`,
+`setInterval`, `Date.now`, `performance.now`, `Math.random`, `crypto.*`, `fetch`, or any other
+ambient effect directly.
+
+6.2. The production `Port` **MUST** implement the timer service (`setTimeout`, `clearTimeout`,
+`setInterval`, `clearInterval`) and the random service (`random`, `cryptoRandom`, `randomUUID`,
+`getRandomValues`) by delegating to the host environment.
+
+6.3. A **domain port** extends `Port` and declares additional I/O methods in the `port` facet bucket
+of the config. Handlers reach them via `this.hsm.port.*`. A domain port method that starts
+asynchronous work **MUST** report results back to the actor as **internal notifications**
+(`this.actor.notify.on*`), never by mutating actor context directly.
+
+6.4. Asynchronous, cancellable I/O **SHOULD** return `ResultWithSubscription<T>` so the actor can
+`dispose()` the operation (e.g. abort an in-flight request) during a transition.
+
+6.5. The runtime **MUST** route the service-call timeout (§5.4) and deferred notifications
+(`port.defer(ms)`) through the bound port's timer service. Consequently, under a `TestPort`,
+`port.advance(ms)` deterministically drives both timeouts and deferred deliveries.
+
+6.6. Spawning child actors is a side effect and **SHOULD** be performed through a port factory so
+tests can mock it. Direct `makeChildActor` from `onEntry` is permitted for simple cases but is less
+testable.
+
+> **Edge case — ports never start a new trace.** A `this.hsm.port.*` call is internal to the
+> caller's macrostep; it does not begin a new actor macrostep. Delivery of an inbound notification
+> posted by the port (e.g. `onResponse`) **does** begin a new macrostep.
+
+## 7. Errors
+
+7.1. The error hierarchy is:
+
+```text
+HsmError
+├─ RuntimeError
+│  ├─ TransitionError
+│  ├─ EventHandlerError
+│  └─ UnhandledEventError
+├─ InitializationError
+└─ FatalError
+
+CallTimeoutError        — a service call exceeded its timeoutMs
+SelfCallDeadlockError   — an actor awaited a service on itself during dispatch
+```
+
+7.2. When a handler throws, the runtime **MUST** offer the error to an `onError(err)` hook on the
+active state or its nearest ancestor that defines one. If a hook handles it (returns normally), the
+actor **MUST** continue. The base `onError` **MUST** re-throw, so an unhandled handler error
+propagates.
+
+7.3. An unresolved error **MUST** be delivered to the actor's `dispatchErrorCallback`. The callback
+is an observer of last resort; it **MUST NOT** be relied on for control flow.
+
+7.4. An event with no protocol handler **MUST** be delivered to `onUnhandled`; the base
+implementation re-throws `UnhandledEventError`.
+
+7.5. A throw inside `onError` **MUST** escalate to `FatalError`. A throw during the initial-state
+entry chain **MUST** surface as `InitializationError`.
+
+7.6. `TransitionError` **MUST** record which callback failed (`onEntry` or `onExit`) and the source
+and target state names.
+
+## 8. Determinism and deterministic simulation testing (DST)
+
+8.1. Determinism is the design center of `ihsm`. For a conformant program (§6.1), the sequence of
+state changes, context mutations, and emitted outputs **MUST** be a pure function of: the initial
+state and context, the ordered sequence of delivered events, and the values produced by the port.
+
+8.2. The instrumentation/telemetry layer **MUST** be a pure observer: enabling or disabling tracing
+or instrumentation **MUST NOT** change an actor's transitions or outputs.
+
+8.2.1. Observability **MUST** be driven entirely through the optional `Instrumentation` callback
+surface, and tracing **MUST** be a cross-cutting concern: collectors are installed **globally** via
+`registerCollector(collector)` (returning an idempotent unregister) and removed via
+`clearCollectors()`. There is **no** per-actor `instrumentation` option — actor and handler source
+**MUST NOT** change to enable tracing. An actor adopts the active collector **at spawn** (snapshot
+at spawn); a parent and the children it spawns under the same registration share one collector
+instance. The core runtime **MUST NOT** depend on any OpenTelemetry (or other vendor) library; the
+signal types it emits **MUST** be vendor-neutral. The core **MAY** ship a basic console
+implementation (`createConsoleInstrumentation`). OpenTelemetry integration (spans, W3C context
+propagation, OTLP export) **MUST** live in the separate `@ihsm/otel` package and consume the same
+callbacks. A program that registers no collector **MUST** incur no observation cost.
+
+8.3. Actor identity (`actorUuid`) **MUST** be derived deterministically from the configured run seed
+and the actor's hierarchical path (UUIDv5). Identity affects only correlation/telemetry and **MUST
+NOT** affect behaviour. `configureRunSeed(seed)` (or `IHSM_RUN_SEED`) pins the seed; identical seed
+and topology **MUST** yield identical identities.
+
+8.4. Under a `TestPort`, time and randomness are fully controlled: `advance(ms)` is the only source
+of timer progress, and random values are scripted (defaulting to `0` / zero-UUID / zero-bytes when
+unscripted). A test **MUST NOT** depend on wall-clock time or ambient randomness.
+
+8.5. The internal task pump yields between microsteps via a host macrotask. This affects only the
+*interleaving* with other host work, never the **order** in which an actor processes its own queued
+events, which remains the FIFO/priority order of §4. Programs **MUST NOT** depend on the actor
+interleaving with unrelated host callbacks in a particular way.
+
+### 8.6 Compliance status (audited)
+
+The runtime was audited against §6.1. Findings:
+
+- Timers (`port.setTimeout`/`setInterval`), `port.defer`, and all randomness already route through
+  the port. ✓
+- The production `Port` is the single place that touches host timers and `crypto`. ✓
+- **Fixed:** service-call timeouts (`{ timeoutMs }`) previously used the global `setTimeout`
+  directly, escaping the port. This meant a `TestPort` virtual clock could not govern a call
+  timeout. The runtime now arms the deadline through the actor's port timer service
+  (§5.4, §6.5); production behaviour is unchanged (the production `Port` delegates to the host),
+  while under a `TestPort` a call timeout is driven deterministically by `advance(ms)`.
+- The default run seed falls back to a random UUID **only** when no seed is configured; DST
+  **MUST** call `configureRunSeed` (or set `IHSM_RUN_SEED`) to make a run reproducible. The seed is
+  the only sanctioned source of nondeterminism, and it never influences behaviour (§8.3).
+
+## 9. Key decisions and rationale
+
+**States as classes; hierarchy as inheritance.** Reusing the language's own tree (prototype chain)
+makes handler inheritance (§4.3) and the lifecycle-hook exception (§4.4) fall out naturally, gives
+exhaustive editor support, and needs no bespoke DSL. The cost — hooks are *not* inherited — is made
+explicit rather than hidden.
+
+**Run-to-completion with two queues.** Serialized dispatch removes data races by construction and
+makes a macrostep a deterministic, replayable unit. The priority queue (§4.2) lets a handler run a
+critical sub-step (a guard, a commit) ahead of already-queued normal work without nesting calls.
+
+**Posting is deferred, never inline (§4.5).** Inline delivery would re-enter the dispatcher and
+break run-to-completion. Deferral keeps every handler atomic and the event order observable.
+
+**Side effects only through ports (§6).** A single, swappable boundary is what makes deterministic
+simulation testing possible at all: the same machine runs against real timers/IO in production and a
+virtual clock/mock IO in tests. This is non-negotiable — every leak (e.g. the call-timeout bug in
+§8.6) is a determinism defect and is fixed in the runtime rather than worked around.
+
+**Internal notifications for I/O results (§6.3).** Forcing port results back in as events (rather
+than letting the port mutate context) keeps every state change attributable to a microstep and
+keeps the machine the single writer of its own context.
+
+**Caller-controlled identity from a run seed (§8.3).** Deterministic UUIDs let telemetry and logs be
+correlated and replayed without affecting behaviour, so observability is free of Heisenbugs.
+
+**Facets over flat methods.** Splitting the surface into `notify` / `notifyNow` / `call` makes the
+delivery semantics part of the type (§3.6): a void command cannot accidentally be awaited, and a
+service cannot be fire-and-forgotten.
+
+**`sync()` resolves at stability (§4.7).** Defining the await point as "queues drained" gives tests
+and callers a single, unambiguous quiescence signal and makes macrostep boundaries crisp for
+telemetry.

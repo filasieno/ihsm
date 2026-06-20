@@ -139,6 +139,12 @@ describe('embodiments', function (): void {
 			await actor.hsm.sync();
 			// both delivered; ordering verified in handler-dispatch spec
 		});
+
+		it('actor.id is the stable instance id (same as actor.hsm.actorUuid)', () => {
+			expect(actor.id).equals(actor.hsm.actorUuid);
+			expect(actor.id).equals(actor.hsm.id);
+			expect(actor.id).matches(/^[0-9a-f-]{36}$/i);
+		});
 	});
 
 	describe('handler (this)', function (): void {
@@ -154,6 +160,7 @@ describe('embodiments', function (): void {
 			expect(ctx.log).to.include('ping');
 			expect(ctx.log).to.include('tick');
 			expect(actor.hsm.currentStateName).equals('Busy');
+			expect(actor.id).equals(actor.hsm.id);
 		});
 	});
 
@@ -172,6 +179,13 @@ describe('embodiments', function (): void {
 			actor.notify.tick();
 			await actor.hsm.sync();
 			expect(ctx.log).to.include('tick');
+		});
+
+		it('inbound port.actor.id matches the bound actor shell', async () => {
+			const port = new Port<typeof DemoTop>();
+			const actor = makeActor(DemoTop, freshCtx(), port);
+			await actor.hsm.sync();
+			expect(port.actor.id).equals(actor.id);
 		});
 	});
 });

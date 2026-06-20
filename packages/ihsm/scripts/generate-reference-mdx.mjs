@@ -115,7 +115,18 @@ function writeSidebars() {
 
 // GENERATED — docs navigation
 const sidebars: SidebarsConfig = {
-\tdocs: ['intro', 'reference', 'testing'],
+\tdocs: [
+\t\t'intro',
+\t\t{
+\t\t\ttype: 'category',
+\t\t\tlabel: 'User Guide',
+\t\t\tcollapsed: false,
+\t\t\titems: ['guide/setup', 'guide/configuration', 'guide/states', 'guide/messaging', 'guide/time-and-io', 'guide/actors', 'guide/lifecycle', 'guide/testing'],
+\t\t},
+\t\t'reference',
+\t\t'specification',
+\t\t'testing',
+\t],
 };
 
 export default sidebars;

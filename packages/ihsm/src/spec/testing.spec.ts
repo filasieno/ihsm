@@ -3,7 +3,7 @@ import 'mocha';
 
 import { Disposable, InitialState, ResultWithSubscription, TopState, TraceLevel, defaultTraceWriter, makeActor } from '../';
 import type { TestActor } from '../testing';
-import { Mock, Port, PreloadError, TestPort, makeTestActor, makeTestPort, mock } from '../testing';
+import { Mock, Port, PreloadError, TestPort, makeTestActor, makeTestPort, mock, settleAll } from '../testing';
 import * as self from './testing.spec';
 import { clearLastError, createTestDispatchErrorCallback, registerSpecStateNames, traceActorOnPort } from './spec.utils';
 
@@ -103,6 +103,35 @@ abstract class UndecoratedPort extends TestPort<typeof DeviceTop> {
 
 describe('ihsm/testing', () => {
 	beforeEach(() => clearLastError());
+
+	describe('settleAll()', () => {
+		it('settles a test actor system and reports settled=true when quiescence is observed', async () => {
+			const port = makeTestPort(MockDevicePort);
+			port.connect.default(() => ({ value: 1, subscription: { dispose: () => undefined } }));
+			port.noop.default(() => undefined);
+			const sm = makeTestActor(DeviceTop, freshCtx(), port);
+			await settleAll(sm);
+			sm.notify.poke();
+			const result = await settleAll(sm, { maxRounds: 6, idleRounds: 1 });
+			expect(sm.ctx.pokes).equals(1);
+			expect(result.settled).equals(true);
+			expect(result.rounds).greaterThanOrEqual(1);
+		});
+
+		it('returns settled=false when actors do not expose subscribe()', async () => {
+			const port = makeTestPort(MockDevicePort);
+			port.connect.default(() => ({ value: 1, subscription: { dispose: () => undefined } }));
+			port.noop.default(() => undefined);
+			const actor = makeActor(DeviceTop, freshCtx(), port, {
+				traceLevel: TraceLevel.PRODUCTION,
+			});
+			await actor.hsm.sync();
+			actor.notify.poke();
+			const result = await settleAll(actor, { maxRounds: 2 });
+			expect(result.settled).equals(false);
+			expect(result.rounds).equals(2);
+		});
+	});
 
 	describe('mock ports and Stubbed methods', () => {
 		let port: Mock<MockDevicePort, DeviceConfig>;
@@ -208,6 +237,23 @@ describe('ihsm/testing', () => {
 		sm.notify.cancel();
 		await sm.hsm.sync();
 		expect(trace.events).eqls(['open']);
+	});
+
+	it('TestPort.send delivers an inbound notification and rejects unknown events', async () => {
+		const port = makeTestPort(MockDevicePort);
+		port.connect.default(() => ({ value: 3, subscription: { dispose: () => undefined } }));
+		const sm = makeTestActor(DeviceTop, freshCtx(), port);
+		await sm.hsm.sync();
+		sm.notify.open('tty9');
+		await sm.hsm.sync();
+		expect(sm.hsm.currentState).equals(Connecting);
+
+		port.send('onOpened', 77);
+		await sm.hsm.sync();
+		expect(sm.hsm.currentState).equals(Open);
+		expect(await sm.call.lastHandle()).equals(77);
+
+		expect(() => port.send('nonexistent')).to.throw(/has no notification/);
 	});
 
 	describe('TestPort', () => {

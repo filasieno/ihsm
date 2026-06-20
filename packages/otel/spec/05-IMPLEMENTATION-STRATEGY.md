@@ -30,8 +30,9 @@ back-compat and console debugging.
 
 ## 5.2 The redesigned callback surface (core)
 
-A single optional observer, passed through `ActorOptions` and inherited by children. All methods
-optional; all are pure observers wrapped by the runtime in a non-throwing guard.
+A single optional observer, **registered globally** (a cross-cutting concern) and snapshotted by
+each actor at spawn — never passed through `ActorOptions`. All methods optional; all are pure
+observers wrapped by the runtime in a non-throwing guard.
 
 ```typescript
 // ihsm core — new public types
@@ -53,6 +54,9 @@ export interface MacrostepBegin { id: string; actor: ActorIdentity; trigger: str
 export interface MacrostepEnd   { id: string; endState: string; steps: number;
   transitioned: boolean; outcome: "ok" | "error"; }
 
+// `seq` / `stepSeq` are INTERNAL correlation ids only: they pair a microstep begin with its end
+// and wire intra-macrostep cause links. They are never emitted as span/log attributes — sibling
+// spans are ordered by start time (no `ihsm.step.seq`).
 export interface MicrostepBegin { macrostepId: string; seq: number; event: string;
   bucket: ProtocolBucket; queue: NotificationQueue; fromState: string;
   handlerState?: string; cause?: CauseRef; }
@@ -60,7 +64,7 @@ export interface MicrostepEnd   { macrostepId: string; seq: number; toState: str
   transitioned: boolean; async: boolean; outcome: "ok" | "error"; }
 
 export interface EnqueueInfo { event: string; queue: NotificationQueue; delayMs?: number;
-  byStepSeq?: number; targetUuid?: string;
+  targetUuid?: string;
   cause: CauseRef; /* the task.cause the runtime stamped; the bridge may fill cause.carrier here */ }
 
 export interface CauseRef { actorUuid: string; macrostepId?: string; stepSeq?: number;
@@ -106,9 +110,17 @@ export interface Instrumentation<C extends ActorConfig = ActorConfig> {
   transition?: TransitionTracer;            // reuse the existing structured transition hooks
 }
 
-// threaded in options, inherited by makeChildActor:
-export interface ActorOptions<C> { /* …existing… */ instrumentation?: Instrumentation<C>; }
+// Tracing is a cross-cutting concern: collectors are registered GLOBALLY, never threaded through
+// ActorOptions. An actor snapshots the active (composed) collector at spawn; children share it.
+export function registerCollector(collector: Instrumentation): () => void; // returns unregister
+export function clearCollectors(): void;                                   // test isolation
+// (internal) getActiveInstrumentation(): Instrumentation | undefined — read by spawnActor
 ```
+
+`ActorOptions` carries **no** `instrumentation` field. `@ihsm/otel`'s `startOtelNode` /
+`startOtelBrowser` call `registerCollector` for you; advanced users register a hand-built
+`createOtelInstrumentation(...)` directly. Multiple collectors fan out in registration order, each
+isolated so one throwing collector never starves the others.
 
 This is the contract `@ihsm/otel` binds to. It expresses **exactly** the doc-4 model:
 macrostep/microstep boundaries (R0/R1), enqueue causality for links (§4.7), error classification
@@ -122,13 +134,13 @@ Grounded in the current `packages/ihsm/src/internal/runtime.ts`:
 
 | Hook | Insertion point | Mechanics |
 |------|-----------------|-----------|
-| `onActorCreated` | `spawnActor` (and `makeChildActor`) after identity is minted (§5.4) | once per actor |
+| `onActorCreated` | `spawnActor` (and `makeChildActor`) after identity is minted (§5.4); the actor adopts `getActiveInstrumentation()` here (snapshot at spawn — no per-actor option) | once per actor |
 | **macrostep begin** | the mailbox **drain loop**, when a task is dequeued while the actor was idle (queues were empty and nothing running) | set `currentMacrostep = { id, seq:0 }`; raise `onMacrostepBegin` |
 | **microstep begin** | immediately before the runtime runs a dequeued `Task` (the existing `task(done)` invocation) | raise `onMicrostepBegin` with `seq`, `event`, `fromState=currentStateName` |
 | **microstep end** | inside the task's `done` continuation (after the awaited handler+transition settle) | raise `onMicrostepEnd` with `toState`, `transitioned`, `async`, `outcome` |
 | **macrostep end** | after `done`, when default+priority queues are empty | raise `onMacrostepEnd`; clear `currentMacrostep` → actor idle |
-| `onEnqueue` | inside `dispatchNotification` / `dispatchService` / timer `defer` enqueue | copy the current `dispatchContext` token (`{actorUuid, macrostepId, stepSeq}`) onto the new `Task` as `task.cause` (§5.6.3 — covers both self-posts and cross-actor sends); raise `onEnqueue` with `byStepSeq` |
-| `transition.*` | already produced by `executeTransitionRoutine` via `createTransitionTracer` | route the configured `instrumentation.transition` into the routine's `tracer` option instead of (or alongside) the console tracer |
+| `onEnqueue` | inside `dispatchNotification` / `dispatchService` / timer `defer` enqueue | copy the current `dispatchContext` token (`{actorUuid, macrostepId, stepSeq}`) onto the new `Task` as `task.cause` (§5.6.3 — covers both self-posts and cross-actor sends); raise `onEnqueue` with the resolved `cause` (no separate sequence field) |
+| `transition.*` | already produced by `executeTransitionRoutine` via `createTransitionTracer` | route the active collector's `transition` (composed across registered collectors) into the routine's `tracer` option instead of (or alongside) the console tracer |
 | `onError` | the `dispatchErrorCallback` path; classify `phase` from the active domain and `errorClass` from the thrown ihsm error type | raise before the existing rethrow; does not change recovery |
 | `onLog` (user) | `this.hsm.log.*` calls (CORE-F) | emit a `LogRecord{ source:"user" }` with the chosen `severity`, `frames` = live trace-frame stack, user `attributes`; **not** `TraceLevel`-gated |
 | `onLog` (runtime) | `_traceWrite` when `msg` is a string (Phase 2) | `LogRecord{ source:"runtime" }`; derive `severity` from domain/level; `TraceLevel`-gated; existing `TraceWriter` still called |
@@ -174,23 +186,24 @@ used for actor identity.
 
 ## 5.5 Consumer mapping in `@ihsm/otel`
 
-`instrumentActor(actor, { provider })` installs an `Instrumentation` that maintains a per-actor
-**macrostep record** `{ rootSpan, currentStepSpan, macrostepId, seq, links }` and maps callbacks
-to OTEL:
+`createOtelInstrumentation({ tracer, logger })` builds an `Instrumentation` that, once registered
+globally via `registerCollector` (done for you by `startOtelNode` / `startOtelBrowser`), maintains a
+per-actor **macrostep record** `{ rootSpan, currentStepSpan, macrostepId, seq, links }` and maps
+callbacks to OTEL:
 
 | Callback | OTEL action |
 |----------|-------------|
 | `onActorCreated` | cache `ActorIdentity`; pre-build the Tier-1 attribute bag (`ihsm.actor.uuid/name`) |
-| `onMacrostepBegin` | start `ihsm.macrostep` as a **new trace root** adopting the caller-minted `SpanContext` from `cause.carrier` (custom `IdGenerator`, §5.6); add a `caused_by` link to the caller span; set Tier-2 macrostep attrs; store as `rootSpan` |
-| (caller side) port I/O | open an `ihsm.port` span under the current step **in the caller's own trace** (never a new trace); end it when the port call resolves (§4.7.2) |
-| (caller side) awaited cross-actor `call` | open an `ihsm.await` span (`CLIENT`) under the current step; end it when the reply resolves (§4.7.3). The mint + `causes` link + `cause.carrier` are written in `onEnqueue` (below), so the `ihsm.await` span is just the timing/back-link target |
-| `onMicrostepBegin` | start `ihsm.step` as child of `rootSpan` (parent resolved from the record, **not** ambient context → browser-correct, §4.6); link to `cause` step if present; add the `ihsm.handler.found` event with `state = handlerState` **before** the turn executes (§4.8); `context.with(setSpan(step))` for interop |
-| `transition.*` | start `ihsm.transition` under the current step; `ihsm.exit`/`ihsm.entry` per hook (`traceHookSkipped` is ignored — skipped default hooks are not eventized) |
-| `onEnqueue` | **Self-post** (same actor): remember `(event→stepSeq)` so the future step links back with `ihsm.link.kind=cause`. **Cross-actor / spawn** (`cause.kind ∈ {message, spawn, wire}`): mint the callee root id pair, write `cause.carrier = {mint*, caller*}` onto the delivered cause (§5.6.1 step 2), and add the `causes` forward link to the enqueuing step (or to the `ihsm.await` span for an awaited call). No per-enqueue span event |
+| `onMacrostepBegin` | start the root span named `<ActorName>.<handler>` (`${info.actor.name}.${info.trigger}`) as a **new trace root** adopting the caller-minted `SpanContext` from `cause.carrier` (custom `IdGenerator`, §5.6); add a `caused_by` link to the caller span; set Tier-2 macrostep attrs; store as `rootSpan` |
+| (caller side) port I/O | open an `port <method>` span under the current step **in the caller's own trace** (never a new trace); end it when the port call resolves (§4.7.2) |
+| (caller side) awaited cross-actor `call` | open an `call <service>` span (`CLIENT`) under the current step; end it when the reply resolves (§4.7.3). The mint + `causes` link + `cause.carrier` are written in `onEnqueue` (below), so the `call <service>` span is just the timing/back-link target |
+| `onMicrostepBegin` | start `execute <event> <service|notification>` as child of `rootSpan` (parent resolved from the record, **not** ambient context → browser-correct, §4.6); link to `cause` step if present; add the `ihsm.handler.found` event with `state = handlerState` **before** the turn executes (§4.8); `context.with(setSpan(step))` for interop |
+| `transition.*` | start `transition` under the current step; `exit`/`entry` per hook (`traceHookSkipped` is ignored — skipped default hooks are not eventized) |
+| `onEnqueue` | **Self-post** (same actor): remember `(event→stepSeq)` so the future step links back with `ihsm.link.kind=cause`. **Cross-actor / spawn** (`cause.kind ∈ {message, spawn, wire}`): mint the callee root id pair, write `cause.carrier = {mint*, caller*}` onto the delivered cause (§5.6.1 step 2), and add the `causes` forward link to the enqueuing step (or to the `call <service>` span for an awaited call). No per-enqueue span event |
 | `onMicrostepEnd` | set step status/attrs (`transitioned`, `async`); `step.end()` |
 | `onError` | `StatusCode.ERROR` + `recordException` on innermost open span and `rootSpan`; set `ihsm.error.kind/phase/recovered` |
 | `onMacrostepEnd` | set `ihsm.state.end`, `ihsm.steps`, `ihsm.transitioned`, `ihsm.outcome`; `rootSpan.end()`; clear record |
-| `onLog` | `logger.emit({ severityNumber: map(record.severity), body: record.body, attributes: Tier-1 + macrostep.id + step.seq + ihsm.domain.path(frames) + record.attributes, context: active })`; attach `exception.*` when `record.error` is set |
+| `onLog` | `logger.emit({ severityNumber: map(record.severity), body: record.body, attributes: Tier-1 + macrostep.id + ihsm.domain.path(frames) + record.attributes, context: active })`; the owning step is carried by the active `span_id`, not a sequence; attach `exception.*` when `record.error` is set |
 | `onActorDisposed` | flush per-actor caches |
 
 Because parenthood is taken from the record, **async suspensions never detach a child span** —
@@ -222,7 +235,7 @@ this clearly, because it is the part most likely to be implemented wrong:
 > because it is possible; the only "global" is the tiny synchronous id slot (c), and only because
 > the OTEL `IdGenerator` API physically has no other entry point.**
 
-### 5.6.1 Step by step — one `notify` A→B (the awaited `call` case is identical plus an `ihsm.await` span)
+### 5.6.1 Step by step — one `notify` A→B (the awaited `call` case is identical plus an `call <service>` span)
 
 1. **(runtime, CORE-B) attribute the cause.** When A's handler runs `B.notify.x()`, the call is
    synchronous inside A's currently-executing microstep. The runtime reads the **current dispatch
@@ -241,7 +254,7 @@ this clearly, because it is the part most likely to be implemented wrong:
    `cause = { …, carrier }` — a normal parameter, nothing ambient.
 4. **(bridge, B side) adopt + back-link.** B's `onMacrostepBegin`:
    1. `idGen.nextOverride = { traceId: carrier.mintTraceId, spanId: carrier.mintSpanId }`
-   2. `const root = tracer.startSpan("ihsm.macrostep …", { root: true })`  ← synchronous; the SDK
+   2. `const root = tracer.startSpan(`${actor.name}.${trigger}`, { root: true })`  ← synchronous; the SDK
       calls `idGen.generateTraceId()`/`generateSpanId()` **in this same tick**, which return the
       override, then the bridge clears the slot.
    3. `root.addLink({ context: { traceId: carrier.callerTraceId, spanId: carrier.callerSpanId },
@@ -271,8 +284,8 @@ task in `dispatchContext` (`AsyncLocalStorage<{machine}>`, runtime.ts:739/1582) 
 detection. Extend the token to `{ machine, macrostepId, stepSeq }`, and in `recordObserverEvent` /
 `dispatchNotification` / `dispatchService`, read the *current* token and copy it onto the created
 `Task` as `task.cause`. The callee's `onMacrostepBegin` reports `task.cause`. (Today this token is
-created lazily and only off-`PRODUCTION`; CORE-B must keep it active whenever `instrumentation` is
-attached, independent of `TraceLevel`.) On Node the token follows the handler across `await`
+created lazily and only off-`PRODUCTION`; CORE-B must keep it active whenever the actor adopted an
+active collector at spawn, independent of `TraceLevel`.) On Node the token follows the handler across `await`
 (ALS); the browser dev build runs the synchronous path (a
 handler's `notify` call executes inside its microstep) and falls back to "no cause" only for the
 rare post-`await` cross-actor send — acceptable for a debug aid.
@@ -335,7 +348,7 @@ opt-in rather than imposed on every service.
 
 - **Spawn**: the spawn port method runs inside A's step span; the runtime attributes the child's
   first (`initialize`) macrostep cause to that step (5.6.3), and the child `initialize` adopts the
-  minted context and back-links to the parent `ihsm.port` span. `CauseRef.kind = "spawn"`.
+  minted context and back-links to the parent `port <method>` span. `CauseRef.kind = "spawn"`.
 - **Cross-process**: identical, but the carrier travels in the wire envelope and `WireSession`
   also injects W3C `traceparent`/`tracestate` (lifted from mmkit) so a backend *may* optionally
   stitch; the default rendering is two linked traces. `CauseRef.kind = "wire"`.
@@ -375,7 +388,7 @@ durations, mailbox depth via queue introspection). No further core change is ant
 - **UUID-stability test (R2).** Run the same DST scenario twice with the same `runSeed`; assert
   identical `ihsm.actor.uuid` on every span. Run with a different seed; assert no collisions.
 - **Macrostep-shape test (R0/R1).** Drive one external event that cascades N self-posts; assert
-  exactly one trace, one `ihsm.macrostep` root, N `ihsm.step` children with correct `seq`, correct
+  exactly one trace, one `<ActorName>.<handler>` root, N `execute ...` children ordered by start time, correct
   `cause` links, and `state.start`/`state.end` matching the machine.
 - **Async test (R3).** A handler that awaits a port call; assert the step span brackets the await
   and the macrostep root ends only at stability — verified under the browser `StackContextManager`
@@ -393,19 +406,20 @@ durations, mailbox depth via queue introspection). No further core change is ant
 | Id | Change | Size | Enables |
 |----|--------|------|---------|
 | CORE-A | Deterministic actor identity (`uuid`/`name`/`path`) + `runSeed` config; expose on `Properties` | small | R2 (Grafana per-instance), retires reflection naming |
-| CORE-B | `Instrumentation` hook in `ActorOptions` with macrostep/microstep/enqueue/error callbacks; track idle/busy + current macrostep id/seq; extend `dispatchContext` token to `{machine, macrostepId, stepSeq}` and copy it onto each enqueued `Task` as `task.cause` (§5.6.3) | medium | R0/R1/R3/R7 + cross-actor cause attribution, no patching |
-| CORE-C | Route `Instrumentation.transition` into `executeTransitionRoutine`'s tracer; allow live attach | small | structured transition/hook spans |
+| CORE-B | **Global collector registry** (`registerCollector`/`clearCollectors`, composing fan-out) — tracing is a cross-cutting concern, never an `ActorOptions` field; actors snapshot the active collector at spawn. Macrostep/microstep/enqueue/error callbacks; track idle/busy + current macrostep id/seq; extend `dispatchContext` token to `{machine, macrostepId, stepSeq}` and copy it onto each enqueued `Task` as `task.cause` (§5.6.3) | medium | R0/R1/R3/R7 + cross-actor cause attribution, no patching, no per-actor wiring |
+| CORE-C | Route the active collector's `transition` into `executeTransitionRoutine`'s tracer | small | structured transition/hook spans |
 | CORE-D | Structured `onLog` channel carrying a `LogRecord` (severity, body, frames, attributes, error, source) | small | R5 logs without string coupling |
 | CORE-E | Structured trace header: add `Properties.traceFrames: readonly TraceFrame[]`; keep `traceHeader` string as a derived getter | small | R5 domain frames as data (`ihsm.domain.path`), no re-parsing |
 | CORE-F | Severity-typed handler logger `this.hsm.log.{trace,debug,info,warn,error,fatal}` that emits `LogRecord{source:"user"}` to `onLog` (and to `TraceWriter` for console); ungated by `TraceLevel` | small | R5 OTEL-aligned logging API |
-| CORE-G | `@service({ replyAtStable: true })` option: park the service `resolve` and fire it at macrostep end instead of handler return (§5.6.4) — opt-in, off by default | small | identical-size `ihsm.await` span (doc 4 §4.7.3) |
+| CORE-G | `@service({ replyAtStable: true })` option: park the service `resolve` and fire it at macrostep end instead of handler return (§5.6.4) — opt-in, off by default | small | identical-size `call <service>` span (doc 4 §4.7.3) |
 
-All seven are additive and backward compatible: an actor created without `instrumentation` behaves
-exactly as today, `traceHeader` keeps its string shape, `this.hsm.log.*` degrades to the existing
-`TraceWriter`/console when no provider is attached, and `replyAtStable` is off by default.
+All seven are additive: an actor spawned while **no collector is registered** behaves exactly as
+today (and pays zero dispatch-context cost), `traceHeader` keeps its string shape, `this.hsm.log.*`
+degrades to the existing `TraceWriter`/console when no collector is active, and `replyAtStable` is
+off by default. Tracing is enabled purely by `registerCollector` — never by changing actor source.
 
 The bidirectional-link machinery (§5.6) needs **no further core change** beyond CORE-B's
 `task.cause` attribution: the deterministic id minting, the custom `IdGenerator` + synchronous
-override slot, and the `ihsm.await` span all live in `@ihsm/otel`, driven entirely by the
+override slot, and the `call <service>` span all live in `@ihsm/otel`, driven entirely by the
 `onEnqueue`/`onMacrostepBegin` callbacks and the `cause.carrier` data CORE-B already delivers. The
 runtime stays OTEL-ignorant — it forwards an opaque `CauseRef`, nothing more.

@@ -12,6 +12,7 @@ This specification is split into focused documents under [`./spec`](./spec). Rea
 | 3 | [`spec/03-PROPOSED-ARCHITECTURE.md`](./spec/03-PROPOSED-ARCHITECTURE.md) | The `@ihsm/otel` package, its layering, the single `instrumentActor` seam, and server-vs-browser wiring. |
 | 4 | [`spec/04-TRACE-AND-LOG-DESIGN.md`](./spec/04-TRACE-AND-LOG-DESIGN.md) | **The core.** Macrostep/microstep trace model, the deterministic actor UUID, resource vs span attributes (clarified and minimized), async handling, span links, span events, status, and the log model — designed to use the full OTEL feature set and to be queried per-actor-instance in Grafana. |
 | 5 | [`spec/05-IMPLEMENTATION-STRATEGY.md`](./spec/05-IMPLEMENTATION-STRATEGY.md) | The redesign of the `ihsm` tracing/log callbacks and the minimal additive core changes required, phased for delivery. |
+| 6 | [`spec/06-TEST-ARTIFACTS.md`](./spec/06-TEST-ARTIFACTS.md) | **Test contract.** `OtelSignal[]` capture, processor output shape (Grafana-like traces/logs), and conformance assertions. |
 
 ## The one idea to keep in mind
 

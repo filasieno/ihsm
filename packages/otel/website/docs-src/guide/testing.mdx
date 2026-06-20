@@ -1,0 +1,108 @@
+---
+title: Traces, logs & conformance
+sidebar_label: Traces, logs & conformance
+slug: /guide/testing
+sidebar_position: 4
+description: Process collected signals into traces and logs, then assert their shape.
+---
+
+# Traces, logs & conformance
+
+Once signals are collected ([Wiring instrumentation](/guide/instrumentation)), `processSignals`
+folds them into the canonical telemetry shape — traces (with spans, events, links) and
+trace-correlated logs — and a set of assertions verifies conformance deterministically.
+
+## Process signals into telemetry
+
+```typescript
+import { processSignals } from '@ihsm/otel/testing';
+
+const telemetry = processSignals(collector.signals);
+// telemetry: { traces: ProcessedTrace[], logs: ProcessedLog[] }
+
+for (const trace of telemetry.traces) {
+  console.log(trace.rootSpanName, trace.spans.length, trace.rootAttributes['ihsm.trigger']);
+}
+```
+
+A `ProcessedTrace` has a `traceId`, a `rootSpanName` (`<ActorName>.<handler>`, e.g. `Order.submit`), `rootAttributes`, an
+optional `durationMs`, and an array of `ProcessedSpan`s (each with attributes, events, and links).
+See [Reference → Signals](/reference/signals) for the full types.
+
+## Assert conformance
+
+The assertions are dependency-free (they throw a descriptive `Error` on failure), so they work in
+any test runner.
+
+```typescript
+import {
+  assertMacrostepShape,
+  assertOneTracePerExternalStimulus,
+  assertStepsOrderedByStartTime,
+  assertTier1OnEverySpan,
+  findTracesByTrigger,
+} from '@ihsm/otel/testing';
+
+const { traces } = processSignals(collector.signals);
+
+// Exactly one trace per external stimulus (the "one macrostep = one trace" invariant).
+assertOneTracePerExternalStimulus(traces, 1);
+
+const [trace] = findTracesByTrigger(traces, 'increment');
+
+// Root macrostep shape: number of step spans, trigger, outcome.
+assertMacrostepShape(trace, { steps: 1, trigger: 'increment', outcome: 'ok' });
+
+// Every span carries the Tier-1 attributes (ihsm.actor.uuid, ihsm.actor.name, ihsm.state).
+assertTier1OnEverySpan(trace);
+
+// Step spans are ordered by start time (sequence is implicit — no emitted index attribute).
+assertStepsOrderedByStartTime(trace);
+```
+
+## A full test
+
+```typescript
+import { clearCollectors, InitialState, Port, registerCollector, registerStateNames, TopState } from 'ihsm';
+import { makeTestActor } from 'ihsm/testing';
+import { assertMacrostepShape, createIhsmSignalCollector, processSignals, settle } from '@ihsm/otel/testing';
+
+interface PingConfig {
+  context: { pings: number };
+  notifications: { ping(): void };
+}
+
+class PingTop extends TopState<PingConfig> {
+  ping(): void {
+    this.ctx.pings += 1;
+  }
+}
+
+@InitialState
+class Ready extends PingTop {}
+
+registerStateNames({ PingTop, Ready });
+
+afterEach(() => clearCollectors()); // unregister collectors so they don't leak across tests
+
+it('emits one trace per external ping', async () => {
+  const collector = createIhsmSignalCollector();
+  registerCollector(collector.instrumentation); // register before spawning the actor
+  const actor = makeTestActor(PingTop, { pings: 0 }, new Port(), {});
+  await settle(collector);
+
+  actor.notify.ping();
+  await settle(collector);
+
+  const { traces } = processSignals(collector.signals);
+  expect(traces.length).toBe(1);
+  assertMacrostepShape(traces[0], { steps: 1, trigger: 'ping', outcome: 'ok' });
+});
+```
+
+## Why this is deterministic
+
+Because every side effect in ihsm flows through a port and actor identity is derived from a run
+seed, the collected signals — and therefore the processed traces and logs — are a pure function of
+the inputs. Pin the seed with `configureRunSeed(...)` from `ihsm` and the trace/span identifiers are
+byte-stable across runs, which is what makes these assertions reliable rather than flaky.

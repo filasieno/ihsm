@@ -1,0 +1,33 @@
+{
+	"name": "ihsm-otel-site",
+	"version": "0.0.1",
+	"private": true,
+	"scripts": {
+		"prebuild": "node ../scripts/ensure-website-docs.mjs",
+		"prestart": "node ../scripts/ensure-website-docs.mjs",
+		"start": "docusaurus start",
+		"build": "docusaurus build --out-dir ../docs-build",
+		"serve": "docusaurus serve --dir ../docs-build"
+	},
+	"dependencies": {
+		"@docusaurus/core": "^3.10.1",
+		"@docusaurus/preset-classic": "^3.10.1",
+		"prism-react-renderer": "^2.4.1",
+		"react": "^19.2.6",
+		"react-dom": "^19.2.6"
+	},
+	"devDependencies": {
+		"@docusaurus/module-type-aliases": "^3.10.1",
+		"@docusaurus/types": "^3.10.1"
+	},
+	"overrides": {
+		"diff": "^8.0.3",
+		"glob": "^13.0.6",
+		"serialize-javascript": "^7.0.5",
+		"uuid": "^11.1.0"
+	},
+	"browserslist": {
+		"production": [">0.5%", "not dead", "not op_mini all"],
+		"development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
+	}
+}

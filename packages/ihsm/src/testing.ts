@@ -16,7 +16,7 @@
  * @packageDocumentation
  */
 import { Port, TraceLevel, spawnActor, kMachine, Machine, defaultDispatchErrorCallback, defaultInitialize, defaultTraceWriter } from './internal/runtime';
-import type { Any, EventObserver, MachinePortInput, TracedMessage, ActorOptions, ActorConfig, ActorContextOf, ActorConfigOf, DomainPortOf, ChildActor, TestHsm, TopStateArg, ValidatedTopStateArg } from './internal/types';
+import type { Any, Disposable, EventObserver, MachinePortInput, TracedMessage, ActorOptions, ActorConfig, ActorContextOf, ActorConfigOf, DomainPortOf, ChildActor, TestHsm, TopStateArg, ValidatedTopStateArg } from './internal/types';
 
 interface HandleOwn extends Record<symbol | string, unknown> {
 	[kMachine]: unknown;
@@ -40,6 +40,146 @@ export type TestActor<C extends ActorConfig = ActorConfig> = ChildActor<C> & {
 	ctx: ActorContextOf<C>;
 	hsm: TestHsm<C>;
 };
+
+/**
+ * An actor-like handle that can be drained by {@link settleAll}.
+ *
+ * Any actor exposing `hsm.sync()` is compatible. When `hsm.subscribe()` is also available
+ * (e.g. {@link TestActor}), {@link settleAll} can detect quiescence and return `settled: true`.
+ *
+ * @category Testing
+ */
+export type SettlingActor = {
+	hsm: {
+		sync(): Promise<void>;
+		subscribe?: (observer: EventObserver) => Disposable;
+	};
+};
+
+/**
+ * Options for {@link settleAll}.
+ *
+ * @category Testing
+ */
+export interface SettleAllOptions {
+	/**
+	 * Hard cap on drain rounds.
+	 *
+	 * Each round calls `sync()` on all actors once.
+	 * @defaultValue `8`
+	 */
+	readonly maxRounds?: number;
+	/**
+	 * Number of consecutive no-event rounds required to declare quiescence.
+	 *
+	 * Applies only when all actors expose `hsm.subscribe()`.
+	 * @defaultValue `1`
+	 */
+	readonly idleRounds?: number;
+	/**
+	 * Microtask turns awaited after each round.
+	 *
+	 * Helps flush promise chains that enqueue follow-up work.
+	 * @defaultValue `1`
+	 */
+	readonly microtaskTurns?: number;
+}
+
+/**
+ * Result returned by {@link settleAll}.
+ *
+ * @category Testing
+ */
+export interface SettleAllResult {
+	/** Number of rounds that were executed. */
+	readonly rounds: number;
+	/**
+	 * True when observed quiescence was reached.
+	 *
+	 * False means either:
+	 * - at least one actor lacked `hsm.subscribe()` (settlement is unobservable), or
+	 * - `maxRounds` was hit before enough idle rounds were observed.
+	 */
+	readonly settled: boolean;
+}
+
+function isSettlingActor(value: unknown): value is SettlingActor {
+	return typeof value === 'object' && value !== null && 'hsm' in value && typeof (value as { hsm?: { sync?: unknown } }).hsm?.sync === 'function';
+}
+
+/**
+ * Drain a set of actors until quiescence is observed, or until `maxRounds` is reached.
+ *
+ * This is a **testing** helper: it coordinates repeated `sync()` calls across a small actor system
+ * and reports whether a stable idle round was observed.
+ *
+ * - If every actor exposes `hsm.subscribe()` (e.g. via {@link makeTestActor}), quiescence is
+ *   detected by observing no emitted events for `idleRounds` consecutive rounds.
+ * - If any actor lacks `hsm.subscribe()`, settlement cannot be observed reliably; the helper still
+ *   runs `maxRounds` drain rounds and returns `{ settled: false }`.
+ *
+ * `options` is the last argument when provided.
+ *
+ * @example
+ * ```ts
+ * const a = makeTestActor(A, ctxA, new TestPort());
+ * const b = makeTestActor(B, ctxB, new TestPort());
+ * a.notify.go();
+ * const { settled } = await settleAll(a, b);
+ * expect(settled).equals(true);
+ * ```
+ *
+ * @category Testing
+ */
+export async function settleAll(...actors: SettlingActor[]): Promise<SettleAllResult>;
+export async function settleAll(...args: [...SettlingActor[], SettleAllOptions]): Promise<SettleAllResult>;
+export async function settleAll(...args: Array<SettlingActor | SettleAllOptions>): Promise<SettleAllResult> {
+	if (args.length === 0) {
+		return { rounds: 0, settled: true };
+	}
+	const last = args[args.length - 1];
+	const hasOptions = !isSettlingActor(last);
+	const options = (hasOptions ? (last as SettleAllOptions) : {}) as SettleAllOptions;
+	const actorArgs = (hasOptions ? args.slice(0, -1) : args) as SettlingActor[];
+	const actors = actorArgs.filter(isSettlingActor);
+	const maxRounds = Math.max(1, options.maxRounds ?? 8);
+	const idleRoundsTarget = Math.max(1, options.idleRounds ?? 1);
+	const microtaskTurns = Math.max(0, options.microtaskTurns ?? 1);
+	if (actors.length === 0) return { rounds: 0, settled: true };
+	const observable = actors.every(actor => typeof actor.hsm.subscribe === 'function');
+	const subscriptions: Disposable[] = [];
+	let rounds: number;
+	let idleRounds = 0;
+	let observedEvents = 0;
+	try {
+		if (observable) {
+			for (const actor of actors) {
+				const sub = actor.hsm.subscribe!((): void => {
+					observedEvents += 1;
+				});
+				subscriptions.push(sub);
+			}
+		}
+		for (rounds = 1; rounds <= maxRounds; rounds += 1) {
+			const before = observedEvents;
+			await Promise.all(actors.map(actor => actor.hsm.sync()));
+			for (let turn = 0; turn < microtaskTurns; turn += 1) {
+				await Promise.resolve();
+			}
+			if (!observable) continue;
+			const emitted = observedEvents > before;
+			idleRounds = emitted ? 0 : idleRounds + 1;
+			if (idleRounds >= idleRoundsTarget) {
+				return { rounds, settled: true };
+			}
+		}
+		return { rounds: maxRounds, settled: false };
+	} finally {
+		for (const sub of subscriptions) {
+			sub.dispose();
+		}
+	}
+}
 
 /**
  * Abstract base class for **mock ports** used in deterministic tests.

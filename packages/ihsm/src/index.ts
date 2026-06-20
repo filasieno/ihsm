@@ -42,6 +42,7 @@ export {
 	isServiceCallOptions,
 	splitServiceArgs,
 	serviceCallWithTimeout,
+	currentTraceAnchor,
 	defaultTraceWriter,
 	defaultInitialize,
 	defaultDispatchErrorCallback,
@@ -50,6 +51,13 @@ export {
 	makeChildActor,
 	kHandlerMachine,
 	kParentLink,
+	configureRunSeed,
+	getRunSeed,
+	getRunNamespace,
+	mintActorIdentity,
 } from './internal/runtime';
+export { createConsoleInstrumentation } from './internal/console-instrumentation';
+export { registerCollector, clearCollectors, getCollectorCount } from './internal/instrumentation';
 export type * from './types';
+export type { ConsoleInstrumentationOptions } from './internal/console-instrumentation';
 export type { Any, DispatchErrorCallback, Disposable, EventObserver, MachinePortInput, IPort, Properties, RandomService, TimerService, DomainPortOf, PortServices, ResultWithSubscription, StateClass, StateEvents, TraceWriter, TracedMessage } from './internal/types';

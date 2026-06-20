@@ -84,6 +84,20 @@ The design must deliberately employ, where each is the right tool:
   reflection. Where the current surface is insufficient (it is — see doc 1 §1.1.2), the gap is
   closed by a **minimal, additive, backward-compatible core change**, not a workaround.
 
+## R7.1 — Tracing is a globally-enforced cross-cutting concern
+
+- Enabling observability MUST NOT require any change to actor or handler **source**. There is **no**
+  per-actor `instrumentation` option and no tracing argument on `makeActor` / `makeChildActor` /
+  `makeTestActor`. Collectors are installed **globally**, once, via `registerCollector(collector)`
+  (which returns an idempotent unregister) and removed via `clearCollectors()`.
+- An actor adopts the active (composed) collector **at spawn** ("snapshot at spawn"): a collector
+  registered before the actor is created observes it; register/unregister afterwards does not
+  retroactively change already-spawned actors. A parent and the children it spawns under the same
+  registration share one collector instance (required for cross-actor span links).
+- Multiple registered collectors fan out in registration order, each isolated so a throwing
+  collector never starves the others (R6). When no collector is registered, the seam is a true
+  no-op and actors pay **zero** dispatch-context cost.
+
 ## R8 — Isomorphic, with distinct deployment postures
 
 - The same authoring API and the same trace/log schema work in Node (server) and in the browser

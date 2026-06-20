@@ -1,316 +1,274 @@
 ---
 name: ihsm
-description: Design and author hierarchical state machines with the ihsm TypeScript library (states as classes, events as methods, hierarchy as inheritance, actor mailbox). Use when creating or reviewing an ihsm state machine, designing a *Protocol interface, modelling a state chart, deciding how each state reacts to each event, writing deterministic simulation tests with ihsm/testing (makeTestActor, @mock, makeTestPort, TestPort), or working with makeHsm, TopState, transition, post, call, postNow, onEntry/onExit, restore, or @InitialState.
+description: Author hierarchical state machines with ihsm 0.1.1 the way mmkit/cbserver does — invariant-first design, the standard per-actor file layout (Config / Context / Invariants / Actor / Port + spawn factories), state nesting derived from invariant composition, the U/P/E/G/B handler verdict ladder, and deterministic mock-port tests (makeTestActor, @mock, restore, sync, port.send/advance). Use when creating or reviewing ihsm actors, deciding state hierarchy, classifying every (state × event) handler, writing *Invariants.ts, or modelling multi-actor networks (supervisor + connection + channels + readers).
 ---
 
-# Authoring ihsm state machines
+# Authoring ihsm state machines (0.1.1, mmkit conventions)
 
-`ihsm` models domain logic as **classes**: states are classes, events are methods,
-hierarchy is class inheritance, transitions are `this.transition(NextState)`, and the
-runtime is an **actor** with a serialized mailbox. A machine has a `Context` (domain
-data) and a `Protocol` (its event vocabulary). The library is built for **Deterministic
-Simulation Testing** — determinism is the design center, not an afterthought.
+`ihsm` models domain logic as **classes**: states are classes, the hierarchy is class
+inheritance, events are methods, transitions are `this.hsm.transition(Next)`, and the runtime
+is an **actor** with a serialized mailbox. Determinism is the design center.
 
-Do **not** start by writing classes. Author a machine in phases: event storming →
-protocol design → state chart → per-state decision matrix → implementation. The hard
-part is not the API, it is **factoring the hierarchy** so the right behaviour is
-selected for every (state, event) pair.
+In mmkit the design discipline is **invariant-first**: the state hierarchy is *derived from*
+the invariant lattice, and every `(state × event)` cell is classified with one of five handler
+verdicts. Do not start by writing classes — work the phases below.
 
-## Two semantics you must internalize
+Production import: `import * as ihsm from "ihsm"`. Tests only: `import * as ihsm from "ihsm/testing"`.
 
-These differ and drive every design decision:
+## Standard file layout (one actor)
 
-| Member | Inherited via prototype chain? | If a state omits it |
-|--------|--------------------------------|---------------------|
-| **Protocol methods** (`start`, `onData`, `getStatus`) | **Yes** | Dispatch walks up to a parent handler. If no ancestor defines it → `onUnhandled` |
-| **`onEntry` / `onExit`** | **No** | Only states with their *own* hook run it during a transition. A child never triggers a parent's `onEntry` automatically |
+Each actor is a directory of single-purpose files. Real example:
+`packages/server/src/cbserver/actors/server/`.
 
-So: omitting a protocol method = "delegate to parent (or be unhandled)". `onEntry`/`onExit`
-are per-state lifecycle, run only where explicitly defined along the transition path.
-
-## Phase 1 — Event storming
-
-An event storming phase should be done to try to collect all possible events that a
-State Machine must react to. List every signal from **outside** the machine — client
-commands, queries, and observations from the environment (OS, network, subprocess,
-timers). Do not invent internal sequencing events yet.
-
-## Phase 2 — Protocol design
-
-The `*Protocol` interface is the **user-facing mailbox**. It should only contain
-EXTERNAL EVENTS to make it clear to the user what a state machine reacts to. It must
-not carry actor-internal sequencing.
-
-Classify each storming result into exactly one kind:
-
-| Kind | Naming | Shape | Sent with | Posted by |
-|------|--------|-------|-----------|-----------|
-| **Command** | imperative verb (`start`, `stop`, `kill`) | `(payload...): void` | `post` (fire-and-forget) | clients |
-| **Query** | noun/`get*` | `(resolve, reject, payload...): Promise<void>` | `call` (sync request/response) | clients |
-| **Environment signal** | `on`-prefixed (`onData`, `onProcessExit`, `onPortReady`) | `(payload...): void` | `post` | the outside world / port layer |
-
-Rules:
-
-- **Commands should be imperative verbs.**
-- **External signal events should be prefixed with `on`.** Reserve `onEntry`/`onExit`
-  for state lifecycle — never put them on the protocol; use e.g. `onProcessExit`.
-- **Queries** use the `(resolve, reject, ...)` signature and return `Promise<void>`;
-  clients `await hsm.call('getStatus')` and receive a typed result.
-- Forbidden on the protocol: internal scheduling/lifecycle glue (`onFinishStop`,
-  `onPortNotReady`), and anything only the actor posts to itself. Internal follow-ups
-  use `this.post` / `this.postNow` / `this.deferredPost` from handlers instead.
-
-Litmus test: *would an external client or the environment post this?* If only the actor
-posts it to itself, it does not belong in the protocol.
-
-## Ports — the only channel to the outside world
-
-A **port** is the only possible way to allow the state machine to talk to the external
-world. All I/O — spawning processes, sockets, DB calls, file system, timers that matter —
-goes through a port interface; handlers never import `node:child_process`, `node:fs`, etc.
-directly.
-
-- **Ports must be passed when creating the context.** The `Context` holds the port(s);
-  `makeHsm(Top, new Ctx(port))`. Handlers reach them as `this.ctx.port`.
-- A port method that **generates external events** must require the calling state handler
-  to pass a **disposable event sink** — a minimal `post("on…")` forward target — and must
-  return a `Disposable`. The sink forwards environment signals back into the machine as
-  `on*` protocol events.
-- **The sink is per port call.** Each call gets its own sink and its own `Disposable`
-  subscription. The handler stores the disposable in `ctx` and disposes it on
-  exit/teardown; handlers ignore late events once the subscription is gone.
-
-```typescript
-interface Port {
-  kill(pid: number, signal: string): Promise<void>;            // awaited request, no events
-  spawn(spec: SpawnSpec, sink: EventSink,                      // generates events:
-        options?: SpawnOptions): Promise<{ pid: number; subscription: Disposable }>;
-}
-
-// EventSink mirrors exactly the on* members of the protocol; implemented by the Hsm itself.
-interface EventSink {
-  post(event: "onSpawn"): void;
-  post(event: "onData", stream: "stdout" | "stderr", chunk: string): void;
-  post(event: "onProcessExit", code: number | null, signal: string | null): void;
-  // … one overload per environment signal
-}
-```
-
-The real port wires OS callbacks to `sink.post("on…")`; in tests, a `@mock` port records
-outbound calls and the test settles internal `on*` events with `port.send("on…")` when
-ready — this is what makes testing deterministic.
-
-## Phase 3 — State chart and hierarchy
-
-States are classes extending `TopState<Ctx, Protocol>` or a parent state. Hierarchy must
-be designed to factor correctly which behaviour is selected: put a handler on the
-**lowest common ancestor** of every state that shares that reaction. Leaf-specific
-reactions go on the leaf.
-
-- Mark each composite's default child with the `@ihsm.InitialState` decorator on the
-  class (not `ihsm.InitialState(Class)` at the module bottom).
-- Top state: queries / always-valid handlers only; no environment `on*`.
-- Intermediate state: shared reactions (e.g. an `ProcessObserving` parent that buffers
-  `onData` for all running phases).
-- Leaf state: phase-specific lifecycle reactions.
-
-## Phase 4 — Decision matrix (the core step)
-
-Then for each protocol method, for each state, a proper decision must be taken and
-documented. Every cell resolves to exactly one of:
-
-- **must be unhandled** — the event cannot legitimately arrive here; let it reach
-  `onUnhandled` (fatal — default throws `UnhandledEventError`). Achieved by omitting the
-  method *and* having no ancestor define it. Use when arrival is a **protocol bug** that
-  must surface loudly.
-- **must delegate to parent (not implemented)** — omit the method on this state so the
-  parent's handler runs via prototype inheritance.
-- **must be empty** — define `method() {}`. Use when the event **can** arrive (duplicate
-  client command, orphaned timer, late port callback after unsubscribe) but must be
-  swallowed without crashing — optionally log a warning inside the empty body. Not
-  decoration: every empty override needs a documented reason.
-- **must implement proper behaviour for reliability** — when the event can arrive in
-  production and ignoring it or crashing would be wrong (e.g. `onData` after teardown
-  should be dropped with a guard, not unhandled; `onProcessExit` in `Stopped` might need
-  explicit cleanup). Prefer guarding in `ctx` over empty swallow when state matters.
-- **must implement a proper behaviour** — define the handler: mutate `ctx`, and/or
-  `this.transition(Next)`.
-
-Write the matrix down (a table of states × protocol methods) and record the choice and
-reason for each cell before coding. See [reference.md](reference.md) for a filled
-template and a worked example.
-
-## Phase 5 — Implementation rules
-
-- `transition()` is **scheduled**; it runs after the current handler returns. Only the
-  last call in a handler wins.
-- **Never** call `transition()` at the end of an async `onEntry` — the runtime clears a
-  transition requested inside `onEntry`/`onExit`. Instead `post` an `on*` event that
-  reflects a real external observation, and transition from that handler.
-- `ctx` is **data only** (buffers, ids, flags), mutated from state handlers; no logic or
-  thin helper methods on it.
-- Create with `makeHsm(TopState, ctx, initialize?)`. In Node, class names are preserved,
-  so do not call `registerStateNames`; enable `experimentalDecorators` in `tsconfig.json`.
-
-## Phase 6 — Deterministic Simulation Testing (DST)
-
-**Determinism is the whole point of using a state machine.** ihsm is built for
-[Deterministic Simulation Testing](https://filasieno.github.io/ihsm/testing): the same
-inputs always produce the same outputs, and a failure replays exactly. Concurrency is
-serialized (run-to-completion dispatch + `await sync()` barriers); wall-clock time,
-ambient randomness, and real I/O are virtualized behind the **`Port`** seam.
-
-Production imports `ihsm`; tests import **`ihsm/testing`** — a separate entry point that
-never ships in production bundles:
-
-```typescript
-import { makeHsm, TopState } from 'ihsm';                              // production
-import { makeTestActor, makeTestPort, mock, TestPort } from 'ihsm/testing'; // tests only
-```
-
-### Test surfaces
-
-| Tool | Role |
+| File | Role |
 |------|------|
-| **`makeTestActor`** | White-box actor: merged public + internal protocol, typed `port`, `subscribe()` for golden traces |
-| **`@mock` + `makeTestPort`** | Scriptable port stubs — `port.method.default(impl)`, `.once(impl)`, `.calls` |
-| **`TestPort`** | Virtual clock (`advance(ms)`), scripted random (`feedRandom`, `feedUUID`), `record` / `trace` |
-| **`restore(state, ctx)`** | Place the machine in any state without running `onEntry`/`onExit` |
-| **`port.send(event, …)`** | Push internal `on*` events inward when the test decides |
-| **`await sync()`** | Drain the mailbox — the determinism barrier between steps |
+| `<Name>Config.ts` | Sub-interfaces (`services` / `notifications` / `internalNotifications` / `port`) → one `<Name>MachineConfig`; the **empty** `TopState`; actor + port type aliases |
+| `<Name>Context.ts` | Mutable context class (`I<Name>Context`) + cross-actor wait helpers (`waitFor*Bootstrap`, `waitFor*Answer`) |
+| `<Name>Invariants.ts` | `assert*(ctx)` predicate chain; **JSDoc is the canonical state documentation** (Why / How checked / Inherited by) |
+| `<Name>Actor.ts` | State classes, hierarchy comment block, handler bodies, `registerStateNames` |
+| `<Name>Port.ts` | Production `ihsm.Port<typeof Top>`; binds environment → `this.actor.notify.on*`; domain I/O + child-spawn methods |
+| `spawn<Child>Child(ren).ts` | Child-spawn factories (sibling files; **not** `arms/`), invoked via `this.hsm.port.*` |
 
-Two rules: **never perform I/O outside a port**, and **never `sleep()` on wall-clock
-time** — call `port.advance(ms)` and `await sync()` instead.
+Network-level docs live beside the actors: `STATE-MACHINE-REPORT.md` (index → invariants),
+`EVENT-COVERAGE-REPORT.md` (every Node event → notify → handler verdict), and a handler matrix
+doc. Tests: `test/<area>/*.mock.test.ts` (fast, default) and `*.real.test.ts` (gated).
 
-### Mechanical exhaustive testing (mandatory strategy)
+Enable `experimentalDecorators` in `tsconfig.json`.
 
-Do **not** improvise a handful of scenario tests. Use a **mechanical but reliable**
-strategy that systematically covers the state × event surface. Because dispatch is
-serialized and the port is scripted, every test is deterministic — no flakes, no races.
+## The Config bag and facets
 
-**Algorithm — BFS over reachable states:**
+One `<Name>MachineConfig` drives all typing. Split it into named sub-interfaces:
 
-1. **Create the machine** — `makeTestActor(Top, freshCtx(), makeTestPort(MockPort))`.
-   Pass `{ initialize: false }` when you will `restore()` states directly.
-2. **Enumerate every state class** under the root (all exported state classes).
-3. **Seed a worklist** with the `@InitialState` leaf.
-4. **Loop until the worklist is empty:**
-   - **Dequeue** a state `S`.
-   - **List every event** that can arrive in `S` — all commands, queries, and
-     environment `on*` from the Phase 4 decision matrix (public + internal where the
-     port drives them).
-   - **Create one test per event** `E`:
-     - `sm.restore(S, freshCtx())` — place the machine (fresh ctx per test).
-     - Script port stubs (`port.method.default(…)`) so outbound calls succeed
-       deterministically; do **not** auto-deliver responses unless the scenario needs it.
-     - Fire `E` — `sm.post(…)`, `await sm.call(…)`, or `port.send('on…', …)` for
-       port-driven signals.
-     - `await sm.sync()` — barrier.
-     - **Assert** the documented outcome (state, `ctx`, `port.trace`, unhandled).
-     - If `E` lands in state `T` not yet visited, **enqueue `T`**.
-5. Repeat until every reachable state has been dequeued and every event tested.
-
-This produces a **large set of tests following all reachable paths**. A missing
-(state × event) test is a **missing design decision** from Phase 4.
-
-### Negative smoke tests (after the worklist)
-
-When the BFS pass is complete, run a **second pass over the full cartesian product**
-(state × protocol event) — not only reachable paths. For every cell marked **must not
-be received** in Phase 4 (or not yet decided), fire the event anyway as a **smoke test**
-(`restore(S)` → post/call/send `E` → `await sync()`). Observe what actually happens,
-then **choose and document** one of three strategies:
-
-| Strategy | When to choose | Implementation | Test asserts |
-|----------|----------------|----------------|--------------|
-| **Fatal unhandled** | Arrival means a client/protocol bug; must never be silent | Omit handler (no ancestor defines it) → `onUnhandled` / `UnhandledEventError` | `dispatchErrorCallback` receives error; state unchanged |
-| **Empty swallow + warning** | Event can legitimately arrive but must be ignored (duplicate command, idempotent retry, orphaned `deferredPost`) | `method() { log.warn(…); }` — blocks inherited handler | state and `ctx` unchanged; optional trace/log line |
-| **Implement for reliability** | Event can arrive in production and wrong handling causes bugs (late port signal, race with teardown, partial cleanup) | Guard in handler (`if (!ctx.subscription) return;`) or explicit transition/cleanup | documented state/`ctx` outcome; machine stays consistent |
-
-Do **not** leave negative cells implicit. If smoke test reveals the current code throws
-but production can deliver the event, **fix the matrix** — either add an empty override
-or implement proper handling; do not ship accidental fatals. If smoke test passes
-silently via parent delegation but the event should be fatal here, add an empty override
-to block inheritance or move the handler.
-
-Prefer **golden traces** (`port.trace`, `test.subscribe(m => port.record(…))`) alongside
-final state — two runs with the same inputs must yield byte-identical traces.
-
-### Decision matrix → test assertions
-
-| Documented outcome | Assertion |
-|--------------------|-----------|
-| implement behaviour | resulting state and/or `ctx` mutation; port calls in `port.method.calls` |
-| empty no-op | state and `ctx` unchanged |
-| delegate to parent | the parent's behaviour is observed |
-| unhandled | `onUnhandled` fired or `UnhandledEventError` via `dispatchErrorCallback` |
-
-### Mock port pattern
+| Bucket | Handler shape | Client / caller facet | Members |
+|--------|---------------|-----------------------|---------|
+| `services` | `async …(): Promise<T>` | `await actor.call.*` | queries, `initialize` |
+| `notifications` | `method(): void` | `actor.notify.*` | external commands (`start`, `stop`, `close`, `dispatch*`) |
+| `internalNotifications` | sync `on*` / `do*` | port posts `on*`; handlers post `do*` | environment events + internal glue |
+| `port` | methods on `Port` subclass | `this.hsm.port.*` | I/O, `spawn`, `kill`, child-spawn factories |
+| `context` | mutable data | `ctx` / `this.ctx` | ids, queues, flags, child handles |
 
 ```typescript
-@mock
-abstract class MockSupervisorPort extends TestPort<SupervisorTop> {
-  abstract spawn(spec: SpawnSpec): ResultWithSubscription<number>;
-  abstract kill(pid: number, signal: string): Promise<void>;
+// <Name>Config.ts
+export interface CBConnectionMachineConfig {
+  context: ICBConnectionContext;
+  services: CBConnectionServices;            // await actor.call.*
+  notifications: CBConnectionNotifications;   // actor.notify.*  (e.g. close())
+  internalNotifications: CBConnectionInternalNotifications; // on* (env) + do* (glue)
+  port: CBConnectionPort;                     // this.hsm.port.* (spawnCommandChannel, …)
 }
-
-const port = makeTestPort(MockSupervisorPort);
-port.spawn.default(() => ({
-  value: 1234,
-  subscription: { dispose: () => port.record('dispose') },
-}));
-
-const sm = makeTestActor(SupervisorTop, new Ctx(port), port, { initialize: false });
-sm.restore(Running, ctx);
-sm.post('onProcessExit', 0, null);
-await sm.sync();
-expect(sm.currentStateName).to.equal('Stopped');
+export type CBConnectionActor = ihsm.ChildActor<CBConnectionMachineConfig>;
+export type CBConnectionActorRef = ihsm.InboundActor<CBConnectionMachineConfig>;
+export type CBConnectionActorHandle = ihsm.ExternalActor<CBConnectionMachineConfig>;
+export class CBConnectionTop extends ihsm.TopState<CBConnectionMachineConfig> {
+  protected _checkInvariant(): void {}
+}
 ```
 
-**Cardinal rule:** port stubs record outbound calls and return handles synchronously; the
-test settles internal events with `port.send('on…')` when ready. One mock serves every
-scenario (happy path, slow reply, error, cancellation).
+Classify each storming result: **command** → `notifications`; **query** → `services`;
+**environment observation** → `internalNotifications` `on*`; **internal scheduling glue** →
+`internalNotifications` `do*` (posted only from handlers via `this.notify.doX()`); **I/O** →
+`port`. Litmus for `on*` vs `do*`: *would the outside world post this?* If only the actor
+schedules it, it is `do*`.
 
-See [reference.md](reference.md) for runtime gotchas, a worked supervisor example, and
-restore-based test templates.
+Handlers use `this.notify.x()` / `this.notifyNow.x()` (priority), `this.hsm.transition(S)`,
+`this.hsm.port.*`, `this.hsm.currentStateName`. Services return `Promise<T>` or throw.
 
-## Quick API reference
+## Two dispatch semantics (internalize these)
+
+| Member | Inherited via prototype? | If a state omits it |
+|--------|--------------------------|---------------------|
+| Protocol handlers (`start`, `onData`, `initialize`, …) | **Yes** | walks up to first ancestor that defines it; else `onUnhandled` (default throws `UnhandledEventError`) |
+| `onEntry` / `onExit` | **No** | only states that define their *own* hook run it |
+
+So **omitting** a handler delegates to the parent; an **empty override** `m() {}` swallows the
+event *here* and blocks the inherited handler.
+
+## Invariants are the design center
+
+`<Name>Invariants.ts` holds pure `assert<State>(ctx)` predicates. **Deeper asserts call
+shallower ones first**, so a child's invariant is a strict superset of its parent's:
+
+```typescript
+export function assertProcessActive(ctx: ICBServerContext): void {
+  assertProcessObserving(ctx);   // parent invariant must already hold
+  assertLogReadersArmed(ctx);    // plus the child-specific predicate
+}
+export function assertRunning(ctx: ICBServerContext): void {
+  assertProcessActive(ctx);      // Running ⊃ ProcessActive ⊃ ProcessObserving ⊃ Initialized
+  if (ctx.serverMailbox === undefined) throw new Error("…");
+}
+```
+
+JSDoc on each `assert*` is the **canonical documentation** — record *Why* the invariant holds,
+*How checked*, and *Inherited by*. Do not duplicate this in field tables elsewhere.
+
+**Nesting rule (the key design decision):** nest state `Child` under `Parent` **iff**
+`assertChild` ⊇ `assertParent` (Child holds every Parent predicate plus more). The class
+hierarchy must equal the invariant lattice. Do **not** nest merely to share code — nest only
+when invariants compose. Factor shared handlers onto the **lowest** state whose invariant
+guarantees they are safe (e.g. stdio forwarding lives on `ProcessStdioForwarding`, whose
+invariant requires log-reader children to be armed).
+
+Handler discipline:
+- Every handler/service calls `this._checkInvariant()` **before** mutating context.
+- Each leaf `_checkInvariant()` delegates to exactly one `inv.assert<State>(this.ctx)`.
+- `onEntry`/`onExit` end with `inv.assert<State>(this.ctx)` **directly** — not
+  `this._checkInvariant()` (the runtime may still report the source leaf mid-transition).
+- Teardown glue (`doFinalizeClose`, `doBreakTransport`) may skip strict leaf invariants.
+
+## The handler verdict ladder — classify every (state × event)
+
+For each reachable `(state × event)`, choose exactly one verdict and document it. This is the
+core of correct design: the same event gets a *different* verdict in different states.
+
+| Code | Verdict | How to implement | Test asserts |
+|------|---------|------------------|--------------|
+| **P** | **Delegate to parent** | **Omit** the method — inherit the ancestor handler | event handled by ancestor; never duplicate the parent's body in the child |
+| **B** | **Real behaviour** | implement: mutate `ctx`, `transition`, post `do*` | documented state change / output |
+| **E** | **Empty swallow** | `m() { this._checkInvariant(); }` — optionally `cbTrace("actor:ignored-x", …)` to warn | no state/`ctx` change; warning observable if late event |
+| **G** | **Guard throw** (client error) | `throw new Error("illegal state: …")` | rejected call / thrown error, machine unchanged |
+| **U** | **Unhandled → fatal** | implement **nowhere** up the chain | `UnhandledEventError` via `dispatchErrorCallback` |
+
+**P — "never have parent and child with the same implementation."** If a child would do exactly
+what the parent does, *omit* it (P). Duplicating the body is a bug: it desynchronizes silently.
+
+**B** is the only verdict that changes state.
+
+**E** is for an event that can legitimately *arrive* in this state but must be ignored — e.g.
+`start()` while already `Starting`/`Running` (idempotent no-op), or a late `onStdoutLine` after
+detach. When the arrival is *surprising but harmless*, emit a warning (`cbTrace(...)`) inside
+the empty body so it is observable, then return.
+
+**G** is for a client API used in the wrong phase — a caller error, not a protocol violation:
+`createConnection` outside `Running`, `close()` before the connection is ready. Throw a clear
+`illegal state` error; the client sees a rejected promise.
+
+**U** is a true protocol violation that must *never* occur if the model is correct (e.g.
+`onProcessExit` when no process was ever spawned). Leave it unhandled so it crashes loudly in
+tests. Every U (and every E) cell gets a dedicated negative smoke test.
+
+> The user-facing ladder, in order: **P** (omit → parent) → **B** (behaviour) →
+> **E** (empty, warn if surprising) → **G** (fatal client error / throw) →
+> **U** (implemented nowhere → unhandled).
+
+## Authoring phases
+
+1. **Event storming** — list every external signal: client commands/queries + environment
+   observations (subprocess, socket, timers, child-actor callbacks).
+2. **Config bag** — classify each into a facet (table above); name `on*` vs `do*` precisely.
+3. **Invariants** — write the `assert*` predicates and their composition chain *first*. The
+   chain defines the state hierarchy.
+4. **State chart** — derive nesting from invariant composition; `@ihsm.InitialState` on the
+   bootstrap leaf and on the default leaf under each composite. Put a hierarchy comment at the
+   top of `<Name>Actor.ts`.
+5. **Decision matrix** — fill one verdict (U/P/E/G/B) per `(state × event)` with a one-line
+   reason *before* coding. See [reference.md](reference.md).
+6. **Implement** — handlers call `_checkInvariant()`; `onEntry` ends with `inv.assert*`.
+7. **Test** — mock-port BFS over the matrix, then negative smoke tests, then optional real.
+
+## Nested actor networks
+
+Real systems are **trees of actors**. A parent composes children via a **port factory** so
+tests can mock spawning — never call `makeChildActor` from a handler directly.
+
+```typescript
+// CBServerPort.ts — spawn method delegates to the factory file
+async armLogReaders(server: CBServerActorRef) {
+  return spawnLogReaderChildren(server as never as ihsm.ParentActor<typeof CBServerTop>, server);
+}
+// Running handler
+this.ctx.children = await this.hsm.port.armLogReaders(server);
+```
+
+Each `spawn<Child>Child(ren).ts` factory must:
+
+1. **Import `<Child>Actor.ts`** (the actor module, not config-only) so `registerStateNames`
+   runs and `call.initialize` exists.
+2. `ihsm.makeChildActor(asParentActor(parent), ChildTop, ctx, childPort, { initialize: false })`.
+3. `child.hsm.restore(InitialLeaf, ctx)` on the leaf that owns `initialize()`.
+4. `await child.call.initialize()` inside the factory.
+5. Return the child handle.
+
+Typical cbserver network: `CBServer` supervisor → stdout/stderr log readers + N `CBConnection`
+orchestrators; each connection → command channel + notification channel (each channel → TCP
+reader/writer). Messaging: parent→child void = `child.notify.x()`; parent→child service =
+`await child.call.x()` (in a factory, never inside another `services` handler); child→parent =
+`parent.notify.onX()` via a context mailbox.
+
+## Run-to-completion (RTC) rules — these caused real bugs
+
+1. `initialize()` must **not** await bootstrap. Set up the mailbox, transition to connecting;
+   the client awaits `waitForConnectionBootstrap(ctx)` *outside* the service.
+2. Never `await child.call.*` or `actor.hsm.sync()` inside a `services` handler — isolate
+   spawn+init in a port factory.
+3. Void commands are `notifications` (`notify.dispatchPwd()`), never `call`.
+4. Never finish an async `onEntry` with `transition()` — post an `on*`/`do*` and transition
+   from its handler. Only the **last** `transition()` in a handler wins.
+5. Production port binds env → `this.actor.notify.on*()`.
+
+## Deterministic testing (mock layer — mandatory)
+
+```typescript
+import * as ihsm from "ihsm/testing";
+
+@ihsm.mock("spawn", "kill", "armLogReaders", "spawnConnection")
+abstract class MockCBServerPort extends ihsm.TestPort<typeof CBServerTop> {
+  abstract spawn(config: CBServerConfig): Promise<ihsm.ResultWithSubscription<number>>;
+  abstract kill(pid: number, signal?: NodeJS.Signals): Promise<void>;
+  // …
+}
+
+const port = ihsm.makeTestPort(MockCBServerPort);
+port.spawn.default(async () => ({ value: 1234, subscription: { dispose() {} } }));
+
+const actor = ihsm.makeTestActor(CBServerTop, ctx, port);
+actor.hsm.restore(Uninitialized, ctx);     // place precisely, no lifecycle hooks
+await actor.call.initialize();
+await actor.hsm.sync();
+actor.notify.start();
+await actor.hsm.sync();
+```
+
+- `port.<m>.default(impl)` / `.once(impl)` script stubs; `port.send("onProcessExit", 0, null)`
+  injects an environment event when the test is ready (do **not** auto-fire `on*` from a stub).
+- `port.advance(ms)` drives virtual timers — never wall-clock `sleep`.
+- `port.record(...)` / `port.calls` / `actor.subscribe(...)` build byte-identical golden traces.
+- **BFS the matrix:** `restore(S)` → fire `E` → `await sync()` → assert verdict; enqueue new
+  destination states. Then negative smoke tests for every U and E cell (a U cell asserts
+  `UnhandledEventError` via a `dispatchErrorCallback` option).
+- Real integration: separate `*.real.test.ts`, gated on a binary env var, short timeouts; same
+  actor API, only the port is real.
+
+## Quick API reference (0.1.1)
 
 ```typescript
 import * as ihsm from "ihsm";
+const actor = ihsm.makeActor(CBServerTop, ctx, new CBServerPort());
+actor.notify.start();
+await actor.hsm.sync();
+const id = await actor.call.getConnectionId();
 
-interface DoorProtocol {
-  open(): void;                                                   // command
-  close(): void;                                                  // command
-  getOpenCount(resolve: ihsm.ResolveCallback<number>,            // query
-               reject: ihsm.RejectCallback): void;
-  onJam(reason: string): void;                                    // environment signal
+// inside a state class:
+start(): void { this._checkInvariant(); this.hsm.transition(Starting); }   // B
+stop(): void  { this._checkInvariant(); }                                  // E
+async createConnection(): Promise<never> {                                 // G
+  this._checkInvariant();
+  throw new Error(`illegal state: createConnection not allowed in ${this.hsm.currentStateName}`);
 }
-
-class DoorTop extends ihsm.TopState<DoorCtx, DoorProtocol> {
-  getOpenCount(resolve: ihsm.ResolveCallback<number>): void { resolve(this.ctx.openCount); }
-}
-
-@ihsm.InitialState
-class Closed extends DoorTop {
-  open(): void { this.ctx.openCount++; this.transition(Open); }
-  close(): void {}                       // empty: expected no-op, avoids onUnhandled
-}
-
-class Open extends DoorTop {
-  close(): void { this.transition(Closed); }
-  // open omitted: delegates to DoorTop (unhandled) — opening an open door is a bug
-}
-
-const door = ihsm.makeHsm(DoorTop, { openCount: 0 });
-door.post("open");
-await door.sync();                       // drain mailbox
-const n = await door.call("getOpenCount");
+// (omit a method entirely = P; implement nowhere = U)
+onEntry(): void { this.notifyNow.doStart(); inv.assertSpawnPending(this.ctx); }
 ```
 
-Messaging: `post` (fire-and-forget), `call` (typed `await`ed request/response),
-`deferredPost(ms, ...)` (timer then post), `this.postNow` (hi-priority, handler-only),
-`sync()` (drain queue, client/test only).
+| Client | Handler self | Priority |
+|--------|--------------|----------|
+| `actor.notify.x()` | `this.notify.x()` | default queue |
+| `actor.notifyNow.x()` | `this.notifyNow.x()` | priority queue (drains first) |
+| `await actor.call.x()` | — (services on leaves) | awaited service |
+| `await actor.hsm.sync()` | — | drain mailbox |
+| `actor.hsm.restore(S, ctx)` | — (tests) | place without lifecycle hooks |
 
-For full runtime semantics, the decision-matrix template, and a worked subprocess-
-supervisor example, see [reference.md](reference.md).
+`registerStateNames({ Top })` then `registerStateNames(self)` at the bottom of `<Name>Actor.ts`.
+
+For the decision-matrix template, invariant-chain example, full spawn factory, worked
+supervisor+connection example, BFS generation, and negative smoke tests, see
+[reference.md](reference.md).

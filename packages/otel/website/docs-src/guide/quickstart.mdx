@@ -1,0 +1,109 @@
+---
+title: Quick start (production)
+sidebar_label: Quick start
+slug: /guide/quickstart
+sidebar_position: 2
+description: Wire ihsm actors to real OpenTelemetry traces and logs with a single call.
+---
+
+# Quick start (production)
+
+`@ihsm/otel/node` turns ihsm telemetry into real OpenTelemetry traces and logs and ships them to any
+OTLP collector. Integration is **one call**.
+
+```typescript
+import { makeActor, Port } from 'ihsm';
+import { startOtelNode } from '@ihsm/otel/node';
+
+// 1. Start the SDK — OTLP/HTTP exporters, AlwaysOn sampling, server resource attributes.
+//    This also registers the collector globally: tracing is a cross-cutting concern.
+const otel = startOtelNode({
+  serviceName: 'my-service',
+  endpoint: 'http://localhost:4318', // default; or OTEL_EXPORTER_OTLP_ENDPOINT
+});
+
+// 2. Create actors as usual — no tracing argument. Every actor (and its children) spawned while
+//    the collector is registered is observed automatically.
+const actor = makeActor(AppTop, ctx, new Port(), { initialize: true });
+
+// 3. Run your app. Every macrostep becomes a trace; transitions, steps and errors become spans.
+// …
+
+// 4. On shutdown, flush and unregister the collector.
+await otel.shutdown();
+```
+
+That is the whole integration. No prototype patching, no changes to your handlers, no tracing
+parameters threaded through your code, and **zero cost when no collector is registered** — ihsm core
+stays OpenTelemetry-agnostic.
+
+## What you get
+
+| ihsm concept | OpenTelemetry |
+|--------------|---------------|
+| one macrostep (a full dispatch cycle) | one **trace**, rooted at a span named `<ActorName>.<handler>` (e.g. `Order.submit`) |
+| each microstep (RTC turn) | an `ihsm.step` child span, ordered by start time |
+| a transition | an `ihsm.transition` child span (`ihsm.transition.from` / `.to`) |
+| an error | span status `ERROR` + `recordException` + `ihsm.error.kind/phase` |
+| every span | Tier-1 attributes (`ihsm.actor.uuid`, `ihsm.actor.name`, `ihsm.state`) |
+| lifecycle + errors | trace-correlated OTLP **logs** (carry `trace_id` / `span_id`) |
+
+See [Reference → Attributes](/reference/attributes) for the full schema and
+[Reference → Model](/reference/model) for the normative trace shape.
+
+## Configuration
+
+`startOtelNode(config)` accepts:
+
+| Option | Default | Meaning |
+|--------|---------|---------|
+| `serviceName` | *(required)* | `service.name` resource attribute |
+| `serviceVersion` | `'0.0.0'` | `service.version` |
+| `endpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` or `http://localhost:4318` | OTLP/HTTP base (no path) |
+| `tracesUrl` / `logsUrl` | `${endpoint}/v1/traces` · `/v1/logs` | full URL overrides |
+| `headers` | – | extra OTLP headers (auth) |
+| `console` | `false` | also export spans/logs to the console |
+| `useSimpleProcessors` | `false` | synchronous processors (handy for short scripts/tests) |
+| `sampler` | `ParentBased(AlwaysOn)` | trace sampler (100% by default) |
+| `lifecycleLogs` | `true` | emit a derived INFO/error log per macrostep |
+| `clock` | `'wall'` | set `'virtual'` under deterministic simulation |
+| `resourceAttributes` | – | extra resource attributes |
+
+The returned bundle also exposes `instrumentation`, `tracer`, `logger`, `tracerProvider`,
+`loggerProvider`, `forceFlush()`, `unregister()`, and `shutdown()` for advanced wiring. `shutdown()`
+unregisters the collector automatically; call `unregister()` directly if you want to stop tracing
+new actors without tearing down the SDK.
+
+## Verify in Grafana
+
+With the [grafana/otel-lgtm](https://github.com/grafana/docker-otel-lgtm) dev stack running, query:
+
+- **Tempo (traces):** `{ resource.service.name = "my-service" }`, or filter failures with
+  `{ .ihsm.outcome = "error" && status = error }`, or find a specific actor with
+  `{ .ihsm.actor.uuid = "…" }`.
+- **Loki (logs):** `{service_name="my-service"}` — each line carries `trace_id`, `span_id`, and the
+  `ihsm_*` structured metadata, so you can pivot from a log straight to its trace.
+
+A complete runnable example lives at `examples/grafana-demo.ts` in the package.
+
+## Custom SDK wiring
+
+If you already own a `TracerProvider` / `LoggerProvider`, skip `startOtelNode` and build the
+instrumentation directly from the isomorphic core, then register it globally with ihsm's
+`registerCollector()`:
+
+```typescript
+import { makeActor, Port, registerCollector } from 'ihsm';
+import { createOtelInstrumentation } from '@ihsm/otel';
+
+const instrumentation = createOtelInstrumentation({
+  tracer: myTracerProvider.getTracer('@ihsm/otel/runtime'),
+  logger: myLoggerProvider.getLogger('@ihsm/otel/runtime'),
+});
+
+const unregister = registerCollector(instrumentation); // tracing is now globally enforced
+const actor = makeActor(AppTop, ctx, new Port(), { initialize: true });
+// … later, to stop tracing new actors: unregister();
+```
+
+This is also how the [browser entry point](/guide/quickstart-browser) is assembled internally.

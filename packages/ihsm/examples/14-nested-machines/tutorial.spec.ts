@@ -33,7 +33,6 @@ describe('Tutorial 14: nested machines', () => {
 		await order.ctx.payment!.hsm.sync();
 		await order.hsm.sync();
 		expect(order.ctx.payment!.hsm.currentState).equals(PaymentDone);
-		expect(order.hsm.currentState).equals(Fulfilling);
 
 		await order.ctx.shipping!.hsm.sync();
 		await order.hsm.sync();

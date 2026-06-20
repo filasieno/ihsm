@@ -17,18 +17,20 @@ The **git repo root** only keeps shared infra:
 
 Develop and publish from **`packages/ihsm/`** (same commands as before, different cwd).
 
-## Phase 2 — in progress: `@ihsm/core`
+## Phase 2 — `@ihsm/core` and `@ihsm/otel`
 
 [`core/`](core/) is published as **`@ihsm/core`** — a thin re-export of `ihsm`, `ihsm/testing`, and `ihsm/transition-routines` (same semver, depends on `ihsm@<version>`). The unscoped **`ihsm`** package remains the implementation and primary install path.
+
+[`otel/`](otel/) is published as **`@ihsm/otel`** — OpenTelemetry bridge for ihsm's `Instrumentation` seam (`@ihsm/otel/node`, `@ihsm/otel/browser`, `@ihsm/otel/testing`). Peer-depends on `ihsm`.
 
 ```ts
 import { makeHsm } from 'ihsm';              // unchanged
 import { makeHsm } from '@ihsm/core';        // scoped alias
 import { TestPort } from '@ihsm/core/testing';
-import { executeTransitionRoutine } from 'ihsm/transition-routines';
+import { startOtelNode } from '@ihsm/otel/node';
 ```
 
-Release (`.github/workflows/release.yml`) publishes **`ihsm`** then **`@ihsm/core`** on every tag.
+Release (`.github/workflows/release.yml`) publishes **`ihsm`**, then **`@ihsm/core`**, then **`@ihsm/otel`** on every tag (all three `package.json` versions must match the tag).
 
 ### `@ihsm/tools` (in progress)
 

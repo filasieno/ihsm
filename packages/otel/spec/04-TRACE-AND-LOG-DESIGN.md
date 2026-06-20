@@ -15,12 +15,12 @@ Borrowing statechart vocabulary, made precise for ihsm's serialized mailbox:
 
 | Term | Definition | OTEL mapping |
 |------|------------|--------------|
-| **Microstep** | One run-to-completion turn: the runtime dequeues one event, runs its handler, and runs the resulting transition (`onExit`…`onEntry`). May be async (awaits I/O). May enqueue further events. | one `ihsm.step` span |
-| **Macrostep** | The transitive closure of one *triggering* stimulus: the first microstep plus every microstep that the stimulus's cascade enqueues, run until the mailbox is **drained** and the actor is **stable** (no immediately-runnable task). | one **trace** (root span `ihsm.macrostep`) |
+| **Microstep** | One run-to-completion turn: the runtime dequeues one event, runs its handler, and runs the resulting transition (`onExit`…`onEntry`). May be async (awaits I/O). May enqueue further events. | one `execute ...` span |
+| **Macrostep** | The transitive closure of one *triggering* stimulus: the first microstep plus every microstep that the stimulus's cascade enqueues, run until the mailbox is **drained** and the actor is **stable** (no immediately-runnable task). | one **trace** (root span named `<ActorName>.<handler>`) |
 | **Stable** | After a microstep completes, the default and priority queues are empty. Tasks scheduled for the *future* (timers, `defer`) do **not** keep the macrostep open. | closes the root span |
 
 So: **one external event → one macrostep → one trace.** A `tell` that triggers a parse that
-posts a `frameReady` that drives three transitions is **one trace** with several `ihsm.step`
+posts a `frameReady` that drives three transitions is **one trace** with several `execute ...`
 children — not several traces.
 
 ### 4.1.1 Macrostep ownership of enqueues (the precise rule)
@@ -30,7 +30,7 @@ executing**:
 
 - Enqueue happens **while a microstep of macrostep M is running** (a handler/hook calls
   `this.notify.x()` / `notifyNow` / a synchronous `defer(0)`): the new task **belongs to M**. It
-  becomes a later `ihsm.step` in M's trace.
+  becomes a later `execute ...` in M's trace.
 - Enqueue happens **while the actor is idle** (an external caller invokes `actor.notify.x()` or
   `actor.call.x()` between macrosteps): it **starts a new macrostep** (new trace), linked to its
   cause if that cause is known (e.g. a sending actor — §4.7).
@@ -51,27 +51,29 @@ implemented by the core hook in doc 5.
 A macrostep produces this tree (children present according to `TraceLevel`, §4.8):
 
 ```
-ihsm.macrostep #onSocketData                         ← ROOT — the whole cascade, one trace
+Reader.onSocketData                                  ← ROOT — the whole cascade, one trace (named <ActorName>.<handler>)
 │   actor.uuid, actor.name, trigger, state.start→state.end, steps, transitioned, outcome
-├── ihsm.step #onSocketData            (seq 0)       ← microstep 1 (the trigger)
+├── ihsm.step #onSocketData                          ← microstep 1 (the trigger)
 │   │   event, state, handler.state, verdict
 │   ├── ihsm.port write                              ← awaited I/O the handler performed
 │   └── ihsm.transition Reading → Parsing
 │       ├── ihsm.exit  Reading
 │       └── ihsm.entry Parsing
-├── ihsm.step #doParseFrame            (seq 1)       ← microstep 2 (self-posted by seq 0)
-│   └── …                                              └─ LINK ← caused-by seq 0
-└── ihsm.step #onFrameReady            (seq 2)       ← microstep 3
+├── ihsm.step #doParseFrame                          ← microstep 2 (self-posted by step 1)
+│   └── …                                              └─ LINK ← caused-by previous step
+└── ihsm.step #onFrameReady                          ← microstep 3
     └── ihsm.transition Parsing → Reading
         ├── ihsm.exit  Parsing
         └── ihsm.entry Reading                       ← machine stable here → root ends
+
+Sibling ihsm.step spans are ordered by start time (startTimeUnixNano); no sequence is emitted.
 ```
 
 Span roles:
 
 | Span | Represents | Kind |
 |------|-----------|------|
-| `ihsm.macrostep {trigger}` | the full dispatch until stability — **the trace root** | see §4.3 |
+| `{ActorName}.{trigger}` | the full dispatch until stability — **the trace root** (e.g. `Order.submit`) | see §4.3 |
 | `ihsm.step {event}` | one RTC turn (handler execution + its transition) | `INTERNAL` |
 | `ihsm.transition {from}→{to}` | the LCA exit/entry walk | `INTERNAL` |
 | `ihsm.exit {state}` / `ihsm.entry {state}` | one `onExit` / `onEntry` action | `INTERNAL` |
@@ -79,7 +81,7 @@ Span roles:
 | `ihsm.service {name}` | an awaited `call` the actor is *serving* | `INTERNAL`/`SERVER` (§4.3) |
 | `ihsm.await {target}` | in the **caller**: the suspension while awaiting another **actor's** `call` — the cross-actor "await path" (§4.7) | `CLIENT` |
 
-Names are **low-cardinality templates**; identity lives in attributes (§4.4–4.5), never the name.
+Names are **low-cardinality templates** — the root is `<ActorName>.<handler>`, children are `ihsm.*` templates; richer identity (uuids, states, ids) lives in attributes (§4.4–4.5), never the name.
 
 ---
 
@@ -97,7 +99,7 @@ The root span's kind encodes *what woke the actor*:
 
 The macrostep root is **always a new trace root**, never a child of the caller; callers and
 callees are joined by bidirectional links (§4.7), not by nesting. A port call that performs
-network/process I/O, and the caller-side `ihsm.await` span, are `CLIENT`. All other ihsm spans are
+network/process I/O, and the caller-side `call` span, are `CLIENT`. All other ihsm spans are
 `INTERNAL`.
 
 ---
@@ -168,7 +170,6 @@ is *additive context*, not required for correlation.
 | macrostep | `ihsm.steps` | int | number of microsteps in the cascade |
 | macrostep | `ihsm.outcome` | string | `ok` \| `error` |
 | step | `ihsm.event` | string | the event/service this turn handled |
-| step | `ihsm.step.seq` | int | 0-based order within the macrostep |
 | transition | `ihsm.transition.from` / `.to` | string | endpoints |
 | exit/entry | `ihsm.hook.kind` (`onExit`/`onEntry`), `ihsm.hook.state` | string | which action on which state |
 | port | `ihsm.port.method` | string | the port method |
@@ -244,7 +245,7 @@ The design makes async correctness independent of the platform context manager:
 
 1. **Boundaries come from the runtime, not from timing.** The redesigned seam (doc 5) calls
    `onMicrostepBegin` *before* the (possibly async) turn and `onMicrostepEnd` *after* its promise
-   settles. `@ihsm/otel` opens the `ihsm.step` span on begin and ends it on end — so the span
+   settles. `@ihsm/otel` opens the `execute ...` span on begin and ends it on end — so the span
    brackets the entire awaited turn by construction.
 2. **Parent resolution is explicit.** Each actor keeps a small **macrostep record**
    `{ rootSpan, currentStepSpan, macrostepId }` keyed by the actor. Child spans (transition,
@@ -290,33 +291,53 @@ is **passed by parameter** (on the enqueued task → `cause.carrier`), and adopt
 root span via a custom OTEL `IdGenerator` with a tiny **synchronous override slot** — the one piece
 of non-trivial plumbing this model needs (mechanism and safety argument in doc 5 §5.6).
 
+**Normative enqueue-site requirement.**
+At every cross-actor `notify` / `call` enqueue point, the runtime MUST do both:
+
+1. capture the **forward-link source** span context (`trace_id`, `span_id`) from the span active at
+   the enqueue site (for example a user-authored `traceSpanAsync(...)` routine span, otherwise the
+   current `execute ...` span), and
+2. mint the deterministic **target callee root** context that the future callee macrostep adopts.
+
+This dual capture is required so links stay correct even when the source span closes before the
+callee macrostep opens.
+
+Example (source anchoring on a user routine span):
+
+```ts
+await traceSpanAsync("user.parent.segment", async () => {
+  child.notify.onReady();          // forward link source = user.parent.segment
+  await child.call.initialize(42); // same requirement for awaited call
+});
+```
+
 ### 4.7.2 Ports are always internal to the caller (never a new trace)
 
 A **port** is I/O internal to the calling handler. A port call **always** produces an
 `ihsm.port {method}` span *inside the caller's own trace* — it **never** starts a new trace and
-**never** becomes a cross-trace await. When the port is awaited, the `ihsm.port` span simply
-brackets the suspension; it nests in the enclosing `ihsm.step` (which stays open across the await,
+**never** becomes a cross-trace await. When the port is awaited, the `port` span simply
+brackets the suspension; it nests in the enclosing `execute ...` (which stays open across the await,
 §4.6). If a port's work happens to *spawn or call another actor*, that other actor still settles
-in its **own** trace, linked back to this `ihsm.port` span (the `spawn`/`causes` rows in §4.7.4) —
+in its **own** trace, linked back to this `port` span (the `spawn`/`causes` rows in §4.7.4) —
 but the port span itself stays put in the caller.
 
 ### 4.7.3 The cross-actor await path (caller side)
 
-When the caller **awaits another actor's** `call` (`await X.call.foo()`), the caller opens an
-**`ihsm.await {target}`** span (`SpanKind.CLIENT`) that brackets the suspension — *this is the
+When the caller **awaits another actor's** `call` (`await X.call.foo()`), the caller opens a
+**`call {service}`** span (`SpanKind.CLIENT`) that brackets the suspension — *this is the
 traced cross-actor await path*. It:
 
 - spans `[call → reply resolves]`;
 - carries the forward link (`causes`) to the callee macrostep root, and is the target of the
   callee's backward link (`caused_by`) — full bidirectional navigation;
-- nests inside the enclosing `ihsm.step` (which stays open across the await, §4.6).
+- nests inside the enclosing `execute ...` (which stays open across the await, §4.6).
 
-When the caller does **not** await (`notify`, fire-and-forget), there is no `ihsm.await` span; the
-forward link rides the enqueuing `ihsm.step` instead, and the callee links back to that step.
+When the caller does **not** await (`notify`, fire-and-forget), there is no `call` span; the
+forward link rides the enqueuing `execute ...` instead, and the callee links back to that step.
 
 ### 4.7.4 Span size when awaited
 
-The `ihsm.await` span equals the callee's whole trace **iff the service replies at stability**.
+The `call` span equals the callee's whole trace **iff the service replies at stability**.
 By default the reply is sent when the service handler returns, so the await span is
 `[call → reply]` and the callee's trailing drain (if any) lives in the callee's own linked trace.
 A service may opt into **`replyAtStable`** to defer its reply until its macrostep settles, making
@@ -327,15 +348,15 @@ the full cascade. Not the default; opt-in per service.
 
 | Relationship | Mechanism | Link attributes |
 |--------------|-----------|------------------|
-| Microstep → the later microstep it enqueued (same macrostep) | the later `ihsm.step` links back to the enqueuing step | `ihsm.link.kind=cause` |
+| Microstep → the later microstep it enqueued (same macrostep) | the later `execute ...` links back to the enqueuing step | `ihsm.link.kind=cause` |
 | Macrostep → a future macrostep it scheduled via timer/`defer` | the timer-triggered macrostep links back to the scheduling macrostep | `ihsm.link.kind=timer`, `ihsm.defer.delay_ms` |
 | Actor A `notify`s actor B (no await) | bidirectional: A's step ↔ B's macrostep root (caller-minted context, §4.7.1) | `causes` / `caused_by`, `ihsm.peer.uuid` |
-| Parent **spawns** child | bidirectional: parent `ihsm.port` span ↔ child `initialize` macrostep root | `spawn` / `caused_by`, `ihsm.peer.uuid` |
-| Actor A `await`s B's `call` | bidirectional: A's `ihsm.await` span ↔ B's macrostep root (§4.7.3) | `causes` / `caused_by`, `ihsm.peer.uuid` |
+| Parent **spawns** child | bidirectional: parent `port` span ↔ child `initialize` macrostep root | `spawn` / `caused_by`, `ihsm.peer.uuid` |
+| Actor A `await`s B's `call` | bidirectional: A's `call` span ↔ B's macrostep root (§4.7.3) | `causes` / `caused_by`, `ihsm.peer.uuid` |
 | Cross-**process** call/notify | same model over the wire envelope; W3C `traceparent`/`tracestate` also carried so a backend *may* optionally stitch | `causes` / `caused_by` (+ `traceparent`) |
 
 The rule in one line: **every actor settles in its own trace; callers and callees are joined by
-bidirectional links, and an awaited call additionally gets an `ihsm.await` span tracing the
+bidirectional links, and an awaited call additionally gets an `call` span tracing the
 suspension.**
 
 ---
@@ -367,7 +388,7 @@ event is `ihsm.note`.** At `PRODUCTION` the macrostep/step/transition skeleton i
 
 ## 4.9 Status and exceptions
 
-- Success: `StatusCode.OK` set explicitly on `ihsm.step`, `ihsm.transition`, `ihsm.service`, and
+- Success: `StatusCode.OK` set explicitly on `execute ...`, `transition`, `call`, and
   the macrostep root.
 - Failure: on the error seam, set `StatusCode.ERROR` on the innermost open span **and** the
   macrostep root, call `recordException(err)`, and add:
@@ -420,7 +441,7 @@ stays zero in plain production. Runtime-*derived* lines (below) remain `TraceLev
 | Concern | Rule |
 |---------|------|
 | Correlation | Every record is emitted with the **active OTEL context**, so it carries `trace_id`/`span_id` — one click from a log line to its span, and vice-versa. |
-| Required attributes | `ihsm.actor.uuid`, `ihsm.actor.name`, `ihsm.state`, `ihsm.event`, `ihsm.macrostep.id`, `ihsm.step.seq` — logs are filterable by the **same** keys as spans, including the per-instance UUID (R2/R5). |
+| Required attributes | `ihsm.actor.uuid`, `ihsm.actor.name`, `ihsm.state`, `ihsm.event`, `ihsm.macrostep.id` — logs are filterable by the **same** keys as spans, including the per-instance UUID (R2/R5). The owning step is identified by the active `span_id`, not a sequence number. |
 | Structured header | The trace header is a **frame stack** (§4.10.3), promoted to `ihsm.domain.path` (string array) — no string re-parsing. |
 | Body | The human string (`{domain.path joined}{currentStateName}: {message}`) — structure lives in attributes, never parsed from the body. |
 | Severity | `this.hsm.log.*` sets it directly (table above). Runtime-derived lines map from intent + `TraceLevel`: VERBOSE frame lines → `TRACE`/`DEBUG`; DEBUG boundaries → `DEBUG`; state-enter/transition → `INFO`; **E**-verdict/back-pressure → `WARN`; `dispatchErrorCallback` → `ERROR`; `FatalError`/`InitializationError` → `FATAL`. |
@@ -454,7 +475,7 @@ emitted as `ihsm.domain.path` (low-cardinality array) and the innermost frame as
 | Every log for one actor instance | `{ihsm_actor_uuid="7f3c…"}` |
 | All error macrosteps of a machine type | `{ .ihsm.actor.name = "CBConnection" && .ihsm.outcome = "error" }` |
 | Where did anything transition into the fatal state | `{ .ihsm.transition.to = "FatalErrorState" }` |
-| Slow settling: macrosteps over 50 ms with > 5 microsteps | `{ name = "ihsm.macrostep" && duration > 50ms && .ihsm.steps > 5 }` |
+| Slow settling: macrosteps over 50 ms with > 5 microsteps | `{ .ihsm.steps > 5 && duration > 50ms }` (the `ihsm.steps` attr is macrostep-root-only) |
 | One macrostep's logs | `{ihsm_macrostep_id="…"}` (or pivot from the trace's `trace_id`) |
 | The actor sub-tree | filter by `ihsm.actor.path =~ "CBServer/CBConnection\\[3\\].*"` |
 

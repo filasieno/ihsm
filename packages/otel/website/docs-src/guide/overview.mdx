@@ -1,0 +1,68 @@
+---
+title: Overview
+sidebar_label: Overview
+slug: /guide/overview
+sidebar_position: 1
+description: How @ihsm/otel turns actor dispatch into traces and logs.
+---
+
+# Overview
+
+`@ihsm/otel` is a thin, optional layer over ihsm's **instrumentation seam**. It never patches the
+runtime; it only consumes the callbacks ihsm already emits.
+
+## How it works
+
+1. `ihsm` exposes an `Instrumentation` interface — a bag of optional callbacks fired as an actor
+   dispatches: actor created/disposed, macrostep begin/end, microstep begin/end, enqueue, error,
+   and structured log records. These signals are **vendor-neutral** (no span/trace vocabulary).
+2. Tracing is a **cross-cutting concern**: you register an `Instrumentation` once, globally, with
+   `registerCollector()` (or let `startOtelNode()` / `startOtelBrowser()` do it for you). Every actor
+   created afterwards adopts it automatically — actor construction and handler code take **no** tracing
+   argument. There is no per-actor `instrumentation` option.
+3. `@ihsm/otel` provides an implementation of that interface that records the signals and maps them
+   to OpenTelemetry concepts.
+
+```text
+        ihsm runtime                     @ihsm/otel                OpenTelemetry / test
+   ┌───────────────────┐         ┌──────────────────────┐       ┌────────────────────┐
+   │ macrostep/microstep│ ──────▶ │ Instrumentation impl │ ────▶ │ traces · logs       │
+   │ + hsm.log.* + error│ signals │ (collector / mapper) │       │ (or assertions)     │
+   └───────────────────┘         └──────────────────────┘       └────────────────────┘
+```
+
+## The mapping
+
+| ihsm concept | OpenTelemetry concept |
+|--------------|-----------------------|
+| Macrostep (one external stimulus → stability) | one **trace** (root span named `<ActorName>.<handler>`) |
+| Microstep (one event dispatch) | a **span** (`execute <event> <service|notification>`) |
+| Transition / handler / port call | child spans / span events |
+| `hsm.log.info(...)` etc. | trace-correlated **log records** |
+| Dispatch error | span status `error` + an error log |
+| Cross-actor cause | **span links** between caller and callee traces |
+| Actor identity (UUIDv5) | resource/span attributes for correlation |
+
+See [Reference → Model](/reference/model) for the full schema.
+For user-authored spans, decorators, and call/notify-site link anchoring examples, see
+[Building integrated libraries and apps](/guide/integrated-libraries).
+
+## Design principles
+
+- **Optional & global.** No dependency from `ihsm` on this package or on OpenTelemetry. Register no
+  collector → zero cost (actors spawned with no collector active never even allocate dispatch context).
+- **Cross-cutting.** Tracing is a globally enforced protocol, never threaded through source: actors
+  snapshot the active collector at spawn, so it is impossible to forget to wire one up.
+- **Pure observer.** Instrumentation must never change an actor's transitions or outputs;
+  enabling tracing cannot alter behaviour.
+- **Deterministic.** Actor identity is derived from a run seed (UUIDv5), so traces and logs are
+  replay-stable — the same run produces the same identifiers.
+- **Isomorphic.** The same API and schema apply on the server (production telemetry) and in the
+  browser (development and debugging).
+
+:::note Implementation status
+The **instrumentation seam**, the **deterministic conformance harness** (`@ihsm/otel/testing`), and
+the one-call exporter wiring for both **server** (`@ihsm/otel/node`) and **browser**
+(`@ihsm/otel/browser`) are available today. See [Status](/reference/status) for what remains
+(W3C cross-process propagation, metrics). The guide below shows the surface you can use now.
+:::

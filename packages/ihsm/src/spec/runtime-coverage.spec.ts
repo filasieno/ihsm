@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { CallTimeoutError, FatalError, FatalErrorState, InitialState, Port, SelfCallDeadlockError, TopState, TraceLevel, TransitionError, UnhandledEventError, TransitionTableError, buildProtocolIndex, defaultDispatchErrorCallback, defaultTraceWriter, makeActor, transitionTraceLines } from '../';
+import { CallTimeoutError, FatalError, FatalErrorState, InitialState, Port, SelfCallDeadlockError, TopState, TraceLevel, TransitionError, UnhandledEventError, TransitionTableError, buildProtocolIndex, clearCollectors, defaultDispatchErrorCallback, defaultTraceWriter, getStateName, makeActor, asParentActor, mintActorIdentity, registerCollector, transitionTraceLines } from '../';
 import type { InboundActor, HandlerHsm } from '../';
 import { Machine, kMachine, isRequestingPort, isServiceCallOptions, serviceCallWithTimeout, splitServiceArgs } from '../internal/runtime';
 import type { HandleOwn } from '../internal/runtime';
@@ -20,6 +20,7 @@ interface RuntimeCoverageConfig {
 	notifications: {
 		ping(): void;
 		schedule(ms: number): void;
+		readHsm(): void;
 	};
 	internalServices: Record<string, never>;
 	internalNotifications: {
@@ -38,6 +39,14 @@ export class RuntimeCoverageTop extends TopState<RuntimeCoverageConfig> {
 
 	tick(): void {}
 
+	readHsm(): void {
+		void this.hsm.traceFrames;
+		this.hsm.log.info('seen');
+		void this.hsm.actorUuid;
+		void this.hsm.actorName;
+		void this.hsm.actorPath;
+	}
+
 	onUnhandled(): void {}
 
 	async throwTransition(): Promise<void> {
@@ -47,6 +56,30 @@ export class RuntimeCoverageTop extends TopState<RuntimeCoverageConfig> {
 
 @InitialState
 export class RuntimeCoverageLeaf extends RuntimeCoverageTop {}
+
+class ThrowingPort extends Port<typeof ThrowingPortTop> {
+	async boom(): Promise<never> {
+		throw new Error('port blew up');
+	}
+}
+
+interface ThrowingPortConfig {
+	context: Record<string, never>;
+	services: { go(): Promise<void> };
+	notifications: Record<string, never>;
+	internalServices: Record<string, never>;
+	internalNotifications: Record<string, never>;
+	port: ThrowingPort;
+}
+
+class ThrowingPortTop extends TopState<ThrowingPortConfig> {
+	async go(): Promise<void> {
+		await this.hsm.port.boom();
+	}
+}
+
+@InitialState
+export class ThrowingPortLeaf extends ThrowingPortTop {}
 
 interface CallbackConfig {
 	context: Record<string, never>;
@@ -213,6 +246,8 @@ registerSpecStateNames(self);
 //#endregion
 
 describe('runtime-coverage', function (): void {
+	afterEach(() => clearCollectors());
+
 	it('exports runtime error classes', () => {
 		expect(new TransitionTableError('bad table').name).equals('TransitionTableError');
 		expect(new SelfCallDeadlockError().message).includes('deadlock');
@@ -289,7 +324,7 @@ describe('runtime-coverage', function (): void {
 			hsm: undefined as never,
 			portRef: new Port(),
 		};
-		const machine = new Machine(CallbackTop, instance, buildProtocolIndex(CallbackTop), defaultTraceWriter, TraceLevel.DEBUG, defaultDispatchErrorCallback, true);
+		const machine = new Machine(CallbackTop, instance, buildProtocolIndex(CallbackTop), defaultTraceWriter, TraceLevel.DEBUG, defaultDispatchErrorCallback, true, mintActorIdentity('inbound', getStateName(CallbackTop)), undefined);
 		await machine.sync();
 		expect(machine.currentState).equals(CallbackLeaf);
 
@@ -424,10 +459,59 @@ describe('runtime-coverage', function (): void {
 			hsm: undefined as never,
 			portRef: port,
 		};
-		const machine = new Machine(PortlessTop, instance, buildProtocolIndex(PortlessTop), defaultTraceWriter, TraceLevel.DEBUG, defaultDispatchErrorCallback, true);
+		const machine = new Machine(PortlessTop, instance, buildProtocolIndex(PortlessTop), defaultTraceWriter, TraceLevel.DEBUG, defaultDispatchErrorCallback, true, mintActorIdentity('inbound', getStateName(PortlessTop)), undefined);
 		expect(machine.port).to.not.equal(undefined);
 		instance.hsm.port.defer(0).later();
 		await machine.sync();
 		expect(machine.currentState).equals(PortlessLeaf);
+	});
+
+	it('handler hsm exposes traceFrames, log, and actor identity getters', async () => {
+		const actor = makeTestActor(RuntimeCoverageTop, { n: 0 }, new Port(), { initialize: true });
+		await actor.hsm.sync();
+		actor.notify.readHsm();
+		await actor.hsm.sync();
+		expect(actor.hsm.actorUuid.length).to.be.greaterThan(0);
+	});
+
+	it('defers self-notifications through handler port.defer', async () => {
+		const actor = makeTestActor(RuntimeCoverageTop, { n: 0 }, new Port(), { initialize: true });
+		await actor.hsm.sync();
+		actor.notify.schedule(0);
+		await actor.hsm.sync();
+		expect(actor.hsm.currentStateName).equals('RuntimeCoverageLeaf');
+	});
+
+	it('surfaces port call errors from the proxied port', async () => {
+		const portCalls: string[] = [];
+		registerCollector({
+			onPortCallBegin: info => portCalls.push(info.method),
+			onPortCallEnd: () => portCalls.push('end'),
+		});
+		const actor = makeTestActor(ThrowingPortTop, {}, new ThrowingPort(), { initialize: true });
+		await actor.hsm.sync();
+		try {
+			await actor.call.go();
+			expect.fail('expected port error');
+		} catch (err) {
+			expect((err as Error).message).equals('port blew up');
+		}
+		expect(portCalls).to.include('boom');
+		expect(portCalls).to.include('end');
+	});
+
+	it('forwards user logs to instrumentation collectors', async () => {
+		const bodies: string[] = [];
+		registerCollector({ onLog: record => bodies.push(record.body) });
+		const actor = makeTestActor(RuntimeCoverageLeaf, { n: 0 }, new Port(), { initialize: true });
+		await actor.hsm.sync();
+		actor.notify.readHsm();
+		await actor.hsm.sync();
+		expect(bodies.some(body => body.includes('seen'))).equals(true);
+	});
+
+	it('asParentActor rejects handlers without an active machine', () => {
+		const bare = Object.create(RuntimeCoverageTop.prototype) as RuntimeCoverageTop;
+		expect(() => asParentActor(bare)).to.throw(/active handler machine/);
 	});
 });

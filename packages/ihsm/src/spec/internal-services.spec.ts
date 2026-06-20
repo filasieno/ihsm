@@ -88,6 +88,8 @@ describe('internal-services', function (): void {
 		await parent.hsm.sync();
 		const doubled = await parent.call.boot(3);
 		expect(doubled).equals(6);
+		expect(parentCtx.child!.id).equals(parentCtx.child!.hsm.id);
+		expect(parentCtx.child!.id).to.not.equal(parent.hsm.id);
 		expect(parentCtx.sum).equals(6);
 		expect(parentCtx.child).to.not.equal(undefined);
 		expect(await parentCtx.child!.call.ping()).equals('v3');

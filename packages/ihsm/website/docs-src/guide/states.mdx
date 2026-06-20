@@ -1,0 +1,210 @@
+---
+title: States & transitions
+sidebar_label: States & transitions
+slug: /guide/states
+sidebar_position: 3
+description: States as classes, transitions, context, internal transitions, and hierarchy.
+---
+
+# States & transitions
+
+States are **classes**, the hierarchy is **class inheritance**, events are **methods**, and a
+transition is `this.hsm.transition(Next)`.
+
+## States, transitions, and the initial state
+
+```typescript
+import { InitialState, makeActor, Port, registerStateNames, TopState } from 'ihsm';
+
+interface DoorCtx {
+  openCount: number; // survives across states for the actor's lifetime
+}
+
+interface DoorConfig {
+  context: DoorCtx;
+  notifications: { open(): void; close(): void };
+}
+
+class DoorTop extends TopState<DoorConfig> {}
+
+@InitialState // the leaf entered after makeActor + sync
+class Closed extends DoorTop {
+  open(): void {
+    this.ctx.openCount += 1;
+    this.hsm.transition(Open); // exit Closed, enter Open
+  }
+}
+
+class Open extends DoorTop {
+  close(): void {
+    this.hsm.transition(Closed);
+  }
+}
+
+registerStateNames({ DoorTop, Closed, Open });
+
+const door = makeActor(DoorTop, { openCount: 0 }, new Port());
+await door.hsm.sync();
+
+door.notify.open();
+await door.hsm.sync();
+console.log(door.hsm.currentStateName); // 'Open'
+```
+
+`open()` is defined only on `Closed`, so posting `open` while `Open` is a no-op delegated up the
+chain to `DoorTop` (which does not handle it) — it is silently ignored, not an error.
+
+## Context: state that survives transitions
+
+`ctx` is mutable data owned by the actor for its whole lifetime. Mutating it **without** calling
+`transition()` is an *internal* transition — the active state does not change and `onEntry`/`onExit`
+do not run.
+
+```typescript
+import { InitialState, makeActor, Port, registerStateNames, TopState } from 'ihsm';
+
+interface CounterCtx {
+  value: number;
+  step: number;
+}
+
+interface CounterConfig {
+  context: CounterCtx;
+  notifications: { increment(): void; decrement(): void };
+}
+
+class CounterTop extends TopState<CounterConfig> {
+  increment(): void {
+    this.ctx.value += this.ctx.step; // no transition() → stays in Running
+  }
+  decrement(): void {
+    this.ctx.value -= this.ctx.step;
+  }
+}
+
+@InitialState
+class Running extends CounterTop {}
+
+registerStateNames({ CounterTop, Running });
+
+const counter = makeActor(CounterTop, { value: 0, step: 5 }, new Port());
+await counter.hsm.sync();
+
+counter.notify.increment();
+counter.notify.increment();
+await counter.hsm.sync();
+console.log(counter.ctx.value); // 10 — and still in Running
+```
+
+## Internal vs. external transitions
+
+`onEntry` runs **only** when a state is entered. An internal transition (no `transition()` call)
+proves the difference.
+
+```typescript
+import { InitialState, makeActor, Port, registerStateNames, TopState } from 'ihsm';
+
+interface LampCtx {
+  brightness: number;
+  entryCount: number; // increments only on entry
+}
+
+interface LampConfig {
+  context: LampCtx;
+  notifications: { dim(delta: number): void };
+}
+
+class LampTop extends TopState<LampConfig> {
+  onEntry(): void {
+    this.ctx.entryCount += 1;
+  }
+  dim(delta: number): void {
+    this.ctx.brightness = Math.max(0, this.ctx.brightness - delta); // internal — no re-entry
+  }
+}
+
+@InitialState
+class On extends LampTop {}
+
+registerStateNames({ LampTop, On });
+
+const lamp = makeActor(LampTop, { brightness: 100, entryCount: 0 }, new Port());
+await lamp.hsm.sync();
+
+lamp.notify.dim(20);
+lamp.notify.dim(20);
+await lamp.hsm.sync();
+console.log(lamp.ctx.brightness, lamp.ctx.entryCount); // 60 1
+```
+
+## Hierarchy: nesting and inherited dispatch
+
+Nest states with `extends`. A handler defined on a parent is **inherited** by every descendant;
+entering a composite state continues into its `@InitialState` leaf.
+
+```typescript
+import { InitialState, makeActor, Port, registerStateNames, TopState } from 'ihsm';
+
+interface MediaCtx {
+  trail: string[];
+}
+
+interface MediaConfig {
+  context: MediaCtx;
+  notifications: { play(): void; pause(): void; stop(): void };
+}
+
+class MediaTop extends TopState<MediaConfig> {
+  stop(): void {
+    this.hsm.transition(Stopped); // inherited by every state below
+  }
+}
+
+@InitialState
+class Stopped extends MediaTop {
+  onEntry(): void {
+    this.ctx.trail.push('enter:Stopped');
+  }
+  play(): void {
+    this.hsm.transition(Playing);
+  }
+}
+
+class Active extends MediaTop {
+  onEntry(): void {
+    this.ctx.trail.push('enter:Active');
+  }
+}
+
+@InitialState // initial leaf entered when Active is the target
+class Playing extends Active {
+  onEntry(): void {
+    this.ctx.trail.push('enter:Playing');
+  }
+  pause(): void {
+    this.hsm.transition(Paused);
+  }
+}
+
+class Paused extends Active {
+  onEntry(): void {
+    this.ctx.trail.push('enter:Paused');
+  }
+  play(): void {
+    this.hsm.transition(Playing);
+  }
+}
+
+registerStateNames({ MediaTop, Stopped, Active, Playing, Paused });
+
+const media = makeActor(MediaTop, { trail: [] }, new Port());
+await media.hsm.sync();
+
+media.notify.play();
+await media.hsm.sync();
+console.log(media.hsm.currentStateName); // 'Playing'
+console.log(media.ctx.trail); // ['enter:Stopped', 'enter:Active', 'enter:Playing']
+```
+
+Transitioning to `Active` enters `Active` then its initial leaf `Playing`; the lowest common
+ancestor (`MediaTop`) bounds which states exit and enter.

@@ -1,0 +1,196 @@
+---
+title: Time & I/O
+sidebar_label: Time & I/O
+slug: /guide/time-and-io
+sidebar_position: 5
+description: Deferred timers, async handlers, and domain I/O behind a port.
+---
+
+# Time & I/O
+
+All time and I/O flow through the **port**. That is what makes an actor deterministic to test: swap
+the production `Port` for a `TestPort` and the same machine runs against a virtual clock and scripted
+I/O.
+
+## Deferred timers (`port.defer`)
+
+`this.hsm.port.defer(ms).event()` schedules an internal notification to be posted after a delay,
+without blocking the current handler. Recur by re-arming inside the handler.
+
+```typescript
+import { InitialState, makeActor, Port, registerStateNames, TopState } from 'ihsm';
+
+const HOUR_MS = 60 * 60 * 1000;
+
+interface HeartbeatCtx {
+  ticks: number;
+}
+
+interface HeartbeatConfig {
+  context: HeartbeatCtx;
+  notifications: { start(): void; stop(): void };
+  internalNotifications: { onTick(): void }; // raised only by the timer, never by a client
+}
+
+class HeartbeatTop extends TopState<HeartbeatConfig> {
+  start(): void {}
+  stop(): void {}
+  onTick(): void {}
+}
+
+@InitialState
+class Stopped extends HeartbeatTop {
+  start(): void {
+    this.hsm.transition(Running);
+  }
+}
+
+class Running extends HeartbeatTop {
+  onEntry(): void {
+    this.hsm.port.defer(HOUR_MS).onTick(); // arm the first tick
+  }
+  onTick(): void {
+    this.ctx.ticks += 1;
+    this.hsm.port.defer(HOUR_MS).onTick(); // re-arm the next hour
+  }
+  stop(): void {
+    this.hsm.transition(Stopped);
+  }
+}
+
+registerStateNames({ HeartbeatTop, Stopped, Running });
+
+const hb = makeActor(HeartbeatTop, { ticks: 0 }, new Port());
+await hb.hsm.sync();
+hb.notify.start();
+await hb.hsm.sync();
+// In production the timer fires on the real clock; in tests, TestPort.advance(HOUR_MS) fires it instantly.
+```
+
+`onTick` lives in the `internalNotifications` facet, so it never appears on the public client
+surface — only the deferred timer can raise it.
+
+## Async handlers
+
+A single handler may `await` an entire I/O pipeline and stay in one state; the `transition()` runs
+only after every `await` resolves. Long work is awaited through the port so a test can step it.
+
+```typescript
+import { InitialState, makeActor, Port, registerStateNames, TopState } from 'ihsm';
+
+interface JobCtx {
+  steps: string[];
+  bytes: number;
+}
+
+interface JobConfig {
+  context: JobCtx;
+  notifications: { transfer(): Promise<void> };
+}
+
+class JobTop extends TopState<JobConfig> {}
+
+@InitialState
+class Idle extends JobTop {
+  async transfer(): Promise<void> {
+    this.ctx.steps = [];
+    await this.pause();
+    this.ctx.steps.push('open');
+    await this.pause();
+    this.ctx.bytes = 13;
+    this.ctx.steps.push('write');
+    this.hsm.transition(Done); // only after all awaits complete
+  }
+  private pause(): Promise<void> {
+    return new Promise((resolve) => this.hsm.port.setTimeout(resolve, 0));
+  }
+}
+
+class Done extends JobTop {}
+
+registerStateNames({ JobTop, Idle, Done });
+
+const job = makeActor(JobTop, { steps: [], bytes: 0 }, new Port());
+await job.hsm.sync();
+job.notify.transfer();
+await job.hsm.sync();
+console.log(job.hsm.currentStateName, job.ctx.steps); // 'Done' ['open', 'write']
+```
+
+## Domain I/O behind a port
+
+For real I/O (network, sockets, files), declare a `port` facet, extend `Port` with the production
+implementation, and have the port post results back as **internal notifications**. The handler never
+calls `fetch` directly.
+
+```typescript
+import { InitialState, makeActor, Port, registerStateNames, TopState } from 'ihsm';
+import type { Disposable, ResultWithSubscription } from 'ihsm';
+
+interface FetchCtx {
+  status: number;
+  body: string;
+  subscription?: Disposable;
+}
+
+interface FetchConfig {
+  context: FetchCtx;
+  notifications: { get(url: string): void; cancel(): void };
+  internalNotifications: { onResponse(status: number, body: string): void };
+  port: { request(url: string): ResultWithSubscription<number> };
+}
+
+class FetchTop extends TopState<FetchConfig> {
+  get(url: string): void {
+    // All network I/O flows through the port — never fetch() inside a handler.
+    const { value, subscription } = this.hsm.port.request(url);
+    this.ctx.subscription = subscription;
+    void value;
+    this.hsm.transition(Fetching);
+  }
+  cancel(): void {}
+  onResponse(_s: number, _b: string): void {} // ignored unless Fetching
+}
+
+@InitialState
+class Idle extends FetchTop {}
+
+class Fetching extends FetchTop {
+  get(_url: string): void {} // already in flight — ignore
+  onResponse(status: number, body: string): void {
+    this.ctx.subscription?.dispose();
+    this.ctx.status = status;
+    this.ctx.body = body;
+    this.hsm.transition(status >= 200 && status < 300 ? Done : Idle);
+  }
+  cancel(): void {
+    this.ctx.subscription?.dispose();
+    this.hsm.transition(Idle);
+  }
+}
+
+class Done extends FetchTop {}
+
+registerStateNames({ FetchTop, Idle, Fetching, Done });
+
+// Production port: the only place real I/O happens.
+class HttpPort extends Port<typeof FetchTop> {
+  private nextId = 0;
+  request(url: string): ResultWithSubscription<number> {
+    const id = ++this.nextId;
+    const controller = new AbortController();
+    fetch(url, { signal: controller.signal })
+      .then(async (res) => this.actor.notify.onResponse(res.status, await res.text()))
+      .catch(() => this.actor.notify.onResponse(0, ''));
+    return { value: id, subscription: { dispose: () => controller.abort() } };
+  }
+}
+
+const client = makeActor(FetchTop, { status: 0, body: '' }, new HttpPort());
+await client.hsm.sync();
+client.notify.get('https://example.com');
+// onResponse arrives whenever the request settles; the machine reacts in Fetching.
+```
+
+In tests you replace `HttpPort` with a mocked port and choose exactly *when* `onResponse` lands — see
+[Deterministic testing](/testing).

@@ -39,35 +39,39 @@ environment subpath supplies only the SDK edges and its default posture (§3.5).
 
 ## 3.2 The single integration point
 
-An author instruments an actor with one call. Nothing is patched; everything is reversible.
+Tracing is a **cross-cutting concern**: an author enables it with one global call, and **no actor or
+handler source changes**. Nothing is patched; everything is reversible.
 
 ```typescript
 // ── Server (production telemetry) ───────────────────────────────────────────
-import { createProvider } from "@ihsm/otel/node";
-import { instrumentActor, otelActorOptions } from "@ihsm/otel";
+import { startOtelNode } from "@ihsm/otel/node";
 
-const provider = createProvider();                       // PRODUCTION posture (§3.5.1)
-provider.init(provider.resolveConfig({ enabled: true, serviceName: "cbserver" }));
+const otel = startOtelNode({ serviceName: "cbserver" });   // PRODUCTION posture (§3.5.1)
+// startOtelNode registered the collector GLOBALLY via ihsm's registerCollector().
 
-const actor = ihsm.makeActor(CBServerTop, ctx, new CBServerPort(), otelActorOptions(provider));
-// or, for an already-created actor:
-const detach = instrumentActor(actor, { provider });
-detach.dispose();   // removes the observation seam, no residue
-await provider.shutdown();
+const actor = ihsm.makeActor(CBServerTop, ctx, new CBServerPort(), { initialize: true });
+// every actor (and its children) spawned afterwards is observed — no tracing argument.
+
+otel.unregister();      // stop tracing new actors without tearing down the SDK
+await otel.shutdown();  // flush, tear down, and unregister
 
 // ── Browser (development/debug) ─────────────────────────────────────────────
-import { createProvider } from "@ihsm/otel/browser";
+import { startOtelBrowser } from "@ihsm/otel/browser";
 // DEBUG verbosity, 100% sampling, console + (optional) local OTLP collector:
-const dev = createProvider();
-dev.init(dev.resolveConfig({ enabled: import.meta.env.DEV, serviceName: "cb-web", console: true }));
-const actor = ihsm.makeActor(AppTop, ctx, new AppPort(), otelActorOptions(dev));
+const dev = startOtelBrowser({ serviceName: "cb-web", console: true });
+const actor = ihsm.makeActor(AppTop, ctx, new AppPort(), { initialize: true });
 ```
 
-Same `instrumentActor`/`otelActorOptions` API in both; only the imported `createProvider` and its
-defaults change. In a shipped production browser bundle, leave the browser provider out entirely
-(or `enabled: false`) → the seam is a no-op and the code tree-shakes away.
+Same global posture in both; only the imported entry point and its defaults change. In a shipped
+production browser bundle, simply never call `startOtelBrowser` (register no collector) → the seam is
+a no-op and the code tree-shakes away.
 
-`instrumentActor` binds the **redesigned observation seam** (doc 5) to OTEL objects:
+For advanced wiring against an existing SDK, build the bridge with
+`createOtelInstrumentation({ tracer, logger })` and register it yourself with ihsm's
+`registerCollector(instrumentation)` (returns an idempotent unregister). The active collector is
+**snapshotted at spawn**, so registering before creating actors observes them and their children.
+
+The registered collector binds the **redesigned observation seam** (doc 5) to OTEL objects:
 
 | Bound seam | Produces |
 |------------|----------|
@@ -78,11 +82,12 @@ defaults change. In a shipped production browser bundle, leave the browser provi
 | error | span status `ERROR` + `recordException` |
 | structured log record | an OTLP **log** correlated to the active span |
 
-It returns a `Disposable` that detaches all of the above.
+`registerCollector` returns an idempotent unregister that removes the observation seam (no residue),
+and `clearCollectors()` removes every registered collector (handy for test isolation).
 
-`otelActorOptions(provider)` is sugar that pre-wires the same seam through `makeActor`'s
-`ActorOptions`, for the common "instrument from birth" case (and so the macrostep boundary is
-observed for the very first `initialize` cascade).
+Because the active collector is snapshotted at spawn, registering it before any actor is created
+covers the very first `initialize` cascade — the "instrument from birth" case — without threading any
+option through `makeActor`.
 
 ---
 
@@ -90,8 +95,8 @@ observed for the very first `initialize` cascade).
 
 ```
         ┌──────────────────────────── actor author ─────────────────────────────┐
-        │  makeActor(Top, ctx, port, otelActorOptions(provider))                  │
-        │  handlers optionally call span()/event()/setAttr() (no-op when inactive)│
+        │  startOtelNode({...}) / registerCollector(...)  — once, globally        │
+        │  makeActor(Top, ctx, port, { initialize: true }) — no tracing argument  │
         └───────────────────────────────────┬─────────────────────────────────────┘
                                              │ observes (supported seam — doc 5)
    ┌──────────────────┬─────────────────┬────┴────────────┬───────────────────────┐

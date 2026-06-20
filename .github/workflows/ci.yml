@@ -42,9 +42,29 @@ jobs:
       # nyc instruments test:node only; browser suites are already exercised in
       # the nix flake check job (with Chromium from the Nix store).
       - name: Generate lcov
-        run: nix develop ./packages/ihsm --command bash -c 'npm run test:node && npm run coverage'
+        run: |
+          set -euo pipefail
+          nix build .#ihsm --print-build-logs -o ihsm-result
+          cd packages/ihsm
+          rm -rf lib
+          cp -r ../../ihsm-result/lib lib
+          nix develop ../.. --command bash -c 'npm run test:node && npm run coverage && npx nyc check-coverage'
 
       - name: Upload coverage to Coveralls
         uses: coverallsapp/github-action@v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  packages:
+    name: Core and OTEL packages
+    runs-on: ubuntu-latest
+    needs: nix
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Nix
+        uses: ./.github/actions/nix
+
+      - name: Build and test @ihsm/core and @ihsm/otel (Nix)
+        run: nix build .#core .#otel --print-build-logs

@@ -1,0 +1,146 @@
+---
+title: Configuration
+sidebar_label: Configuration
+slug: /guide/configuration
+sidebar_position: 2
+description: Actor options, trace levels, error handling, ports, and deterministic run seeds.
+---
+
+# Configuration
+
+Every actor is created by a factory and an **options** object. The factory decides the embodiment;
+the options tune lifecycle, trace level, and error handling. (Tracing/telemetry is **not** an
+option — it is a cross-cutting concern configured globally; see [Observability](#observability-console--opentelemetry) below.)
+
+| Factory | Use | Default trace level |
+|---------|-----|---------------------|
+| `makeActor(Top, ctx, port?, options?)` | root actor (server or browser) | `TraceLevel.DEBUG` |
+| `makeChildActor(parent, Top, ctx, port?, options?)` | child actor spawned from a handler | `TraceLevel.DEBUG` |
+| `makeTestActor(Top, ctx, port?, options?)` | tests only (`ihsm/testing`) | `TraceLevel.VERBOSE_DEBUG` |
+
+## Actor options
+
+```typescript
+import { defaultDispatchErrorCallback, defaultTraceWriter, makeActor, Port, TraceLevel } from 'ihsm';
+
+const actor = makeActor(CounterTop, { value: 0 }, new Port(), {
+  // Run the initial-state entry chain on creation. Set false to hydrate with restore().
+  initialize: true,
+
+  // PRODUCTION = no tracing overhead · DEBUG = lifecycle lines · VERBOSE_DEBUG = full detail.
+  traceLevel: TraceLevel.PRODUCTION,
+
+  // Sink for trace lines (see the Tracing example).
+  traceWriter: defaultTraceWriter,
+
+  // Invoked when a handler/transition throws and no onError/onUnhandled hook recovers it.
+  dispatchErrorCallback: defaultDispatchErrorCallback,
+
+  // Optional declarative transition table (advanced).
+  // transitions: myTransitionResolver,
+});
+```
+
+Every option is optional. `initialize` defaults to `true`; omit `port` only if the machine never
+uses timers, randomness, or domain I/O (you almost always want at least `new Port()`).
+
+## The port: where every side effect lives
+
+A **port** is the single boundary between an actor and the impure world — timers, randomness, and
+domain I/O. This is the cornerstone of determinism: an actor never calls `setTimeout`, `Date.now`,
+`Math.random`, `crypto`, or `fetch` directly.
+
+```typescript
+import { Port } from 'ihsm';
+
+const actor = makeActor(Top, ctx, new Port()); // production: real host timers + crypto
+```
+
+- `Port` (production) delegates to the host: `setTimeout`/`setInterval`, `crypto.randomUUID`,
+  `crypto.getRandomValues`, and `Math.random`.
+- `TestPort` (tests) replaces all of it with a virtual clock and scripted randomness, so a test
+  can simulate days of time in microseconds with no flakiness.
+- A **domain port** adds your own I/O methods (`request`, `connect`, `attempt`, …) by extending
+  `Port` and declaring a `port` facet in the config. See the *Time & I/O* examples.
+
+## Trace levels
+
+```typescript
+import { TraceLevel } from 'ihsm';
+
+TraceLevel.PRODUCTION;     // no per-event tracing — lowest overhead
+TraceLevel.DEBUG;          // dispatch + transition lifecycle lines
+TraceLevel.VERBOSE_DEBUG;  // every entry/exit/handler step (and self-call deadlock detection)
+```
+
+Trace level is mutable at runtime: `actor.hsm.traceLevel = TraceLevel.PRODUCTION`.
+
+## Error handling
+
+A throw inside a handler is routed, in order:
+
+1. to an `onError(err)` hook on the active state (or an ancestor), if present;
+2. otherwise to the actor's `dispatchErrorCallback`.
+
+An event with no handler anywhere up the chain triggers `onUnhandled(err)` (or the callback). See
+the *Error recovery* example.
+
+```typescript
+const actor = makeActor(Top, ctx, new Port(), {
+  dispatchErrorCallback: (hsm, err) => {
+    console.error(`[${hsm.currentStateName}]`, err);
+  },
+});
+```
+
+## Observability (console & OpenTelemetry)
+
+Observability is a **cross-cutting concern**: a globally enforced protocol, not a constructor
+argument. `ihsm` exposes a generic `Instrumentation` callback surface and emits neutral signals
+(`onMacrostepBegin`, `onMicrostepBegin`, `onError`, `onLog`, …); you install a **collector** once
+with `registerCollector()` and every actor created afterwards is observed automatically. Actor and
+handler code never reference tracing. If you register no collector, there is zero cost.
+
+For users who do not want OpenTelemetry, `ihsm` ships a basic console output built on that same
+surface:
+
+```typescript
+import { createConsoleInstrumentation, makeActor, Port, registerCollector } from 'ihsm';
+
+// Register once, globally — every actor spawned afterwards prints its signals.
+const unregister = registerCollector(createConsoleInstrumentation());
+// options: createConsoleInstrumentation({ prefix: 'demo', microsteps: false, logs: false, write: (line) => myLogger(line) })
+
+const actor = makeActor(CounterTop, { value: 0 }, new Port(), { initialize: true });
+await actor.hsm.sync();
+actor.notify.increment();
+await actor.hsm.sync();
+// [ihsm] 1f2e3d4a ▶ macrostep m1 external:increment @Running
+// [ihsm]   · #1 increment [notifications/default] @Running
+// [ihsm] ■ macrostep m1 → Running (1 step(s), ok)
+
+// Later: stop tracing new actors (already-running actors keep their snapshot).
+unregister();
+```
+
+The active collector is **snapshotted at spawn**: a collector registered before an actor is created
+observes it (and its children), while register/unregister afterwards does not retroactively change
+already-running actors. For full OpenTelemetry traces and logs (spans, W3C propagation, OTLP
+export), install the optional `@ihsm/otel` package, whose `startOtelNode()` / `startOtelBrowser()`
+register a collector for you — nothing about OTEL lives in the core runtime.
+
+## Deterministic identity (DST)
+
+Each actor receives a stable UUID derived from a **run seed** and its hierarchical path. For
+deterministic simulation testing, pin the seed before creating actors — identical seed ⇒ identical
+identities and reproducible runs.
+
+```typescript
+import { configureRunSeed, getRunSeed } from 'ihsm';
+
+configureRunSeed('replay-2026-06-19'); // same seed ⇒ same actor UUIDs every run
+getRunSeed(); // 'replay-2026-06-19'
+```
+
+You can also set `IHSM_RUN_SEED` in the environment; when unset, a random seed is generated per
+process. The seed only affects identity/telemetry correlation — never an actor's behaviour.

@@ -6,6 +6,7 @@ import * as chai from 'chai';
 
 import '../../../src/spec/actor-config.spec.ts';
 import '../../../src/spec/cache.spec.ts';
+import '../../../src/spec/console-instrumentation.spec.ts';
 import '../../../src/spec/coverage.spec.ts';
 import '../../../src/spec/deadlock-guard.spec.ts';
 import '../../../src/spec/decorator.spec.ts';
@@ -19,6 +20,8 @@ import '../../../src/spec/error.unhandled.spec.ts';
 import '../../../src/spec/factory.spec.ts';
 import '../../../src/spec/fields.spec.ts';
 import '../../../src/spec/handler-dispatch.spec.ts';
+import '../../../src/spec/instrumentation-helpers.spec.ts';
+import '../../../src/spec/instrumentation.spec.ts';
 import '../../../src/spec/internal-services.spec.ts';
 import '../../../src/spec/makeActor.spec.ts';
 import '../../../src/spec/postNow.spec.ts';

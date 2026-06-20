@@ -1,20 +1,5 @@
 {
   "nodes": {
-    "ihsm": {
-      "inputs": {
-        "nixpkgs": "nixpkgs",
-        "systems": "systems"
-      },
-      "locked": {
-        "path": "./packages/ihsm",
-        "type": "path"
-      },
-      "original": {
-        "path": "./packages/ihsm",
-        "type": "path"
-      },
-      "parent": []
-    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1780030872,
@@ -33,7 +18,8 @@
     },
     "root": {
       "inputs": {
-        "ihsm": "ihsm"
+        "nixpkgs": "nixpkgs",
+        "systems": "systems"
       }
     },
     "systems": {

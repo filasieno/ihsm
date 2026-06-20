@@ -1,0 +1,16 @@
+{
+	"extends": "./tsconfig.base.json",
+	"compilerOptions": {
+		"composite": true,
+		"declaration": true,
+		"outDir": "./lib/esm",
+		"rootDir": "./src",
+		"tsBuildInfoFile": "./.tsc/esm.tsbuildinfo",
+		"module": "ES2022",
+		"moduleResolution": "bundler",
+		"lib": ["ES2022"],
+		"types": ["node"]
+	},
+	"include": ["src/**/*"],
+	"exclude": ["src/spec"]
+}

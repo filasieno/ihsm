@@ -83,6 +83,11 @@ result*/
 /packages/ihsm/website/sidebars.ts
 /packages/ihsm/website/static/img/plantuml/
 
+# @ihsm/otel Docusaurus (sources: packages/otel/website/docs-src/)
+/packages/otel/docs-build/
+/packages/otel/website/docs/
+/packages/otel/website/.docusaurus/
+
 # IDE — .vscode/ is committed; ignore other local editor files
 .idea/
 *.code-workspace

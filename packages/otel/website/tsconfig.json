@@ -1,0 +1,19 @@
+{
+	"compilerOptions": {
+		"jsx": "preserve",
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"target": "es2022",
+		"lib": ["ES2022", "DOM"],
+		"types": ["node", "@docusaurus/module-type-aliases"],
+		"allowJs": true,
+		"skipLibCheck": true,
+		"esModuleInterop": true,
+		"strict": true,
+		"paths": {
+			"@site/*": ["./src/*"]
+		}
+	},
+	"include": ["src/**/*", "*.ts"],
+	"exclude": [".docusaurus", "../docs-build", "node_modules"]
+}
