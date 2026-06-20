@@ -5,7 +5,6 @@ import { CollectingTraceWriter } from '../shared/trace';
 import { registerStateNamesFromExports } from '../shared/state-names';
 import * as machine from './machine';
 import { OrderTop, createOrder, syncOrderRegions } from './machine';
-import * as ihsm from '../../src';
 
 registerStateNamesFromExports(machine);
 
@@ -20,10 +19,14 @@ export const interactive: TutorialInteractiveMeta = {
 	},
 	createRuntime: () => {
 		const writer = new CollectingTraceWriter();
-		const sm = makeTestActor(OrderTop, {}, new ihsm.Port<typeof OrderTop>(), {
-			traceLevel: TraceLevel.VERBOSE_DEBUG,
-			traceWriter: writer,
-		});
+		const sm = makeTestActor(
+			OrderTop,
+			{},
+			{
+				traceLevel: TraceLevel.VERBOSE_DEBUG,
+				traceWriter: writer,
+			}
+		);
 		return { kind: 'single', sm, writer };
 	},
 	stateSummary: runtime => {

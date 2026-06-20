@@ -77,7 +77,6 @@ export class Active extends GatewayTop {
 				asParentActor(this),
 				LinkTop,
 				{ host: this.ctx.host, attempts: 0, linkUp: false, lastPayload: '' },
-				new Port<typeof LinkTop>(),
 			);
 		}
 		this.ctx.link.notifyNow.open(this.ctx.host);

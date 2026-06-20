@@ -5,7 +5,6 @@ import { CollectingTraceWriter } from '../shared/trace';
 import { registerStateNamesFromExports } from '../shared/state-names';
 import * as machine from './machine';
 import { RequestManagerTop, createRequestManager, syncRequestManager } from './machine';
-import * as ihsm from '../../src';
 
 registerStateNamesFromExports(machine);
 
@@ -32,10 +31,14 @@ export const interactive: TutorialInteractiveMeta = {
 	},
 	createRuntime: () => {
 		const writer = new CollectingTraceWriter();
-		const sm = makeTestActor(RequestManagerTop, { nextId: 0, table: {}, children: {}, childPorts: {} }, new ihsm.Port<typeof RequestManagerTop>(), {
-			traceLevel: TraceLevel.VERBOSE_DEBUG,
-			traceWriter: writer,
-		});
+		const sm = makeTestActor(
+			RequestManagerTop,
+			{ nextId: 0, table: {}, children: {}, childPorts: {} },
+			{
+				traceLevel: TraceLevel.VERBOSE_DEBUG,
+				traceWriter: writer,
+			}
+		);
 		return { kind: 'single', sm, writer };
 	},
 	stateSummary: runtime => {

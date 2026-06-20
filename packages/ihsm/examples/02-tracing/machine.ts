@@ -36,10 +36,14 @@ ihsm.registerStateNames(self);
 
 /** Verbose trace into a collector — used by the reference trace panel and tests. */
 export function createTracedPing(writer: CollectingTraceWriter) {
-	return makeTestActor(PingTop, { pings: 0 }, new ihsm.Port(), {
-		traceLevel: ihsm.TraceLevel.VERBOSE_DEBUG,
-		traceWriter: writer,
-	});
+	return makeTestActor(
+		PingTop,
+		{ pings: 0 },
+		{
+			traceLevel: ihsm.TraceLevel.VERBOSE_DEBUG,
+			traceWriter: writer,
+		}
+	);
 }
 
 export function createPingMachine(writer: CollectingTraceWriter) {

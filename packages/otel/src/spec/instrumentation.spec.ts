@@ -64,7 +64,6 @@ function makeCounter(
   const actor: TestActor<CounterConfig> = makeTestActor(
     CounterTop,
     ctx,
-    new Port(),
     {
       initialize: true,
       traceLevel: TraceLevel.PRODUCTION,
@@ -85,7 +84,6 @@ describe("@ihsm/otel instrumentation (ihsm seam → processed traces)", () => {
     const actor: TestActor<PingConfig> = makeTestActor(
       PingTop,
       ctx,
-      new Port(),
       {
         initialize: true,
         traceLevel: TraceLevel.PRODUCTION,

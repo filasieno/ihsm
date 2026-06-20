@@ -51,7 +51,6 @@ describe("@ihsm/otel annotation toolkit", () => {
     const actor: TestActor<AnnotateConfig> = makeTestActor(
       AnnotateTop,
       { anchorSpanId: undefined },
-      new Port(),
       {
         initialize: true,
         traceLevel: TraceLevel.PRODUCTION,

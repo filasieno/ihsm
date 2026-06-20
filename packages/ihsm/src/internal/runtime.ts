@@ -2683,6 +2683,34 @@ type SpawnContext<C extends ActorConfig = ActorConfig> = {
 	readonly parentMachine?: Machine<C>;
 };
 
+const ACTOR_OPTION_KEYS = new Set<string>(['initialize', 'traceLevel', 'traceWriter', 'dispatchErrorCallback', 'transitions']);
+
+/** @internal Distinguish {@link ActorOptions} from a port when the port argument is omitted. */
+export function isActorOptions(value: unknown): value is ActorOptions<ActorConfig> {
+	if (value === null || typeof value !== 'object') {
+		return false;
+	}
+	if (value instanceof Port || isRequestingPort(value)) {
+		return false;
+	}
+	const keys = Object.keys(value);
+	if (keys.length === 0) {
+		return true;
+	}
+	return keys.every(key => ACTOR_OPTION_KEYS.has(key));
+}
+
+/** @internal */
+export function resolveFactoryPortAndOptions<C extends ActorConfig>(portOrOptions?: MachinePortInput<C> | ActorOptions<C>, maybeOptions?: ActorOptions<C>): { port: MachinePortInput<C> | undefined; options: ActorOptions<C> } {
+	if (maybeOptions !== undefined) {
+		return { port: portOrOptions as MachinePortInput<C> | undefined, options: maybeOptions };
+	}
+	if (portOrOptions !== undefined && isActorOptions(portOrOptions)) {
+		return { port: undefined, options: portOrOptions as ActorOptions<C> };
+	}
+	return { port: portOrOptions as MachinePortInput<C> | undefined, options: {} };
+}
+
 /** @internal Spawn with embodiment kind — used by factories and `ihsm/testing`. */
 export function spawnActor<C extends ActorConfig, K extends EmbodimentKind>(kind: K, topState: TopStateArg<C>, ctx: ActorContextOf<C>, port: MachinePortInput<C> | undefined, options: ActorOptions<C>, spawnContext: SpawnContext<C> = {}): ActorHandleFor<C, K> {
 	const { initialize = defaultInitialize, traceLevel = TraceLevel.DEBUG, traceWriter = defaultTraceWriter, dispatchErrorCallback = defaultDispatchErrorCallback as DispatchErrorCallback<C>, transitions } = options;
@@ -2733,9 +2761,12 @@ export function spawnActor<C extends ActorConfig, K extends EmbodimentKind>(kind
 }
 
 /** Production black-box — public protocol only (generated handle). */
-export function makeActor<T extends TopStateArg<ActorConfig>>(topState: T, ctx: ActorContextOf<ActorConfigOf<T>>, port?: MachinePortInput<ActorConfigOf<T>>, options: ActorOptions<ActorConfigOf<T>> = {}): ExternalActor<ActorConfigOf<T>> {
+export function makeActor<T extends TopStateArg<ActorConfig>>(topState: T, ctx: ActorContextOf<ActorConfigOf<T>>, options?: ActorOptions<ActorConfigOf<T>>): ExternalActor<ActorConfigOf<T>>;
+export function makeActor<T extends TopStateArg<ActorConfig>>(topState: T, ctx: ActorContextOf<ActorConfigOf<T>>, port: MachinePortInput<ActorConfigOf<T>>, options?: ActorOptions<ActorConfigOf<T>>): ExternalActor<ActorConfigOf<T>>;
+export function makeActor<T extends TopStateArg<ActorConfig>>(topState: T, ctx: ActorContextOf<ActorConfigOf<T>>, portOrOptions?: MachinePortInput<ActorConfigOf<T>> | ActorOptions<ActorConfigOf<T>>, options?: ActorOptions<ActorConfigOf<T>>): ExternalActor<ActorConfigOf<T>> {
 	type C = ActorConfigOf<T>;
-	return spawnActor('root', topState as TopStateArg<C>, ctx, port, options);
+	const { port, options: resolvedOptions } = resolveFactoryPortAndOptions<C>(portOrOptions, options);
+	return spawnActor('root', topState as TopStateArg<C>, ctx, port, resolvedOptions);
 }
 
 export function asParentActor<T extends TopStateArg<ActorConfig>>(handler: TopState<ActorConfigOf<T>>): ParentActor<T> {
@@ -2750,10 +2781,13 @@ export function asParentActor<T extends TopStateArg<ActorConfig>>(handler: TopSt
 }
 
 /** Parent composes a child machine — returns full child protocol shell with `parent` set. */
-export function makeChildActor<ParentT extends TopStateArg<ActorConfig>, ChildT extends TopStateArg<ActorConfig>>(parent: ParentActor<ParentT>, childTop: ChildT, childCtx: ActorContextOf<ActorConfigOf<ChildT>>, port?: MachinePortInput<ActorConfigOf<ChildT>>, options: ActorOptions<ActorConfigOf<ChildT>> = {}): ChildActor<ActorConfigOf<ChildT>> & { readonly parent: ParentActor<ParentT> } {
+export function makeChildActor<ParentT extends TopStateArg<ActorConfig>, ChildT extends TopStateArg<ActorConfig>>(parent: ParentActor<ParentT>, childTop: ChildT, childCtx: ActorContextOf<ActorConfigOf<ChildT>>, options?: ActorOptions<ActorConfigOf<ChildT>>): ChildActor<ActorConfigOf<ChildT>> & { readonly parent: ParentActor<ParentT> };
+export function makeChildActor<ParentT extends TopStateArg<ActorConfig>, ChildT extends TopStateArg<ActorConfig>>(parent: ParentActor<ParentT>, childTop: ChildT, childCtx: ActorContextOf<ActorConfigOf<ChildT>>, port: MachinePortInput<ActorConfigOf<ChildT>>, options?: ActorOptions<ActorConfigOf<ChildT>>): ChildActor<ActorConfigOf<ChildT>> & { readonly parent: ParentActor<ParentT> };
+export function makeChildActor<ParentT extends TopStateArg<ActorConfig>, ChildT extends TopStateArg<ActorConfig>>(parent: ParentActor<ParentT>, childTop: ChildT, childCtx: ActorContextOf<ActorConfigOf<ChildT>>, portOrOptions?: MachinePortInput<ActorConfigOf<ChildT>> | ActorOptions<ActorConfigOf<ChildT>>, options?: ActorOptions<ActorConfigOf<ChildT>>): ChildActor<ActorConfigOf<ChildT>> & { readonly parent: ParentActor<ParentT> } {
 	type ChildC = ActorConfigOf<ChildT>;
+	const { port, options: resolvedOptions } = resolveFactoryPortAndOptions<ChildC>(portOrOptions, options);
 	const parentMachine: Machine<ActorConfigOf<ParentT>> | undefined = parent[kParentLink] as Machine<ActorConfigOf<ParentT>> | undefined;
-	const child = spawnActor('child', childTop as TopStateArg<ChildC>, childCtx, port, options, { parentMachine: parentMachine as Machine<ChildC> | undefined });
+	const child = spawnActor('child', childTop as TopStateArg<ChildC>, childCtx, port, resolvedOptions, { parentMachine: parentMachine as Machine<ChildC> | undefined });
 	Object.defineProperty(child, 'parent', { value: parent, enumerable: true, writable: false, configurable: true });
 	return child as ChildActor<ChildC> & { readonly parent: ParentActor<ParentT> };
 }

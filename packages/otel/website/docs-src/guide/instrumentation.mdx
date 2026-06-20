@@ -48,7 +48,7 @@ registerStateNames({ CounterTop, Running });
 const collector = createIhsmSignalCollector();
 registerCollector(collector.instrumentation); // register before spawning
 
-const actor = makeTestActor(CounterTop, { value: 0 }, new Port(), {});
+const actor = makeTestActor(CounterTop, { value: 0 }, {});
 
 await settle(collector); // wait for actor creation + initialization to be observed
 
@@ -84,7 +84,7 @@ import { createIhsmSignalCollector } from '@ihsm/otel/testing';
 
 const collector = createIhsmSignalCollector();
 registerCollector(collector.instrumentation);
-const actor = makeActor(AppTop, ctx, new Port(), { initialize: true });
+const actor = makeActor(AppTop, ctx, { initialize: true });
 ```
 
 Because the active collector is snapshotted at spawn, every actor — and every child it spawns — is

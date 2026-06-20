@@ -15,7 +15,7 @@
  *
  * @packageDocumentation
  */
-import { Port, TraceLevel, spawnActor, kMachine, Machine, defaultDispatchErrorCallback, defaultInitialize, defaultTraceWriter } from './internal/runtime';
+import { Port, TraceLevel, spawnActor, kMachine, Machine, defaultDispatchErrorCallback, defaultInitialize, defaultTraceWriter, resolveFactoryPortAndOptions } from './internal/runtime';
 import type { Any, Disposable, EventObserver, MachinePortInput, TracedMessage, ActorOptions, ActorConfig, ActorContextOf, ActorConfigOf, DomainPortOf, ChildActor, TestHsm, TopStateArg, ValidatedTopStateArg } from './internal/types';
 
 interface HandleOwn extends Record<symbol | string, unknown> {
@@ -697,12 +697,15 @@ export function makeTestPort<P extends TestPort<TopStateArg>, C extends ActorCon
  *
  * @category Factory
  */
-export function makeTestActor<T extends TopStateArg<ActorConfig>>(topState: ValidatedTopStateArg<T>, ctx: ActorContextOf<ActorConfigOf<T>>, port?: MachinePortInput<ActorConfigOf<T>>, options: ActorOptions<ActorConfigOf<T>> = {}): TestActor<ActorConfigOf<T>> {
+export function makeTestActor<T extends TopStateArg<ActorConfig>>(topState: ValidatedTopStateArg<T>, ctx: ActorContextOf<ActorConfigOf<T>>, options?: ActorOptions<ActorConfigOf<T>>): TestActor<ActorConfigOf<T>>;
+export function makeTestActor<T extends TopStateArg<ActorConfig>>(topState: ValidatedTopStateArg<T>, ctx: ActorContextOf<ActorConfigOf<T>>, port: MachinePortInput<ActorConfigOf<T>>, options?: ActorOptions<ActorConfigOf<T>>): TestActor<ActorConfigOf<T>>;
+export function makeTestActor<T extends TopStateArg<ActorConfig>>(topState: ValidatedTopStateArg<T>, ctx: ActorContextOf<ActorConfigOf<T>>, portOrOptions?: MachinePortInput<ActorConfigOf<T>> | ActorOptions<ActorConfigOf<T>>, options?: ActorOptions<ActorConfigOf<T>>): TestActor<ActorConfigOf<T>> {
 	type C = ActorConfigOf<T>;
+	const { port, options: resolvedOptions } = resolveFactoryPortAndOptions<C>(portOrOptions, options);
 	const boundPort = (port ?? new TestPort<T>()) as MachinePortInput<ActorConfigOf<T>>;
 	// Tests default to the most verbose trace (so a failing run is fully readable). Never silence to
 	// a production level here — the user opts down explicitly via `options.traceLevel`.
-	const { initialize = defaultInitialize, traceLevel = TraceLevel.VERBOSE_DEBUG, traceWriter = defaultTraceWriter, dispatchErrorCallback = defaultDispatchErrorCallback, ...rest } = options;
+	const { initialize = defaultInitialize, traceLevel = TraceLevel.VERBOSE_DEBUG, traceWriter = defaultTraceWriter, dispatchErrorCallback = defaultDispatchErrorCallback, ...rest } = resolvedOptions;
 	const actor = spawnActor('test', topState as TopStateArg<C>, ctx, boundPort, {
 		initialize,
 		traceLevel,

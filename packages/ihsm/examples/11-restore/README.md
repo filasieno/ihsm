@@ -91,7 +91,7 @@ Skip initialization (`initialize: false`), then jump to the saved leaf:
 ```typescript
 export function resumeSession(json: string) {
 	const { stateName, ctx } = JSON.parse(json) as PersistedSession;
-	const sm = makeTestActor(SessionTop, { userId: '', lastPage: '', entryLog: [] }, new Port(), {
+	const sm = makeTestActor(SessionTop, { userId: '', lastPage: '', entryLog: [] }, {
 		initialize: false,
 	});
 	(sm.hsm as ChildHsm<SessionConfig>).restore(SESSION_STATES[stateName], ctx);

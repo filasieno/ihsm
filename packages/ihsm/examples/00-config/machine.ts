@@ -52,5 +52,5 @@ export class Open extends ConnTop {}
 ihsm.registerStateNames(self);
 
 export function createConn() {
-	return makeTestActor(ConnTop, { host: '', frameCount: 0 }, new ihsm.Port());
+	return makeTestActor(ConnTop, { host: '', frameCount: 0 });
 }

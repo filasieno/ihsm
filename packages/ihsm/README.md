@@ -83,7 +83,7 @@ class Open extends DoorTop {
   }
 }
 
-const door = makeActor(DoorTop, { openCount: 0 }, new Port());
+const door = makeActor(DoorTop, { openCount: 0 });
 await door.hsm.sync();
 
 door.notify.open();
@@ -140,7 +140,7 @@ class WalletTop extends TopState<WalletConfig> {
 @InitialState
 class Open extends WalletTop {}
 
-const wallet = makeActor(WalletTop, { balance: 100 }, new Port());
+const wallet = makeActor(WalletTop, { balance: 100 });
 await wallet.hsm.sync();
 
 wallet.notify.deposit(50);
@@ -212,7 +212,7 @@ class Stopped extends PlayerTop {
   }
 }
 
-const player = makeActor(PlayerTop, { track: '' }, new Port());
+const player = makeActor(PlayerTop, { track: '' });
 await player.hsm.sync();
 
 player.notify.play();

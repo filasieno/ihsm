@@ -60,7 +60,7 @@ registerStateNames({ CounterTop, Running });
 
 async function main(): Promise<void> {
   // The production Port supplies real timers and randomness from the host.
-  const counter = makeActor(CounterTop, { value: 0 }, new Port());
+  const counter = makeActor(CounterTop, { value: 0 });
   await counter.hsm.sync(); // wait for initialization to settle
 
   counter.notify.increment();
@@ -118,7 +118,7 @@ class Ready extends ToggleTop {}
 
 registerStateNames({ ToggleTop, Ready });
 
-const toggle = makeActor(ToggleTop, { on: false }, new Port());
+const toggle = makeActor(ToggleTop, { on: false });
 await toggle.hsm.sync();
 
 document.querySelector('#flip')?.addEventListener('click', () => toggle.notify.flip());

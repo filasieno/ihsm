@@ -50,7 +50,7 @@ registerSpecStateNames(self);
 describe('deadlock-guard', function (): void {
 	it('throws SelfCallDeadlockError on nested service dispatch in debug builds', async () => {
 		const ctx: DeadlockCtx = {};
-		const actor = makeTestActor(DeadlockTop, ctx, new Port(), { traceLevel: TraceLevel.DEBUG });
+		const actor = makeTestActor(DeadlockTop, ctx, { traceLevel: TraceLevel.DEBUG });
 		ctx.actor = actor;
 		await actor.hsm.sync();
 		try {
@@ -64,7 +64,7 @@ describe('deadlock-guard', function (): void {
 	it('does not throw SelfCallDeadlockError in production trace level', async function (this: Mocha.Context): Promise<void> {
 		this.timeout(5000);
 		const ctx: DeadlockCtx = {};
-		const actor = makeTestActor(DeadlockTop, ctx, new Port(), { traceLevel: TraceLevel.PRODUCTION });
+		const actor = makeTestActor(DeadlockTop, ctx, { traceLevel: TraceLevel.PRODUCTION });
 		ctx.actor = actor;
 		await actor.hsm.sync();
 		const pending = actor.call.outer();
@@ -111,7 +111,7 @@ describe('deadlock-guard', function (): void {
 	});
 
 	it('rejects immediately when timeoutMs is zero', async () => {
-		const actor = makeTestActor(DeadlockTop, {}, new Port());
+		const actor = makeTestActor(DeadlockTop, {});
 		await actor.hsm.sync();
 		try {
 			await actor.call.slow({ timeoutMs: 0 });

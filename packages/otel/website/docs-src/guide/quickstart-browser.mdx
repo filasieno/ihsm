@@ -28,7 +28,7 @@ const otel = startOtelBrowser({
 
 // 2. Create actors as usual — no tracing argument. Every actor (and its children) spawned while
 //    the collector is registered is observed automatically.
-const actor = makeActor(AppTop, ctx, new Port(), { initialize: true });
+const actor = makeActor(AppTop, ctx, { initialize: true });
 
 // 3. Drive your app. Each macrostep is a trace; the bridge resolves spans from its own per-actor
 //    record, so async suspensions never detach a child span — no AsyncLocalStorage needed.

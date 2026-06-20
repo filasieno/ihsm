@@ -46,5 +46,5 @@ export class Idle extends QueueTop {}
 ihsm.registerStateNames(self);
 
 export function createQueueMachine() {
-	return makeTestActor(QueueTop, { events: [] }, new ihsm.Port());
+	return makeTestActor(QueueTop, { events: [] });
 }

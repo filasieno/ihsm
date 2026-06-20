@@ -119,7 +119,6 @@ describe("@ihsm/otel extended tracing coverage", () => {
     const worker: TestActor<WorkerConfig> = makeTestActor(
       WorkerTop,
       {},
-      new Port(),
       {
         initialize: true,
         traceLevel: TraceLevel.PRODUCTION,
@@ -221,7 +220,6 @@ describe("@ihsm/otel extended tracing coverage", () => {
     const actor: TestActor<InitConfig> = makeTestActor(
       InitTop,
       {},
-      new Port(),
       {
         initialize: true,
         traceLevel: TraceLevel.PRODUCTION,

@@ -88,7 +88,7 @@ afterEach(() => clearCollectors()); // unregister collectors so they don't leak 
 it('emits one trace per external ping', async () => {
   const collector = createIhsmSignalCollector();
   registerCollector(collector.instrumentation); // register before spawning the actor
-  const actor = makeTestActor(PingTop, { pings: 0 }, new Port(), {});
+  const actor = makeTestActor(PingTop, { pings: 0 }, {});
   await settle(collector);
 
   actor.notify.ping();

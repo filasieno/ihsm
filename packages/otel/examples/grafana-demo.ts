@@ -79,7 +79,7 @@ async function main(): Promise<void> {
   });
 
   // startOtelNode already registered the collector globally — actor construction stays tracing-free.
-  const actor = makeActor(OrderTop, { processed: 0, failures: 0 }, new Port(), {
+  const actor = makeActor(OrderTop, { processed: 0, failures: 0 }, {
     initialize: true,
     // PRODUCTION silences the legacy console TraceWriter; the OTEL bridge still receives every signal.
     traceLevel: TraceLevel.PRODUCTION,

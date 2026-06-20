@@ -23,7 +23,7 @@ option — it is a cross-cutting concern configured globally; see [Observability
 ```typescript
 import { defaultDispatchErrorCallback, defaultTraceWriter, makeActor, Port, TraceLevel } from 'ihsm';
 
-const actor = makeActor(CounterTop, { value: 0 }, new Port(), {
+const actor = makeActor(CounterTop, { value: 0 }, {
   // Run the initial-state entry chain on creation. Set false to hydrate with restore().
   initialize: true,
 
@@ -41,8 +41,7 @@ const actor = makeActor(CounterTop, { value: 0 }, new Port(), {
 });
 ```
 
-Every option is optional. `initialize` defaults to `true`; omit `port` only if the machine never
-uses timers, randomness, or domain I/O (you almost always want at least `new Port()`).
+Every option is optional. `initialize` defaults to `true`; omit `port` to use a production `Port` with host timers and crypto.
 
 ## The port: where every side effect lives
 
@@ -53,7 +52,7 @@ domain I/O. This is the cornerstone of determinism: an actor never calls `setTim
 ```typescript
 import { Port } from 'ihsm';
 
-const actor = makeActor(Top, ctx, new Port()); // production: real host timers + crypto
+const actor = makeActor(Top, ctx); // production: real host timers + crypto
 ```
 
 - `Port` (production) delegates to the host: `setTimeout`/`setInterval`, `crypto.randomUUID`,
@@ -86,7 +85,7 @@ An event with no handler anywhere up the chain triggers `onUnhandled(err)` (or t
 the *Error recovery* example.
 
 ```typescript
-const actor = makeActor(Top, ctx, new Port(), {
+const actor = makeActor(Top, ctx, {
   dispatchErrorCallback: (hsm, err) => {
     console.error(`[${hsm.currentStateName}]`, err);
   },
@@ -111,7 +110,7 @@ import { createConsoleInstrumentation, makeActor, Port, registerCollector } from
 const unregister = registerCollector(createConsoleInstrumentation());
 // options: createConsoleInstrumentation({ prefix: 'demo', microsteps: false, logs: false, write: (line) => myLogger(line) })
 
-const actor = makeActor(CounterTop, { value: 0 }, new Port(), { initialize: true });
+const actor = makeActor(CounterTop, { value: 0 }, { initialize: true });
 await actor.hsm.sync();
 actor.notify.increment();
 await actor.hsm.sync();

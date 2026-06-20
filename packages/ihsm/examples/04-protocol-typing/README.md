@@ -61,7 +61,7 @@ export class ThermostatTop extends TopState<ThermostatConfig> {
   }
 }
 
-const t = makeActor(ThermostatTop, { celsius: 18 }, new Port());
+const t = makeActor(ThermostatTop, { celsius: 18 });
 
 t.notify.setTarget(22);   // ✓
 // t.notify.setTargt(22); // ✗ compile error: unknown event

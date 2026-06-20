@@ -35,7 +35,7 @@ function shortUuid(uuid: string): string {
  * ```ts
  * import { createConsoleInstrumentation, registerCollector, makeActor, Port } from 'ihsm';
  * registerCollector(createConsoleInstrumentation());
- * const actor = makeActor(Top, ctx, new Port(), { initialize: true });
+ * const actor = makeActor(Top, ctx, { initialize: true });
  * ```
  */
 export function createConsoleInstrumentation(options: ConsoleInstrumentationOptions = {}): Instrumentation {

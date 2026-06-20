@@ -25,7 +25,7 @@ export function withTrace<C extends ActorConfig>(topState: TopStateArg<C>, ctx: 
 		traceLevel: TraceLevel.VERBOSE_DEBUG,
 		traceWriter: writer,
 	};
-	const sm = makeTestActor(topState as never, ctx as never, undefined, options);
+	const sm = makeTestActor(topState as never, ctx as never, options);
 	return { sm, writer };
 }
 

@@ -54,7 +54,7 @@ interface ParentConfig {
 
 class ParentTop extends TopState<ParentConfig> {
 	async go(): Promise<void> {
-		const child = makeChildActor(asParentActor(this), ChildTop, {}, new Port(), { initialize: true });
+		const child = makeChildActor(asParentActor(this), ChildTop, {}, { initialize: true });
 		this.hsm.port.child = child;
 		this.hsm.port.syncCall();
 		await this.hsm.port.asyncCall();
@@ -114,7 +114,7 @@ describe('ihsm Instrumentation seam', () => {
 		// Tracing is a cross-cutting concern: register the collector globally, then spawn the actor.
 		registerCollector(instrumentation);
 		const ctx = { pings: 0 };
-		const actor = makeTestActor(PingTop, ctx, new Port(), { initialize: true });
+		const actor = makeTestActor(PingTop, ctx, { initialize: true });
 		await actor.hsm.sync();
 		actor.notify.ping();
 		await actor.hsm.sync();

@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import 'mocha';
-import { InitialState, Port, TopState, clearCollectors, configureRunSeed, createConsoleInstrumentation, registerCollector, registerStateNames } from '../';
+import { InitialState, TopState, clearCollectors, configureRunSeed, createConsoleInstrumentation, registerCollector, registerStateNames } from '../';
 import type { ActorIdentity, DispatchError, EnqueueInfo, LogRecord, MacrostepEnd } from '../internal/types';
 import { makeTestActor } from '../testing';
 import * as self from './console-instrumentation.spec';
@@ -29,7 +29,7 @@ describe('createConsoleInstrumentation', () => {
 		const lines: string[] = [];
 		const instrumentation = createConsoleInstrumentation({ write: l => lines.push(l), prefix: 'demo' });
 		registerCollector(instrumentation);
-		const actor = makeTestActor(PingTop, { pings: 0 }, new Port(), { initialize: true });
+		const actor = makeTestActor(PingTop, { pings: 0 }, { initialize: true });
 		await actor.hsm.sync();
 		actor.notify.ping();
 		await actor.hsm.sync();
@@ -45,7 +45,7 @@ describe('createConsoleInstrumentation', () => {
 		const lines: string[] = [];
 		const instrumentation = createConsoleInstrumentation({ write: l => lines.push(l), microsteps: false, logs: false });
 		registerCollector(instrumentation);
-		const actor = makeTestActor(PingTop, { pings: 0 }, new Port(), { initialize: true });
+		const actor = makeTestActor(PingTop, { pings: 0 }, { initialize: true });
 		await actor.hsm.sync();
 		actor.notify.ping();
 		await actor.hsm.sync();

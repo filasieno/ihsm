@@ -62,5 +62,5 @@ export class C extends TraceTop {
 }
 
 export function createTracer() {
-	return makeTestActor(TraceTop, { log: [] }, new ihsm.Port());
+	return makeTestActor(TraceTop, { log: [] });
 }

@@ -62,7 +62,7 @@ export const sessionDb = new Map<string, string>();
 ihsm.registerStateNames(self);
 
 export function createSession(userId: string) {
-	return makeTestActor(SessionTop, { userId, lastPage: 'home', entryLog: [] }, new ihsm.Port());
+	return makeTestActor(SessionTop, { userId, lastPage: 'home', entryLog: [] });
 }
 
 function stateNameOf(sm: TestActor<SessionConfig>): SessionStateName {
@@ -86,9 +86,13 @@ export function suspendSession(sm: TestActor<SessionConfig>): string {
 export function resumeSession(json: string) {
 	const { stateName, ctx } = JSON.parse(json) as PersistedSession;
 	const stateClass = SESSION_STATES[stateName];
-	const sm = makeTestActor(SessionTop as ihsm.TopStateArg<SessionConfig>, { userId: '', lastPage: '', entryLog: [] }, new ihsm.Port(), {
-		initialize: false,
-	});
+	const sm = makeTestActor(
+		SessionTop as ihsm.TopStateArg<SessionConfig>,
+		{ userId: '', lastPage: '', entryLog: [] },
+		{
+			initialize: false,
+		}
+	);
 	(sm.hsm as ChildHsm<SessionConfig>).restore(stateClass, ctx);
 	return sm;
 }

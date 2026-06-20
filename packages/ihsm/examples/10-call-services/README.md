@@ -78,7 +78,7 @@ export class WalletTop extends TopState {
 ## Client
 
 ```typescript
-const wallet = makeActor(WalletTop, { balance: 75 }, new Port());
+const wallet = makeActor(WalletTop, { balance: 75 });
 await wallet.hsm.sync();
 
 wallet.notify.deposit(25);

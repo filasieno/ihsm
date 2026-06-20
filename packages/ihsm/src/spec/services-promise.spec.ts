@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { EventHandlerError, InitialState, Port, TopState } from '../';
+import { EventHandlerError, InitialState, TopState } from '../';
 import { makeTestActor } from '../testing';
 import * as self from './services-promise.spec';
 import { registerSpecStateNames } from './spec.utils';
@@ -87,27 +87,27 @@ function freshCtx(): PromiseCtx {
 
 describe('services-promise', function (): void {
 	it('resolves with handler return value', async () => {
-		const actor = makeTestActor(PromiseTop, freshCtx(), new Port());
+		const actor = makeTestActor(PromiseTop, freshCtx());
 		await actor.hsm.sync();
 		const result = await actor.call.getValue('hello');
 		expect(result).equals('ok:hello');
 	});
 
 	it('resolves Promise<void> service', async () => {
-		const actor = makeTestActor(PromiseTop, freshCtx(), new Port());
+		const actor = makeTestActor(PromiseTop, freshCtx());
 		await actor.hsm.sync();
 		await actor.call.getVoid();
 	});
 
 	it('resolves sync handler on async-typed service', async () => {
-		const actor = makeTestActor(PromiseTop, freshCtx(), new Port());
+		const actor = makeTestActor(PromiseTop, freshCtx());
 		await actor.hsm.sync();
 		const result = await actor.call.getSync();
 		expect(result).equals(7);
 	});
 
 	it('rejects when handler throws', async () => {
-		const actor = makeTestActor(PromiseTop, freshCtx(), new Port());
+		const actor = makeTestActor(PromiseTop, freshCtx());
 		await actor.hsm.sync();
 		try {
 			await actor.call.fail();
@@ -118,7 +118,7 @@ describe('services-promise', function (): void {
 	});
 
 	it('onError recovery still rejects the client promise', async () => {
-		const actor = makeTestActor(RecoveryTop, freshCtx(), new Port());
+		const actor = makeTestActor(RecoveryTop, freshCtx());
 		await actor.hsm.sync();
 		try {
 			await actor.call.fail();
@@ -129,7 +129,7 @@ describe('services-promise', function (): void {
 	});
 
 	it('transition completes before client promise resolves', async () => {
-		const actor = makeTestActor(PromiseTop, freshCtx(), new Port());
+		const actor = makeTestActor(PromiseTop, freshCtx());
 		await actor.hsm.sync();
 		const result = await actor.call.transitionThenReply();
 		expect(result).equals('moved');
@@ -139,7 +139,7 @@ describe('services-promise', function (): void {
 
 	it('RTC — awaiting inside a service blocks subsequent notifications', async () => {
 		const ctx = freshCtx();
-		const actor = makeTestActor(PromiseTop, ctx, new Port());
+		const actor = makeTestActor(PromiseTop, ctx);
 		await actor.hsm.sync();
 		const servicePromise = actor.call.blocking();
 		actor.notify.after();

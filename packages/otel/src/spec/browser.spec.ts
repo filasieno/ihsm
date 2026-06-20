@@ -118,7 +118,7 @@ describe("@ihsm/otel/browser env (isomorphic SDK edges + browser posture)", () =
     expect(typeof otel.instrumentation.onMacrostepBegin).equals("function");
 
     // startOtelBrowser registered the collector globally — no per-actor tracing wiring.
-    const actor = makeTestActor(OrderTop, { processed: 0 }, new Port(), {
+    const actor = makeTestActor(OrderTop, { processed: 0 }, {
       initialize: true,
       traceLevel: TraceLevel.PRODUCTION,
     });

@@ -38,7 +38,7 @@ export class Idle extends ThermostatTop {}
 ihsm.registerStateNames(self);
 
 export function createThermostat(initialCelsius: number) {
-	return makeTestActor(ThermostatTop, { celsius: initialCelsius }, new ihsm.Port());
+	return makeTestActor(ThermostatTop, { celsius: initialCelsius });
 }
 
 // Compile-time examples (uncomment to verify the compiler rejects mistakes):

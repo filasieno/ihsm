@@ -50,7 +50,7 @@ class Working extends WorkerTop {
 
 registerStateNames({ WorkerTop, Working });
 
-const w = makeActor(WorkerTop, { failures: 0, recovered: 0 }, new Port());
+const w = makeActor(WorkerTop, { failures: 0, recovered: 0 });
 await w.hsm.sync();
 
 w.notify.risky();
@@ -96,7 +96,7 @@ class Ready extends PingTop {}
 registerStateNames({ PingTop, Ready });
 
 const writer = new CollectingTraceWriter();
-const p = makeActor(PingTop, { pings: 0 }, new Port(), {
+const p = makeActor(PingTop, { pings: 0 }, {
   traceLevel: TraceLevel.VERBOSE_DEBUG,
   traceWriter: writer,
 });
@@ -160,7 +160,7 @@ interface StoreConfig {
 
 class StoreTop extends TopState<StoreConfig> {
   resume(snap: Snapshot): void {
-    const session = makeChildActor(asParentActor(this), SessionTop, { ...snap.ctx }, new Port<typeof SessionTop>(), {
+    const session = makeChildActor(asParentActor(this), SessionTop, { ...snap.ctx }, {
       initialize: false, // do not run the initial-state entry chain
     });
     session.hsm.restore(SESSION_STATES[snap.stateName], { ...snap.ctx }); // resume in place, no onEntry
@@ -173,7 +173,7 @@ class StoreReady extends StoreTop {}
 
 registerStateNames({ StoreTop, StoreReady });
 
-const store = makeActor(StoreTop, {}, new Port<typeof StoreTop>());
+const store = makeActor(StoreTop, {});
 await store.hsm.sync();
 
 const persisted = JSON.stringify({ stateName: 'Authenticated', ctx: { user: 'ada', page: 'dashboard' } });

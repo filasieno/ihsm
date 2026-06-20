@@ -149,7 +149,7 @@ messages are **queued**, not re-entered.
 the [Testing](/testing) chapter — **after** the interactive examples there.
 
 ```typescript
-const door = makeActor(DoorTop, { openCount: 0 }, new Port());
+const door = makeActor(DoorTop, { openCount: 0 });
 door.notify.open();
 await door.hsm.sync();
 ```
@@ -327,7 +327,7 @@ interface WalletConfig {
 
 class PaymentTop extends TopState<WalletConfig> {}
 
-const wallet = makeActor(PaymentTop, { balance: 0 }, new Port());
+const wallet = makeActor(PaymentTop, { balance: 0 });
 
 wallet.notify.charge(10);                         // ✓ typed notification
 // wallet.notify.charge('ten');                   // ✗ string ≠ number
@@ -412,14 +412,14 @@ signature that uses it.
 export function makeActor<T extends TopStateArg<ActorConfig>>(
   topState: T,
   ctx: ActorContextOf<ActorConfigOf<T>>,
-  port?: MachinePortInput<ActorConfigOf<T>>,
+  portOrOptions?: MachinePortInput<ActorConfigOf<T>> | ActorOptions<ActorConfigOf<T>>,
   options?: ActorOptions<ActorConfigOf<T>>,
 ): ExternalActor<ActorConfigOf<T>>
 
 export abstract class TopState<C extends ActorConfig = ActorConfig> { /* … */ }
 ```
 
-**Effect:** `makeActor(Top, ctx, port)` returns `ExternalActor<YourConfig>` — callers use `notify` / `call` facets typed from your `Config` buckets.
+**Effect:** `makeActor(Top, ctx)` returns `ExternalActor<YourConfig>` with a default production `Port`. Pass a custom port as the third argument, or pass `ActorOptions` alone when no custom port is needed.
 
 ##### 2. Generic constraints (`extends`)
 
@@ -908,7 +908,7 @@ to propagate failures to application code.
 Set trace level when creating the actor:
 
 ```typescript
-const door = makeActor(DoorTop, { openCount: 0 }, new Port(), {
+const door = makeActor(DoorTop, { openCount: 0 }, {
   traceLevel: TraceLevel.DEBUG,
 });
 ```
@@ -1047,7 +1047,7 @@ const json = JSON.stringify({
 });
 
 // resume — new instance after restart
-const sm = makeActor(TopState, emptyCtx, new Port(), { initialize: false });
+const sm = makeActor(TopState, emptyCtx, { initialize: false });
 sm.hsm.restore(STATE_BY_NAME[stateName], parsed.ctx);
 ```
 
@@ -1146,25 +1146,25 @@ for in-flight work.
 
 | Factory | Returns | Use when |
 | ------- | ------- | -------- |
-| `makeActor(top, ctx, port?, options?)` | `ExternalActor<C>` | Production — public `notify` / `notifyNow` / `call` only |
-| `makeChildActor(parent, childTop, ctx, port?, options?)` | `ChildActor<C>` + `parent` | Nested region owned by a parent handler |
-| `makeTestActor(top, ctx, port?, options?)` (`ihsm/testing`) | `TestActor<C>` | Tests — full protocol + `port` + `subscribe` |
+| `makeActor(top, ctx, portOrOptions?, options?)` | `ExternalActor<C>` | Production — public `notify` / `notifyNow` / `call` only |
+| `makeChildActor(parent, childTop, ctx, portOrOptions?, options?)` | `ChildActor<C>` + `parent` | Nested region owned by a parent handler |
+| `makeTestActor(top, ctx, portOrOptions?, options?)` (`ihsm/testing`) | `TestActor<C>` | Tests — full protocol + `port` + `subscribe` |
 
 `port.actor` after `makeActor` is an **inbound** shell (`InboundActor`) — same public protocol plus internal notifications for port-driven events.
 
 ```typescript
 import { makeActor, Port, TraceLevel } from 'ihsm';
 
-const door = makeActor(DoorTop, { openCount: 0 }, new Port());
+const door = makeActor(DoorTop, { openCount: 0 });
 door.notify.open();
 await door.hsm.sync();
 
-const traced = makeActor(DoorTop, { openCount: 0 }, new Port(), {
+const traced = makeActor(DoorTop, { openCount: 0 }, {
   traceLevel: TraceLevel.VERBOSE_DEBUG,
   traceWriter: new CollectingTraceWriter(),
 });
 
-const child = makeChildActor(asParentActor(this), ChildTop, childCtx, new Port());
+const child = makeChildActor(asParentActor(this), ChildTop, childCtx);
 await child.call.internalService();
 child.hsm.restore(SavedState, savedCtx);
 ```
@@ -1250,9 +1250,9 @@ Deterministic simulation testing: work through the five interactive examples in
 ### Factories
 
 ```typescript
-makeActor(topState, ctx, port?, options?): ExternalActor<Config>
-makeChildActor(parent, childTop, ctx, port?, options?): ChildActor<Config> & { parent }
-makeTestActor(topState, ctx, port?, options?): TestActor<Config>  // ihsm/testing
+makeActor(topState, ctx, portOrOptions?, options?): ExternalActor<Config>
+makeChildActor(parent, childTop, ctx, portOrOptions?, options?): ChildActor<Config> & { parent }
+makeTestActor(topState, ctx, portOrOptions?, options?): TestActor<Config>  // ihsm/testing
 ```
 
 ### `HandlerHsm` (handlers: `this.hsm`)

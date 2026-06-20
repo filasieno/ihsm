@@ -2,6 +2,12 @@
 
 All notable changes to `@ihsm/otel` are documented in this file.
 
+## [0.1.24] - 2026-06-20
+
+### Changed
+
+- Peer dependency floor `ihsm >= 0.1.24`.
+
 ## [0.1.23] - 2026-06-20
 
 ### Changed

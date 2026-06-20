@@ -118,7 +118,7 @@ describe('embodiments', function (): void {
 	describe('external (makeActor)', function (): void {
 		let actor: ExternalActor<DemoConfig>;
 		beforeEach(async () => {
-			actor = makeActor(DemoTop, freshCtx(), new Port());
+			actor = makeActor(DemoTop, freshCtx());
 			await actor.hsm.sync();
 		});
 
@@ -168,7 +168,7 @@ describe('embodiments', function (): void {
 
 	describe('test (makeTestActor)', function (): void {
 		it('the test embodiment can call internal services via actor.call', async () => {
-			const actor = makeTestActor(DemoTop, freshCtx(), new Port());
+			const actor = makeTestActor(DemoTop, freshCtx());
 			await actor.hsm.sync();
 			const secret = await actor.call.secret();
 			expect(secret).equals('shh');
@@ -176,7 +176,7 @@ describe('embodiments', function (): void {
 
 		it('the test embodiment can post internal notifications via actor.notify', async () => {
 			const ctx = freshCtx();
-			const actor = makeTestActor(DemoTop, ctx, new Port());
+			const actor = makeTestActor(DemoTop, ctx);
 			await actor.hsm.sync();
 			actor.notify.tick();
 			await actor.hsm.sync();

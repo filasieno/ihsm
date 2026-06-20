@@ -44,5 +44,5 @@ export class Running extends CounterTop {}
 ihsm.registerStateNames(self);
 
 export function createCounter(initial = 0, step = 1) {
-	return makeTestActor(CounterTop, { value: initial, step }, new ihsm.Port());
+	return makeTestActor(CounterTop, { value: initial, step });
 }

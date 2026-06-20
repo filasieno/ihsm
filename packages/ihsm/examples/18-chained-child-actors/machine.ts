@@ -127,7 +127,7 @@ export class Active extends GatewayTop {
 				lastPayload: '',
 			};
 			this.ctx.linkCtx = linkCtx;
-			this.ctx.link = ihsm.makeChildActor(ihsm.asParentActor(this), LinkTop, linkCtx, new ihsm.Port<typeof LinkTop>());
+			this.ctx.link = ihsm.makeChildActor(ihsm.asParentActor(this), LinkTop, linkCtx);
 		}
 		this.ctx.link.notifyNow.open(this.ctx.host);
 	}
@@ -141,5 +141,5 @@ export class Active extends GatewayTop {
 ihsm.registerStateNames(self);
 
 export function createGateway() {
-	return makeTestActor(GatewayTop, { host: '', delivered: 0 }, new ihsm.Port<typeof GatewayTop>());
+	return makeTestActor(GatewayTop, { host: '', delivered: 0 });
 }

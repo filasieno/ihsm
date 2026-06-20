@@ -12,7 +12,7 @@
  * import { startOtelNode } from '@ihsm/otel/node';
  *
  * const otel = startOtelNode({ serviceName: 'demo' }); // → http://localhost:4318, collector registered
- * const actor = makeActor(Top, ctx, new Port(), { initialize: true }); // no tracing wiring needed
+ * const actor = makeActor(Top, ctx, { initialize: true }); // no tracing wiring needed
  * // … drive the actor …
  * await otel.shutdown(); // flushes, tears down the SDK, and unregisters the collector
  * ```

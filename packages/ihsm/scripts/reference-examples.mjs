@@ -26,7 +26,7 @@ Use tracing when you are **debugging transition order**, cache behaviour, or han
 
 **Why not only \`console.log\` in handlers:** the runtime already knows LCA paths, cache hits, and dispatch phases. \`TraceLevel.VERBOSE_DEBUG\` plus a \`TraceWriter\` (here \`CollectingTraceWriter\`) gives a consistent timeline without sprinkling logs in every \`onEntry\`/\`onExit\`.
 
-**When to inject a custom writer:** tests (assert on trace lines), structured logging, or the docs site trace panel. Pass \`makeActor(Top, ctx, port, { traceLevel: TraceLevel.VERBOSE_DEBUG, traceWriter: writer })\` once; handlers use \`this.hsm.traceWriter\` indirectly via the framework.
+**When to inject a custom writer:** tests (assert on trace lines), structured logging, or the docs site trace panel. Pass \`makeActor(Top, ctx, { traceLevel: TraceLevel.VERBOSE_DEBUG, traceWriter: writer })\` once; handlers use \`this.hsm.traceWriter\` indirectly via the framework.
 `,
 	},
 	{

@@ -56,7 +56,7 @@ class Idle extends QueueTop {}
 
 registerStateNames({ QueueTop, Idle });
 
-const m = makeActor(QueueTop, { events: [] }, new Port());
+const m = makeActor(QueueTop, { events: [] });
 await m.hsm.sync();
 
 m.notify.start();
@@ -103,7 +103,7 @@ class Draft extends CheckoutTop {}
 
 registerStateNames({ CheckoutTop, Draft });
 
-const c = makeActor(CheckoutTop, { steps: [] }, new Port());
+const c = makeActor(CheckoutTop, { steps: [] });
 await c.hsm.sync();
 
 c.notify.confirm();
@@ -153,7 +153,7 @@ class OpenAccount extends WalletTop {}
 
 registerStateNames({ WalletTop, OpenAccount });
 
-const wallet = makeActor(WalletTop, { balance: 100 }, new Port());
+const wallet = makeActor(WalletTop, { balance: 100 });
 await wallet.hsm.sync();
 
 wallet.notify.deposit(50);
@@ -188,7 +188,7 @@ class Ready extends RpcTop {}
 
 registerStateNames({ RpcTop, Ready });
 
-const rpc = makeActor(RpcTop, {}, new Port());
+const rpc = makeActor(RpcTop, {});
 await rpc.hsm.sync();
 
 try {

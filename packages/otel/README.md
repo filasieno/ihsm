@@ -5,7 +5,7 @@
 
 OpenTelemetry bridge for [ihsm](https://www.npmjs.com/package/ihsm) — traces and structured logs via the native `Instrumentation` seam (`registerCollector` / `createConsoleInstrumentation`).
 
-Peer-depends on **`ihsm`** (≥ 0.1.23). No tracing code in actor handlers; register a provider once, then every spawned actor reports automatically.
+Peer-depends on **`ihsm`** (≥ 0.1.24). No tracing code in actor handlers; register a provider once, then every spawned actor reports automatically.
 
 ## Install
 
@@ -22,7 +22,7 @@ import { startOtelNode } from '@ihsm/otel/node';
 const stop = startOtelNode({ serviceName: 'my-service' });
 registerCollector(stop.instrumentation);
 
-const actor = makeActor(Top, ctx, new Port(), { initialize: true });
+const actor = makeActor(Top, ctx, { initialize: true });
 ```
 
 ## Browser

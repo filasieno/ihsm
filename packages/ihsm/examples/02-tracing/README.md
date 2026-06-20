@@ -52,7 +52,7 @@ Controls **which dispatch implementation** runs. Changing `traceLevel` on a live
 ```typescript
 import { makeActor, Port, TraceLevel, TraceWriter } from 'ihsm';
 
-const sm = makeTestActor(Top, ctx, new Port(), {
+const sm = makeTestActor(Top, ctx, {
   traceLevel: TraceLevel.VERBOSE_DEBUG,
   traceWriter: myWriter,
 });

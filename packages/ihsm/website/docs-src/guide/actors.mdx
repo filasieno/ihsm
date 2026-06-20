@@ -93,7 +93,7 @@ class Active extends GatewayTop {
   onEntry(): void {
     if (!this.ctx.link) {
       const linkCtx: LinkCtx = { host: this.ctx.host, linkUp: false, lastPayload: '' };
-      this.ctx.link = makeChildActor(asParentActor(this), LinkTop, linkCtx, new Port<typeof LinkTop>());
+      this.ctx.link = makeChildActor(asParentActor(this), LinkTop, linkCtx);
     }
     this.ctx.link.notifyNow.open(this.ctx.host); // parent → child notification
   }
@@ -104,7 +104,7 @@ class Active extends GatewayTop {
 
 registerStateNames({ GatewayTop, Idle, Active });
 
-const gw = makeActor(GatewayTop, { host: '' }, new Port<typeof GatewayTop>());
+const gw = makeActor(GatewayTop, { host: '' });
 await gw.hsm.sync();
 
 gw.notify.activate('node-1');
@@ -177,7 +177,7 @@ class Rejected extends OrderTop {}
 
 registerStateNames({ OrderTop, Draft, Validating, Approved, Rejected });
 
-const order = makeActor(OrderTop, { amount: 80, limit: 100, phase: 'draft', notes: [] }, new Port());
+const order = makeActor(OrderTop, { amount: 80, limit: 100, phase: 'draft', notes: [] });
 await order.hsm.sync();
 
 order.notify.submit();

@@ -47,5 +47,5 @@ ihsm.registerStateNames(self);
 
 /** Factory used by tests, interactive panel, and application code. */
 export function createDoor() {
-	return makeTestActor(DoorTop, { openCount: 0 }, new ihsm.Port());
+	return makeTestActor(DoorTop, { openCount: 0 });
 }

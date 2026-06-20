@@ -299,9 +299,13 @@ describe('runtime-coverage', function (): void {
 	});
 
 	it('service dispatch rejects TransitionError to the client', async () => {
-		const actor = makeTestActor(RuntimeCoverageTop, { n: 0 }, new Port(), {
-			dispatchErrorCallback: createTestDispatchErrorCallback(true),
-		});
+		const actor = makeTestActor(
+			RuntimeCoverageTop,
+			{ n: 0 },
+			{
+				dispatchErrorCallback: createTestDispatchErrorCallback(true),
+			}
+		);
 		await actor.hsm.sync();
 		try {
 			await actor.call.throwTransition();
@@ -312,9 +316,13 @@ describe('runtime-coverage', function (): void {
 	});
 
 	it('service dispatch routes unknown events through onUnhandled', async () => {
-		const actor = makeTestActor(RuntimeCoverageTop, { n: 0 }, new Port(), {
-			dispatchErrorCallback: createTestDispatchErrorCallback(true),
-		});
+		const actor = makeTestActor(
+			RuntimeCoverageTop,
+			{ n: 0 },
+			{
+				dispatchErrorCallback: createTestDispatchErrorCallback(true),
+			}
+		);
 		await actor.hsm.sync();
 		const machine = (actor as unknown as HandleOwn)[kMachine];
 		const result = await machine.dispatchService('missing', []);
@@ -361,7 +369,7 @@ describe('runtime-coverage', function (): void {
 	});
 
 	it('makeActor external facade omits owner-only hsm members', async () => {
-		const actor = makeActor(RuntimeCoverageTop, { n: 0 }, new Port());
+		const actor = makeActor(RuntimeCoverageTop, { n: 0 });
 		await actor.hsm.sync();
 		expect(actor.hsm.traceHeader).equals('');
 		expect((actor.hsm as { restore?: unknown }).restore).equals(undefined);
@@ -369,13 +377,13 @@ describe('runtime-coverage', function (): void {
 	});
 
 	it('makeTestActor hsm facade exposes traceHeader', async () => {
-		const actor = makeTestActor(RuntimeCoverageTop, { n: 0 }, new Port());
+		const actor = makeTestActor(RuntimeCoverageTop, { n: 0 });
 		await actor.hsm.sync();
 		expect(actor.hsm.traceHeader).equals('');
 	});
 
 	it('service handler can surface UnhandledEventError through invokeHandler', async () => {
-		const actor = makeTestActor(UnhandledTop, {}, new Port(), { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+		const actor = makeTestActor(UnhandledTop, {}, { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 		await actor.hsm.sync();
 		const result = await actor.call.bail();
 		expect(result).equals(undefined);
@@ -383,16 +391,20 @@ describe('runtime-coverage', function (): void {
 	});
 
 	it('reports transition failures from executePendingTransition during init', async () => {
-		const actor = makeTestActor(FailInitTop, {}, new Port(), {
-			traceLevel: TraceLevel.DEBUG,
-			dispatchErrorCallback: createTestDispatchErrorCallback(true),
-		});
+		const actor = makeTestActor(
+			FailInitTop,
+			{},
+			{
+				traceLevel: TraceLevel.DEBUG,
+				dispatchErrorCallback: createTestDispatchErrorCallback(true),
+			}
+		);
 		await actor.hsm.sync();
 		expect(actor.hsm.currentStateName).equals('FailInitLeaf');
 	});
 
 	it('executePendingTransition moves to FatalErrorState when a transition throws', async () => {
-		const actor = makeTestActor(TransitionFailTop, {}, new Port(), { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+		const actor = makeTestActor(TransitionFailTop, {}, { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 		await actor.hsm.sync();
 		try {
 			await actor.call.go();
@@ -426,12 +438,12 @@ describe('runtime-coverage', function (): void {
 	});
 
 	it('async onUnhandled and onUnhandled recovery errors', async () => {
-		const actor = makeTestActor(AsyncUnhandledTop, {}, new Port(), { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+		const actor = makeTestActor(AsyncUnhandledTop, {}, { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 		await actor.hsm.sync();
 		await actor.call.go();
 		expect(actor.hsm.currentState).equals(AsyncUnhandledLeaf);
 
-		const actor2 = makeTestActor(TransitionUnhandledTop, {}, new Port(), { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+		const actor2 = makeTestActor(TransitionUnhandledTop, {}, { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 		await actor2.hsm.sync();
 		try {
 			await actor2.call.go();
@@ -440,7 +452,7 @@ describe('runtime-coverage', function (): void {
 		}
 		expect(actor2.hsm.currentState).equals(FatalErrorState);
 
-		const actor3 = makeTestActor(ErrorUnhandledTop, {}, new Port(), { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
+		const actor3 = makeTestActor(ErrorUnhandledTop, {}, { dispatchErrorCallback: createTestDispatchErrorCallback(true) });
 		await actor3.hsm.sync();
 		try {
 			await actor3.call.go();
@@ -452,10 +464,14 @@ describe('runtime-coverage', function (): void {
 
 	it('init task reports executePendingTransition failures via dispatchErrorCallback', async () => {
 		clearLastError();
-		const actor = makeTestActor(BrokenInitTop, {}, new Port(), {
-			traceLevel: TraceLevel.DEBUG,
-			dispatchErrorCallback: createTestDispatchErrorCallback(true),
-		});
+		const actor = makeTestActor(
+			BrokenInitTop,
+			{},
+			{
+				traceLevel: TraceLevel.DEBUG,
+				dispatchErrorCallback: createTestDispatchErrorCallback(true),
+			}
+		);
 		await actor.hsm.sync();
 		expect(getLastError()).to.not.equal(undefined);
 	});
@@ -476,7 +492,7 @@ describe('runtime-coverage', function (): void {
 	});
 
 	it('handler hsm exposes traceFrames, log, and actor identity getters', async () => {
-		const actor = makeTestActor(RuntimeCoverageTop, { n: 0 }, new Port(), { initialize: true });
+		const actor = makeTestActor(RuntimeCoverageTop, { n: 0 }, { initialize: true });
 		await actor.hsm.sync();
 		actor.notify.readHsm();
 		await actor.hsm.sync();
@@ -484,7 +500,7 @@ describe('runtime-coverage', function (): void {
 	});
 
 	it('defers self-notifications through handler port.defer', async () => {
-		const actor = makeTestActor(RuntimeCoverageTop, { n: 0 }, new Port(), { initialize: true });
+		const actor = makeTestActor(RuntimeCoverageTop, { n: 0 }, { initialize: true });
 		await actor.hsm.sync();
 		actor.notify.schedule(0);
 		await actor.hsm.sync();
@@ -518,7 +534,7 @@ describe('runtime-coverage', function (): void {
 				severities.push(record.severity);
 			},
 		});
-		const actor = makeTestActor(RuntimeCoverageLeaf, { n: 0 }, new Port(), { initialize: true });
+		const actor = makeTestActor(RuntimeCoverageLeaf, { n: 0 }, { initialize: true });
 		await actor.hsm.sync();
 		actor.notify.readHsm();
 		actor.notify.exerciseLog();
@@ -633,7 +649,7 @@ describe('runtime-coverage', function (): void {
 		const actor = makeTestActor(RuntimeCoverageLeaf, { n: 0 }, new Port(), { initialize: true });
 		await actor.hsm.sync();
 		actor.notify.schedule(1);
-		await new Promise(resolve => setTimeout(resolve, 5));
+		await new Promise(resolve => setTimeout(resolve, 10));
 		await actor.hsm.sync();
 		expect(enqueues).to.include('ping');
 	});

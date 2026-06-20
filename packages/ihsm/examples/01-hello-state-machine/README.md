@@ -67,7 +67,7 @@ class Open extends DoorTop {
 ```typescript
 import { makeActor, Port } from 'ihsm';
 
-const door = makeActor(DoorTop, { openCount: 0 }, new Port());
+const door = makeActor(DoorTop, { openCount: 0 });
 await door.hsm.sync();
 
 door.notify.open();                    // fire-and-forget notification

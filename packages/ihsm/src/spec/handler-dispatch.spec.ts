@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { InitialState, Port, ProtocolCollisionError, TopState, makeActor } from '../';
+import { InitialState, ProtocolCollisionError, TopState, makeActor } from '../';
 import { makeTestActor } from '../testing';
 import type { ActorConfig, DisjointActorConfig } from '../';
 import * as self from './handler-dispatch.spec';
@@ -72,7 +72,7 @@ type _ReservedCtxService = AssertTrue<DisjointActorConfig<ActorConfig & { servic
 describe('handler-dispatch', function (): void {
 	it('this.notify.close() schedules on the default queue', async () => {
 		const ctx = { order: [] as string[] };
-		const actor = makeTestActor(HandlerTop, ctx, new Port());
+		const actor = makeTestActor(HandlerTop, ctx);
 		await actor.hsm.sync();
 		actor.notify.close();
 		await actor.hsm.sync();
@@ -81,7 +81,7 @@ describe('handler-dispatch', function (): void {
 
 	it('this.notifyNow.abort() runs before pending default-queue jobs from the same handler', async () => {
 		const ctx = { order: [] as string[] };
-		const actor = makeTestActor(HandlerTop, ctx, new Port());
+		const actor = makeTestActor(HandlerTop, ctx);
 		await actor.hsm.sync();
 		actor.notify.enqueueBoth();
 		await actor.hsm.sync();
@@ -91,18 +91,18 @@ describe('handler-dispatch', function (): void {
 
 	it('await actor.call.transition() works when services.transition is on Config', async () => {
 		const ctx = { order: [] as string[] };
-		const actor = makeTestActor(HandlerTop, ctx, new Port());
+		const actor = makeTestActor(HandlerTop, ctx);
 		await actor.hsm.sync();
 		await actor.call.transition('example.com');
 		expect(ctx.order).eqls(['transition:example.com']);
 	});
 
 	it('actor.hsm does not expose transition (reduced facade)', () => {
-		const actor = makeActor(HandlerTop, { order: [] }, new Port());
+		const actor = makeActor(HandlerTop, { order: [] });
 		expect((actor.hsm as { transition?: unknown }).transition).equals(undefined);
 	});
 
 	it('throws ProtocolCollisionError when a state class defines ctx() on the prototype', () => {
-		expect(() => makeTestActor(BadTop, { order: [] }, new Port())).to.throw(ProtocolCollisionError);
+		expect(() => makeTestActor(BadTop, { order: [] })).to.throw(ProtocolCollisionError);
 	});
 });

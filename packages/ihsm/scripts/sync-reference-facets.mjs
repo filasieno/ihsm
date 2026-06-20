@@ -150,8 +150,8 @@ service calls use a **different** actor handle (\`child.call…\`, \`parent…\`
 	);
 
 	s = s.replace(
-		/const door = makeActor\(DoorTop, \{ openCount: 0 \}, new Port\(\)\);/g,
-		'const door = makeActor(DoorTop, { openCount: 0 }, new Port());\ndoor.notify.open();',
+		/const door = makeActor\(DoorTop, \{ openCount: 0 \}\);/g,
+		'const door = makeActor(DoorTop, { openCount: 0 });\ndoor.notify.open();',
 	);
 
 	return s;

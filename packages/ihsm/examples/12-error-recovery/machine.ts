@@ -44,5 +44,5 @@ export class Working extends WorkerTop {
 ihsm.registerStateNames(self);
 
 export function createWorker() {
-	return makeTestActor(WorkerTop, { failures: 0, recovered: 0 }, new ihsm.Port());
+	return makeTestActor(WorkerTop, { failures: 0, recovered: 0 });
 }

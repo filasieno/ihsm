@@ -77,8 +77,8 @@ export class Fulfilling extends OrderTop {
 Spawn children on `Open.onEntry`:
 
 ```typescript
-this.ctx.payment = makeChildActor(asParentActor(this), PaymentTop, paymentCtx, new Port<typeof PaymentTop>());
-this.ctx.shipping = makeChildActor(asParentActor(this), ShippingTop, shippingCtx, new Port<typeof ShippingTop>());
+this.ctx.payment = makeChildActor(asParentActor(this), PaymentTop, paymentCtx);
+this.ctx.shipping = makeChildActor(asParentActor(this), ShippingTop, shippingCtx);
 ```
 
 Children report back through a wired **event bridge** (not services, not `async`):

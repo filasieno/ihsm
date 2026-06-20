@@ -18,7 +18,7 @@ import { createConsoleInstrumentation, makeActor, Port, registerCollector } from
 // Register once, globally — every actor spawned afterwards prints its signals.
 registerCollector(createConsoleInstrumentation());
 
-const actor = makeActor(CounterTop, { value: 0 }, new Port(), { initialize: true });
+const actor = makeActor(CounterTop, { value: 0 }, { initialize: true });
 
 await actor.hsm.sync();
 actor.notify.increment();

@@ -43,7 +43,7 @@ class Open extends DoorTop {
 
 registerStateNames({ DoorTop, Closed, Open });
 
-const door = makeActor(DoorTop, { openCount: 0 }, new Port());
+const door = makeActor(DoorTop, { openCount: 0 });
 await door.hsm.sync();
 
 door.notify.open();
@@ -87,7 +87,7 @@ class Running extends CounterTop {}
 
 registerStateNames({ CounterTop, Running });
 
-const counter = makeActor(CounterTop, { value: 0, step: 5 }, new Port());
+const counter = makeActor(CounterTop, { value: 0, step: 5 });
 await counter.hsm.sync();
 
 counter.notify.increment();
@@ -128,7 +128,7 @@ class On extends LampTop {}
 
 registerStateNames({ LampTop, On });
 
-const lamp = makeActor(LampTop, { brightness: 100, entryCount: 0 }, new Port());
+const lamp = makeActor(LampTop, { brightness: 100, entryCount: 0 });
 await lamp.hsm.sync();
 
 lamp.notify.dim(20);
@@ -197,7 +197,7 @@ class Paused extends Active {
 
 registerStateNames({ MediaTop, Stopped, Active, Playing, Paused });
 
-const media = makeActor(MediaTop, { trail: [] }, new Port());
+const media = makeActor(MediaTop, { trail: [] });
 await media.hsm.sync();
 
 media.notify.play();

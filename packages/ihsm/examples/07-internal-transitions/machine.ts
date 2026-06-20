@@ -43,5 +43,5 @@ export class On extends LampTop {}
 ihsm.registerStateNames(self);
 
 export function createLamp(brightness: number) {
-	return makeTestActor(LampTop, { brightness, entryCount: 0 }, new ihsm.Port());
+	return makeTestActor(LampTop, { brightness, entryCount: 0 });
 }

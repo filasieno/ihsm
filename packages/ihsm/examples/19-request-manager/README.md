@@ -45,7 +45,7 @@ Submit allocates an id, records the row, spawns the matching child, and notifies
 submit(kind: 'alpha' | 'beta'): void {
   const requestId = ++this.ctx.nextId;
   this.ctx.table[requestId] = { kind, status: 'running' };
-  const child = makeChildActor(asParentActor(this), AlphaTop, alphaCtx, new Port());
+  const child = makeChildActor(asParentActor(this), AlphaTop, alphaCtx);
   this.ctx.children[requestId] = child;
   child.notify.start();
 }

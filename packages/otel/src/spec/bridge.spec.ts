@@ -110,7 +110,7 @@ describe("@ihsm/otel bridge (ihsm seam → real OTEL spans/logs)", () => {
   it("maps one external stimulus to one macrostep trace with step + transition spans", async () => {
     configureRunSeed("bridge-ok");
     const otel = buildOtel();
-    const actor = makeTestActor(OrderTop, { processed: 0 }, new Port(), {
+    const actor = makeTestActor(OrderTop, { processed: 0 }, {
       initialize: true,
       traceLevel: TraceLevel.PRODUCTION,
     });
@@ -170,7 +170,7 @@ describe("@ihsm/otel bridge (ihsm seam → real OTEL spans/logs)", () => {
   it("emits a derived INFO log per macrostep, trace-correlated", async () => {
     configureRunSeed("bridge-log");
     const otel = buildOtel();
-    const actor = makeTestActor(OrderTop, { processed: 0 }, new Port(), {
+    const actor = makeTestActor(OrderTop, { processed: 0 }, {
       initialize: true,
       traceLevel: TraceLevel.PRODUCTION,
     });
@@ -198,7 +198,7 @@ describe("@ihsm/otel bridge (ihsm seam → real OTEL spans/logs)", () => {
   it("marks the error path: ERROR status, ihsm.outcome=error, exception + ERROR log", async () => {
     configureRunSeed("bridge-err");
     const otel = buildOtel();
-    const actor = makeTestActor(OrderTop, { processed: 0 }, new Port(), {
+    const actor = makeTestActor(OrderTop, { processed: 0 }, {
       initialize: true,
       traceLevel: TraceLevel.PRODUCTION,
       dispatchErrorCallback: (): void => {
@@ -244,7 +244,7 @@ describe("@ihsm/otel bridge (ihsm seam → real OTEL spans/logs)", () => {
     const uuidFor = async (seed: string): Promise<string> => {
       configureRunSeed(seed);
       const otel = buildOtel();
-      const actor = makeTestActor(OrderTop, { processed: 0 }, new Port(), {
+      const actor = makeTestActor(OrderTop, { processed: 0 }, {
         initialize: true,
         traceLevel: TraceLevel.PRODUCTION,
       });

@@ -20,7 +20,7 @@
  * import { startOtelBrowser } from '@ihsm/otel/browser';
  *
  * const otel = startOtelBrowser({ serviceName: 'cb-web', console: true }); // collector registered globally
- * const actor = makeActor(Top, ctx, new Port(), { initialize: true }); // no tracing wiring needed
+ * const actor = makeActor(Top, ctx, { initialize: true }); // no tracing wiring needed
  * // … drive the actor; traces/logs appear in DevTools and (if reachable) the local collector …
  * await otel.shutdown(); // unregisters the collector; flush also fires automatically on page hide
  * ```

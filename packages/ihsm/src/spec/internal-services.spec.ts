@@ -70,7 +70,7 @@ export class ParentTop extends TopState<ParentConfig> {
 export class ParentIdle extends ParentTop {
 	onEntry(): void {
 		if (this.ctx.child === undefined) {
-			this.ctx.child = makeChildActor(asParentActor(this), ChildTop, { value: 0 }, new Port<typeof ChildTop>());
+			this.ctx.child = makeChildActor(asParentActor(this), ChildTop, { value: 0 });
 		}
 	}
 }

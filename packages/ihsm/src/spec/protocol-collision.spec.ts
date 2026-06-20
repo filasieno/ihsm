@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { InitialState, Port, ProtocolCollisionError, TopState } from '../';
+import { InitialState, ProtocolCollisionError, TopState } from '../';
 import { makeTestActor } from '../testing';
 import { buildProtocolIndex } from '../internal/runtime';
 import * as self from './protocol-collision.spec';
@@ -61,12 +61,12 @@ registerSpecStateNames(self);
 describe('protocol-collision', function (): void {
 	it('throws when a state class defines a reserved symbol method', () => {
 		expect(() => buildProtocolIndex(BadTop)).to.throw(ProtocolCollisionError, /reserved symbol "ctx"/);
-		expect(() => makeTestActor(ReservedStateTop, {}, new Port())).to.throw(ProtocolCollisionError, /ReservedStateTop/);
+		expect(() => makeTestActor(ReservedStateTop, {})).to.throw(ProtocolCollisionError, /ReservedStateTop/);
 	});
 
 	it('allows lifecycle hooks implemented as hooks', () => {
 		expect(() => buildProtocolIndex(HookTop)).not.to.throw();
-		const actor = makeTestActor(HookTop, {}, new Port());
+		const actor = makeTestActor(HookTop, {});
 		expect(actor).to.not.equal(undefined);
 	});
 
@@ -75,7 +75,7 @@ describe('protocol-collision', function (): void {
 	});
 
 	it('constructs when handlers align with Config', () => {
-		const actor = makeTestActor(CollisionTop, {}, new Port());
+		const actor = makeTestActor(CollisionTop, {});
 		expect(actor).to.not.equal(undefined);
 	});
 });

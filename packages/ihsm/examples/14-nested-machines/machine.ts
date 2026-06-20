@@ -120,8 +120,8 @@ export class OrderTop extends PlaygroundTopState<OrderConfig> {
 		const shippingCtx: ShippingCtx = { shipped: false, orderEvents };
 		this.ctx.paymentCtx = paymentCtx;
 		this.ctx.shippingCtx = shippingCtx;
-		this.ctx.payment = ihsm.makeChildActor(ihsm.asParentActor(this), PaymentTop, paymentCtx, new ihsm.Port<typeof PaymentTop>());
-		this.ctx.shipping = ihsm.makeChildActor(ihsm.asParentActor(this), ShippingTop, shippingCtx, new ihsm.Port<typeof ShippingTop>());
+		this.ctx.payment = ihsm.makeChildActor(ihsm.asParentActor(this), PaymentTop, paymentCtx);
+		this.ctx.shipping = ihsm.makeChildActor(ihsm.asParentActor(this), ShippingTop, shippingCtx);
 	}
 }
 
@@ -143,7 +143,7 @@ export class Fulfilled extends OrderTop {}
 ihsm.registerStateNames(self);
 
 export function createOrder() {
-	return makeTestActor(OrderTop, {}, new ihsm.Port<typeof OrderTop>());
+	return makeTestActor(OrderTop, {});
 }
 
 /** Drain parent and both region queues (tests / playground). */

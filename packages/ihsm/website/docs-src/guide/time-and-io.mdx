@@ -60,7 +60,7 @@ class Running extends HeartbeatTop {
 
 registerStateNames({ HeartbeatTop, Stopped, Running });
 
-const hb = makeActor(HeartbeatTop, { ticks: 0 }, new Port());
+const hb = makeActor(HeartbeatTop, { ticks: 0 });
 await hb.hsm.sync();
 hb.notify.start();
 await hb.hsm.sync();
@@ -110,7 +110,7 @@ class Done extends JobTop {}
 
 registerStateNames({ JobTop, Idle, Done });
 
-const job = makeActor(JobTop, { steps: [], bytes: 0 }, new Port());
+const job = makeActor(JobTop, { steps: [], bytes: 0 });
 await job.hsm.sync();
 job.notify.transfer();
 await job.hsm.sync();

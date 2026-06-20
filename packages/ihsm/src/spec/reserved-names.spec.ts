@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { InitialState, Port, ProtocolCollisionError, TopState } from '../';
+import { InitialState, ProtocolCollisionError, TopState } from '../';
 import { makeTestActor } from '../testing';
 import { buildProtocolIndex } from '../internal/runtime';
 import type { ActorConfig, StateClass } from '../';
@@ -55,10 +55,10 @@ describe('reserved-names', function (): void {
 	}
 
 	it('rejects state methods named hsm at construction', () => {
-		expect(() => makeTestActor(HsmMethodTop, {}, new Port())).to.throw(ProtocolCollisionError, /reserved symbol "hsm"/);
+		expect(() => makeTestActor(HsmMethodTop, {})).to.throw(ProtocolCollisionError, /reserved symbol "hsm"/);
 	});
 
 	it('allows lifecycle hooks onEntry onExit onError onUnhandled as real hooks', () => {
-		expect(() => makeTestActor(HookTop, {}, new Port())).not.to.throw();
+		expect(() => makeTestActor(HookTop, {})).not.to.throw();
 	});
 });

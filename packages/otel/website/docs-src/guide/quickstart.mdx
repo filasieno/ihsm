@@ -24,7 +24,7 @@ const otel = startOtelNode({
 
 // 2. Create actors as usual — no tracing argument. Every actor (and its children) spawned while
 //    the collector is registered is observed automatically.
-const actor = makeActor(AppTop, ctx, new Port(), { initialize: true });
+const actor = makeActor(AppTop, ctx, { initialize: true });
 
 // 3. Run your app. Every macrostep becomes a trace; transitions, steps and errors become spans.
 // …
@@ -102,7 +102,7 @@ const instrumentation = createOtelInstrumentation({
 });
 
 const unregister = registerCollector(instrumentation); // tracing is now globally enforced
-const actor = makeActor(AppTop, ctx, new Port(), { initialize: true });
+const actor = makeActor(AppTop, ctx, { initialize: true });
 // … later, to stop tracing new actors: unregister();
 ```
 
