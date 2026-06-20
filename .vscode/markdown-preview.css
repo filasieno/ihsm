@@ -1,0 +1,11 @@
+body,
+.vscode-body {
+	max-width: none !important;
+	padding: 16px 24px;
+}
+
+table {
+	display: block;
+	overflow-x: auto;
+	width: 100%;
+}

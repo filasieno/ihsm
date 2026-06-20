@@ -1,0 +1,122 @@
+---
+title: Attribute & log schema
+sidebar_label: Attributes & logs
+slug: /reference/attributes
+sidebar_position: 3
+description: Resource attributes, span attribute tiers, and the log record schema.
+---
+
+# Attribute & log schema
+
+Identity is split across OTEL's two scopes: **Resource** (the process/agent) and **span
+attributes** (one span). Actor identity is per-span, never on the Resource.
+
+## Resource attributes (the process)
+
+Required in all environments: `service.name`, `service.version`, `service.instance.id`,
+`telemetry.sdk.*`, `ihsm.version`, `ihsm.otel.version`.
+
+- **Server-only** (cheap detectors): `host.name`, `process.pid`, `process.runtime.*`, `os.type`;
+  `container.id` / `k8s.*` / `cloud.*` only when a detector finds them.
+- **Browser-only**: `browser.brands`, `browser.platform`, `browser.mobile`,
+  `user_agent.original`, and `ihsm.host.kind` (`extension-host` | `web-worker` | `page`).
+
+## Span attributes
+
+### Tier 1 — required on **every** ihsm span
+
+| Key | Type | Purpose |
+|-----|------|---------|
+| `ihsm.actor.uuid` | string (UUIDv5) | the per-instance query key |
+| `ihsm.actor.name` | string | machine type — aggregate across instances |
+| `ihsm.state` | string | leaf state when the span opened |
+
+### Tier 2 — required on the span that owns it
+
+| Span | Keys |
+|------|------|
+| macrostep | `ihsm.macrostep.id`, `ihsm.trigger`, `ihsm.trigger.kind` (`external`\|`call`\|`self`\|`actor`\|`timer`\|`init`), `ihsm.state.start`, `ihsm.state.end`, `ihsm.transitioned`, `ihsm.steps`, `ihsm.outcome` (`ok`\|`error`) |
+| step | `ihsm.event` |
+| transition | `ihsm.transition.from`, `ihsm.transition.to` |
+| exit/entry | `ihsm.hook.kind` (`onExit`\|`onEntry`), `ihsm.hook.state` |
+| port | `ihsm.port.method` |
+| service | `ihsm.service.name` |
+| await | `ihsm.peer.uuid`, `ihsm.peer.name` |
+
+### Tier 3 — optional, gated by `TraceLevel ≥ DEBUG` / opt-in
+
+`ihsm.handler.state`, `ihsm.handler.verdict` (`B`/`E`/`G`/`U`/`P`), `ihsm.event.queue`,
+`ihsm.event.argc`, `ihsm.async`, `ihsm.transition.lca`, `ihsm.transition.exit_depth` /
+`.entry_depth`, `ihsm.transition.cache`, `ihsm.port.async`, `ihsm.port.spawned.uuid` / `.name`,
+`ihsm.service.timeout_ms` / `.timed_out`, `ihsm.actor.path`, `ihsm.clock` (`wall`\|`virtual`).
+
+### Payload policy
+
+`eventPayload` values are **never** attached by default (PII/size). `ihsm.event.argc` (a count) is
+the safe default; an opt-in `redact(event, payload) → attributes` hook surfaces only fields the
+author explicitly chooses.
+
+## Deterministic actor identity
+
+The per-instance UUID is content-addressed (UUIDv5 over a deterministic path), not an RNG draw:
+
+```text
+runNamespace = uuidv5(IHSM_NAMESPACE, runSeed)
+actorPath(root)  = actorName
+actorPath(child) = actorPath(parent) + "/" + childName + "[" + spawnIndex + "]"
+actorUuid        = uuidv5(runNamespace, actorPath)
+```
+
+Because `actorUuid` is a pure function of `(runSeed, topology)`, the same scenario replays to the
+same UUIDs, and unrelated `random()` calls cannot shift identity. This is what makes traces and
+logs replay-stable.
+
+## Span events
+
+The set is deliberately minimal — four events:
+
+| Event | On span | When | Level |
+|-------|---------|------|-------|
+| `ihsm.handler.found` | step | before the handler runs; carries the defining `state` | always |
+| `ihsm.unhandled` | step/macrostep | event reached `onUnhandled` (**U** verdict) | always |
+| `exception` | failing span | via `recordException` | always |
+| `ihsm.note` | nearest open span | a handler `this.hsm.log.*` line attached to the timeline | DEBUG |
+
+## Error attributes
+
+On failure, `StatusCode.ERROR` is set on the innermost open span **and** the macrostep root,
+`recordException(err)` is called, and:
+
+- `ihsm.error.kind` — the ihsm error class (`UnhandledEventError`, `TransitionError`,
+  `EventHandlerError`, `CallTimeoutError`, `SelfCallDeadlockError`, `InitializationError`, …).
+- `ihsm.error.phase` — `lookup` | `handler` | `transition` | `onEntry` | `onExit` | `unhandled` |
+  `initialize`.
+- `ihsm.error.recovered` — whether `onError`/`onUnhandled` recovered.
+- `ihsm.outcome = error` on the macrostep mirrors the status for cheap filtering.
+
+## Logs (`this.hsm.log.*`)
+
+The handler logger maps one-to-one to OTEL `SeverityNumber`:
+
+| Method | OTEL severity |
+|--------|---------------|
+| `log.trace` | `TRACE` (1) |
+| `log.debug` | `DEBUG` (5) |
+| `log.info` | `INFO` (9) |
+| `log.warn` | `WARN` (13) |
+| `log.error` | `ERROR` (17) |
+| `log.fatal` | `FATAL` (21) |
+
+```typescript
+this.hsm.log.info('frame accepted', { 'frame.seq': n, 'frame.bytes': len });
+this.hsm.log.warn('dropping duplicate frame', { id });
+this.hsm.log.error(err);
+```
+
+Every record carries the active `trace_id`/`span_id` and the Tier-1 attributes plus `ihsm.event`
+and `ihsm.macrostep.id`, so logs are filterable by the **same** keys as spans. Explicit user logs
+fire on intent and are **not** gated by `TraceLevel` (runtime-derived lines are). All logging is a
+no-op when no provider/`onLog` is attached.
+
+> Full design, including the structured trace-header frame stack and Grafana query recipes, lives
+> in `packages/otel/spec/04-TRACE-AND-LOG-DESIGN.md`.

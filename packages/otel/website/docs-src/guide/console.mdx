@@ -1,0 +1,52 @@
+---
+title: Console output (no OTEL)
+sidebar_label: Console output (no OTEL)
+slug: /guide/console
+sidebar_position: 5
+description: Lightweight, dependency-free observability that ships in ihsm core.
+---
+
+# Console output (no OpenTelemetry)
+
+Not every project wants OpenTelemetry. Because observability in ihsm is just the `Instrumentation`
+callback surface, the **core `ihsm` package** ships a zero-dependency implementation that prints
+signals to the console — no `@ihsm/otel`, no collector, no exporter required.
+
+```typescript
+import { createConsoleInstrumentation, makeActor, Port, registerCollector } from 'ihsm';
+
+// Register once, globally — every actor spawned afterwards prints its signals.
+registerCollector(createConsoleInstrumentation());
+
+const actor = makeActor(CounterTop, { value: 0 }, new Port(), { initialize: true });
+
+await actor.hsm.sync();
+actor.notify.increment();
+await actor.hsm.sync();
+// [ihsm] 1f2e3d4a ▶ macrostep m1 external:increment @Running
+// [ihsm]   · #1 increment [notifications/default] @Running
+// [ihsm] ■ macrostep m1 → Running (1 step(s), ok)
+```
+
+## Options
+
+```typescript
+createConsoleInstrumentation({
+  write: (line) => myLogger(line), // sink; defaults to console.log
+  prefix: 'demo',                  // line prefix; defaults to 'ihsm'
+  microsteps: true,                // emit microstep begin/end + enqueue lines
+  logs: true,                      // emit hsm.log.* records
+});
+```
+
+## Choosing between console and OTEL
+
+| | `createConsoleInstrumentation` (ihsm) | `@ihsm/otel` |
+|---|---|---|
+| Dependency | none (core) | adds the OTEL bridge |
+| Output | human-readable lines | traces + logs (and test artifacts) |
+| Correlation | none | trace/span IDs, links |
+| Best for | quick local debugging | production telemetry & conformance tests |
+
+Both consume the **same** signals, so you can switch by registering a different collector — your
+state machine code never changes (tracing is a cross-cutting concern, never a constructor argument).

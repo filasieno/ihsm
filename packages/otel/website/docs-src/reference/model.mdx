@@ -1,0 +1,107 @@
+---
+title: Telemetry model
+sidebar_label: Model
+slug: /reference/model
+sidebar_position: 1
+description: The trace/span/log mapping for ihsm actors (RFC-style).
+---
+
+# Telemetry model
+
+This is the normative mapping from ihsm dispatch to OpenTelemetry. The key words **MUST**,
+**MUST NOT**, **SHOULD**, and **MAY** are used as in RFC 2119.
+
+## R1 — Macrostep = trace, microstep = span
+
+| Term | Definition | OTEL mapping |
+|------|------------|--------------|
+| **Microstep** | One run-to-completion turn: dequeue one event, run its handler, run the resulting transition (`onExit`…`onEntry`). May `await`. | one `execute <event> <service\\|notification>` span |
+| **Macrostep** | The transitive closure of one triggering stimulus, run until the mailbox is drained and the actor is **stable**. | one **trace** (root span named `<ActorName>.<handler>`) |
+| **Stable** | After a microstep completes, the default and priority queues are empty. Future-scheduled tasks (timers, `defer`) do **not** keep the macrostep open. | closes the root span |
+
+- One external stimulus **MUST** produce exactly one trace.
+- A self-posted cascade **MUST** stay within the triggering macrostep's trace as additional
+  `execute ...` spans — it **MUST NOT** create new traces.
+- A future task (real timer / `defer(ms>0)`) firing while idle **MUST** start a new macrostep,
+  linked back to the macrostep that scheduled it.
+
+## R2 — The span tree
+
+```text
+Reader.onSocketData                           ← ROOT — the whole cascade, one trace (<ActorName>.<handler>)
+├── execute onSocketData notification           ← microstep 1 (the trigger)
+│   ├── port write                               ← awaited I/O the handler performed
+│   └── transition Reading → Parsing
+│       ├── exit Reading
+│       └── entry Parsing
+├── execute doParseFrame notification           ← microstep 2 (self-posted by step 1)
+└── execute onFrameReady notification           ← microstep 3
+    └── transition Parsing → Reading
+        ├── exit Parsing
+        └── entry Reading                        ← machine stable → root ends
+```
+
+Sibling `execute ...` spans **MUST** be ordered by start time; no sequence index is emitted (it is
+implicit in the start timestamp).
+
+| Span | Represents | Kind |
+|------|-----------|------|
+| `{ActorName}.{trigger}` | the full dispatch until stability — the trace root (e.g. `Order.submit`) | see R3 |
+| `execute {event} {service\\|notification}` | one RTC turn | `INTERNAL` |
+| `transition {from}→{to}` | LCA exit/entry walk | `INTERNAL` |
+| `exit {state}` / `entry {state}` | one `onExit`/`onEntry` action | `INTERNAL` |
+| `port {method}` | a port I/O call — always inside the caller's trace, never a new trace | `INTERNAL`/`CLIENT` |
+| `call {service}` | an awaited actor `call` from the caller side | `CLIENT` |
+| `initialize {state}` | drill-down into initial substates during a transition | `INTERNAL` |
+
+Span names **MUST** be low-cardinality templates; identity lives in attributes
+([Attributes](/reference/attributes)), never in the name.
+
+## R3 — Span kinds
+
+The root span's kind encodes what woke the actor:
+
+| Trigger | Root `SpanKind` |
+|---------|-----------------|
+| Inbound cross-process request/notification | `SERVER` |
+| Local `call` (awaited, same process) | `SERVER` |
+| Local `notify` (fire-and-forget) | `INTERNAL` |
+| Timer / `defer` firing | `INTERNAL` |
+| Initial `initialize` cascade | `INTERNAL` |
+
+The macrostep root **MUST** be a new trace root, never a child of the caller.
+
+## R4 — Span links (separate traces, bidirectionally connected)
+
+Every actor macrostep is its own trace; actors are connected by **bidirectional span links**, not
+by nesting. The caller deterministically mints the callee's root `SpanContext` before sending, so
+both sides record a link to the other:
+
+- sender span → `ihsm.link.kind = causes` (+ `ihsm.peer.uuid` / `ihsm.peer.name`)
+- callee root → `ihsm.link.kind = caused_by` (+ peer attributes)
+
+| Relationship | Link kind |
+|--------------|-----------|
+| Microstep → later microstep it enqueued (same macrostep) | `cause` |
+| Macrostep → future macrostep scheduled via timer/`defer` | `timer` (+ `ihsm.defer.delay_ms`) |
+| A `notify`s B | `causes` / `caused_by` |
+| Parent **spawns** child | `spawn` / `caused_by` |
+| A `await`s B's `call` | `causes` / `caused_by` (caller also opens a `call {service}` span) |
+| Cross-process call/notify | `causes` / `caused_by` (+ W3C `traceparent`) |
+
+Ports **MUST** stay internal to the caller's trace; a port call **MUST NOT** start a new trace.
+
+## R5 — Async correctness
+
+A microstep may `await`. The implementation:
+
+1. Opens the `execute ...` span on `onMicrostepBegin` and ends it on `onMicrostepEnd`, so the span
+   brackets the entire awaited turn by construction.
+2. Resolves child-span parents from a per-actor macrostep record `{ rootSpan, currentStepSpan,
+   macrostepId }` — **not** from `context.active()` — so nesting is correct even where there is no
+   `AsyncLocalStorage` (the browser).
+3. Still sets ambient context around each span for interop with stock instrumentation.
+4. Closes the macrostep root at stability, not at the first await.
+
+> For the complete narrative design (with rationale and edge cases) see the in-repo spec
+> `packages/otel/spec/04-TRACE-AND-LOG-DESIGN.md`.

@@ -1,6 +1,6 @@
 {
 	"name": "@ihsm/core",
-	"version": "0.1.0",
+	"version": "0.1.21",
 	"description": "Scoped entry point for ihsm — production runtime and ihsm/testing subpath",
 	"license": "MIT",
 	"repository": {
@@ -20,7 +20,7 @@
 	},
 	"sideEffects": false,
 	"dependencies": {
-		"ihsm": "0.1.0"
+		"ihsm": "0.1.21"
 	},
 	"files": [
 		"lib"
@@ -67,7 +67,6 @@
 		"prepublishOnly": "npm run build"
 	},
 	"devDependencies": {
-		"ihsm": "file:../ihsm",
 		"typescript": "^6.0.3"
 	}
 }

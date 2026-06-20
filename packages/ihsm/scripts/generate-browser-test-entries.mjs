@@ -13,7 +13,7 @@ function walkSpecs(dir, suffix) {
 		const full = path.join(dir, entry.name);
 		if (entry.isDirectory()) {
 			out.push(...walkSpecs(full, suffix));
-		} else if (entry.name.endsWith(suffix)) {
+		} else if (entry.name.endsWith(suffix) && !entry.name.endsWith('.node.spec.ts')) {
 			out.push(full);
 		}
 	}

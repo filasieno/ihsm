@@ -5,6 +5,34 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.21] - 2026-06-20
+
+### Added
+
+- **`actor.id`** — stable per-instance id on all actor embodiments (`ExternalActor`, `InboundActor`, `ChildActor`, `TestActor`) and `HandlerHsm` / `ActorHsm` (same value as `actorUuid`).
+
+## [0.1.20] - 2026-06-20
+
+### Added
+
+- **Nix monorepo builds** — `flake.nix` derivations for `ihsm`, `@ihsm/core`, and `@ihsm/otel`; `nix build .#release` stages deterministic publish artifacts.
+- **`@ihsm/otel` on npm** — first public release of the OpenTelemetry bridge (Node, browser, testing entry points).
+
+### Changed
+
+- Lockstep semver **`0.1.20`** across `ihsm`, `@ihsm/core`, and `@ihsm/otel` (patch +1 release policy; stay on `0.1.x`, not `0.2.x`).
+
+## [0.1.2] - 2026-06-20
+
+### Added
+
+- **`@ihsm/core`** and **`@ihsm/otel`** — release workflow (`.github/workflows/release.yml`) now publishes all three npm packages on each tag; CI gates `core` and `otel` build + test.
+- **Instrumentation coverage** — expanded specs for global collector aggregation, console instrumentation, and runtime edge paths; CI enforces ≥94% line coverage (`nyc check-coverage`).
+
+### Changed
+
+- **`ihsm@0.1.2`** — semver bump for lockstep release with `@ihsm/core` and `@ihsm/otel`.
+
 ## [0.1.1] - 2026-06-14
 
 ### Fixed

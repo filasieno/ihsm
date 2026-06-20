@@ -35,6 +35,7 @@ import type {
 	StateClass,
 	StateEvents,
 	Task,
+	TimerService,
 	TopStateArg,
 	TraceWriter,
 	DispatchErrorCallback,
@@ -48,8 +49,24 @@ import type {
 	Disposable,
 	EventObserver,
 	TransitionTraceHost,
+	ActorIdentity,
+	ActorLogger,
+	CauseRef,
+	DispatchPhase,
+	Instrumentation,
+	LogAttributes,
+	LogRecord,
+	OutboundCallBegin,
+	OutboundCallEnd,
+	PortCallBegin,
+	PortCallEnd,
+	SpawnInfo,
+	TraceFrame,
+	TriggerKind,
 } from './types';
 import { kHandlerMachine, kParentLink } from './types';
+import { actorNameFromTopState, childActorPath, mintActorIdentity, rootActorPath } from './identity';
+import { getActiveInstrumentation, getTaskMeta, notifyActorCreated, notifyActorSpawned, notifyEnqueue, notifyError, notifyLog, notifyMacrostepBegin, notifyMacrostepEnd, notifyMicrostepBegin, notifyMicrostepEnd, notifyOutboundCallBegin, notifyOutboundCallEnd, notifyPortCallBegin, notifyPortCallEnd, setTaskMeta } from './instrumentation';
 
 //#region TraceLevel
 
@@ -326,6 +343,21 @@ defineStateName(TopState as StateClass, 'TopState');
 defineStateName(FatalErrorState as StateClass, 'FatalErrorState');
 
 /** @internal */
+export function lookupHandlerState<C extends ActorConfig>(hsm: HsmWithTracing<C>, eventName: PropertyKey): string | undefined {
+	let state: StateClass<C> = hsm.currentState as StateClass<C>;
+	while (true) {
+		const prototype = state.prototype as unknown as Record<PropertyKey, unknown>;
+		if (Object.prototype.hasOwnProperty.call(prototype, eventName)) {
+			return getStateName(state);
+		}
+		if ((state as unknown) === TopState) {
+			return undefined;
+		}
+		state = Object.getPrototypeOf(state) as StateClass<C>;
+	}
+}
+
+/** @internal */
 export function lookupEventHandler<C extends ActorConfig>(hsm: HsmWithTracing<C>, eventName: PropertyKey): ((...args: any[]) => unknown) | undefined {
 	let state: StateClass<C> = hsm.currentState as StateClass<C>;
 	while (true) {
@@ -585,21 +617,31 @@ export function splitServiceArgs(args: readonly unknown[]): { callArgs: unknown[
 	return { callArgs: args.slice(0, -1), timeoutMs };
 }
 
-export function serviceCallWithTimeout<T>(promise: Promise<T>, method: string, timeoutMs: number): Promise<T> {
+/**
+ * Race a service-call promise against a `timeoutMs` deadline.
+ *
+ * The deadline is armed through `timer` — the actor's port timer service — so that under a
+ * {@link TestPort} virtual clock a call timeout is driven by `port.advance(...)` and stays
+ * fully deterministic. When no port timer is available the host timer is used (production
+ * `Port` already delegates to the host timer, so behaviour there is unchanged).
+ */
+export function serviceCallWithTimeout<T>(promise: Promise<T>, method: string, timeoutMs: number, timer?: TimerService): Promise<T> {
 	if (timeoutMs === 0) {
 		return Promise.reject(new CallTimeoutError(method));
 	}
+	const arm = (callback: () => void): number => (timer !== undefined ? timer.setTimeout(callback, timeoutMs) : (globalThis.setTimeout(callback, timeoutMs) as unknown as number));
+	const disarm = (handle: number): void => (timer !== undefined ? timer.clearTimeout(handle) : globalThis.clearTimeout(handle as unknown as ReturnType<typeof setTimeout>));
 	return new Promise<T>((resolve, reject) => {
-		const timer = setTimeout(() => {
+		const handle = arm(() => {
 			reject(new CallTimeoutError(method));
-		}, timeoutMs);
+		});
 		promise.then(
 			value => {
-				clearTimeout(timer);
+				disarm(handle);
 				resolve(value);
 			},
 			err => {
-				clearTimeout(timer);
+				disarm(handle);
 				reject(err);
 			}
 		);
@@ -636,8 +678,20 @@ function getFacetProto(topState: object, index: ProtocolIndex, kind: EmbodimentK
 			if (facet === 'call') {
 				built[name] = function (this: HandleOwn, ...args: unknown[]): Promise<unknown> {
 					const { callArgs, timeoutMs } = splitServiceArgs(args);
-					const promise = this[kMachine].dispatchService(name, callArgs);
-					return timeoutMs === undefined ? promise : serviceCallWithTimeout(promise, name, timeoutMs);
+					const machine = this[kMachine];
+					const begin = (machine as { beginOutboundCall?: (service: string, targetUuid?: string) => OutboundCallBegin | undefined }).beginOutboundCall?.(name, (machine as { actorUuid?: string }).actorUuid);
+					const promise = machine.dispatchService(name, callArgs).then(
+						value => {
+							(machine as { endOutboundCall?: (info: OutboundCallBegin | undefined, outcome: 'ok' | 'error', error?: Error) => void }).endOutboundCall?.(begin, 'ok');
+							return value;
+						},
+						cause => {
+							const err = asError(cause);
+							(machine as { endOutboundCall?: (info: OutboundCallBegin | undefined, outcome: 'ok' | 'error', error?: Error) => void }).endOutboundCall?.(begin, 'error', err);
+							throw err;
+						}
+					);
+					return timeoutMs === undefined ? promise : serviceCallWithTimeout(promise, name, timeoutMs, machine.callTimer);
 				};
 			} else {
 				built[name] = function (this: HandleOwn, ...args: unknown[]): void {
@@ -675,6 +729,12 @@ export function createActorHandle(machine: DispatchableMachine, topState: object
 	Object.defineProperty(handle, 'notify', { value: createFacet(machine, topState, index, kind, 'notify'), enumerable: true });
 	Object.defineProperty(handle, 'notifyNow', { value: createFacet(machine, topState, index, kind, 'notifyNow'), enumerable: true });
 	Object.defineProperty(handle, 'call', { value: createFacet(machine, topState, index, kind, 'call'), enumerable: true });
+	Object.defineProperty(handle, 'id', {
+		enumerable: true,
+		get(): string {
+			return machine.actorUuid;
+		},
+	});
 	handle.hsm = machine.actorHsmFor(kind);
 	return handle;
 }
@@ -723,7 +783,30 @@ export class SelfCallDeadlockError extends Error {
 	}
 }
 
-type DispatchToken = { machine: DispatchableMachine };
+type DispatchToken = { machine: DispatchableMachine; actorUuid?: string; macrostepId?: string; stepSeq?: number };
+type PortCallToken = {
+	machine: DispatchableMachine;
+	callId: number;
+	method: string;
+	cause?: CauseRef;
+};
+
+interface InstrumentationHost {
+	onTaskBegin(task: Task): void;
+	onTaskEnd(task: Task, outcome: 'ok' | 'error'): void;
+	onQueuesDrained(): void;
+	onDispatchError(err: Error): void;
+}
+
+function errorPhaseFromError(err: Error): DispatchPhase {
+	if (err instanceof TransitionError) {
+		return err.failedCallback === 'onEntry' ? 'onEntry' : 'onExit';
+	}
+	if (err instanceof UnhandledEventError) return 'unhandled';
+	if (err instanceof InitializationError) return 'initialize';
+	if (err instanceof EventHandlerError) return 'handler';
+	return 'handler';
+}
 
 type AsyncLocalStorageCtor = new <T>() => {
 	run<R>(store: T, fn: () => R): R;
@@ -768,6 +851,47 @@ export const dispatchContext = (() => {
 	}
 
 	return { get, resetInit, markUnavailable };
+})();
+
+/**
+ * Best-effort current runtime trace anchor (`actorUuid`, `macrostepId`, `stepSeq`) for user code.
+ * Returns `undefined` when called outside an active handler dispatch turn.
+ */
+export function currentTraceAnchor(): { readonly actorUuid: string; readonly macrostepId?: string; readonly stepSeq?: number } | undefined {
+	const token = dispatchContext.get()?.getStore() as DispatchToken | undefined;
+	if (token?.actorUuid === undefined) return undefined;
+	return {
+		actorUuid: token.actorUuid,
+		macrostepId: token.macrostepId,
+		stepSeq: token.stepSeq,
+	};
+}
+
+/** Lazy ALS carrying the currently-executing proxied port call (when instrumentation is active). */
+const portCallContext = (() => {
+	let storage: DispatchAsyncLocalStorage | null | undefined = undefined;
+
+	function get(): DispatchAsyncLocalStorage | undefined {
+		if (storage !== undefined) {
+			return storage ?? undefined;
+		}
+		if (typeof process === 'undefined' || process.versions?.node === undefined) {
+			storage = null;
+			return undefined;
+		}
+		try {
+			// Dynamic require — keeps browser bundles free of `node:async_hooks`.
+			// eslint-disable-next-line @typescript-eslint/no-require-imports
+			const hooks = require('node:async_hooks') as { AsyncLocalStorage: AsyncLocalStorageCtor };
+			storage = new hooks.AsyncLocalStorage<PortCallToken>();
+			return storage;
+		} catch {
+			storage = null;
+			return undefined;
+		}
+	}
+
+	return { get };
 })();
 
 //#region transition-routines
@@ -826,10 +950,14 @@ export function planTransitionClasses<C extends ActorConfig>(srcState: StateClas
 	return { exit: srcPath, entry: dstPath, finalState };
 }
 
-async function invokeLifecycleHook<C extends ActorConfig>(hsm: TransitionHost<C>, instance: object, state: StateClass<C>, hook: 'onExit' | 'onEntry', fromStateName: string, toStateName: string, style: TransitionRoutineStyle, tracer: TransitionTracer | undefined): Promise<void> {
+async function invokeLifecycleHook<C extends ActorConfig>(hsm: TransitionHost<C>, instance: object, state: StateClass<C>, hook: 'onExit' | 'onEntry', fromStateName: string, toStateName: string, style: TransitionRoutineStyle, tracer: TransitionTracer | undefined, hookEvents: boolean): Promise<void> {
 	const statePrototype = state.prototype;
 	const stateName = getStateName(state);
 	const hasHook = Object.prototype.hasOwnProperty.call(statePrototype, hook);
+	// Emit hook tracer callbacks for real (own) hooks at verbose, or always for a structural seam
+	// (instrumentation) whose entry/exit spans are not TraceLevel-gated (spec §4.8). Skipped default
+	// hooks are never eventized.
+	const emitHookEvents: boolean = (style === 'verbose' || hookEvents) && hasHook;
 
 	if ((style === 'verbose' || style === 'debug') && !hasHook) {
 		if (style === 'verbose') {
@@ -839,15 +967,18 @@ async function invokeLifecycleHook<C extends ActorConfig>(hsm: TransitionHost<C>
 	}
 
 	try {
+		if (emitHookEvents) {
+			tracer?.traceHookStart?.(stateName, hook);
+		}
 		const res = statePrototype[hook].call(instance);
 		if (res) {
 			await res;
 		}
-		if (style === 'verbose') {
+		if (emitHookEvents) {
 			tracer?.traceHookDone(stateName, hook);
 		}
 	} catch (cause) {
-		if (style === 'verbose') {
+		if (emitHookEvents) {
 			tracer?.traceHookError(stateName, hook, cause);
 		}
 		throw new TransitionError(hsm, asError(cause), stateName, hook, fromStateName, toStateName);
@@ -862,19 +993,30 @@ async function invokeLifecycleHook<C extends ActorConfig>(hsm: TransitionHost<C>
 export async function executeTransitionRoutine<C extends ActorConfig>(hsm: TransitionHost<C>, instance: object, plan: TransitionRoutinePlan<C> | PlannedTransition<C>, srcState: StateClass<C>, dstState: StateClass<C>, options: TransitionRoutineExecuteOptions<C> = {}): Promise<void> {
 	const style = options.style ?? 'production';
 	const tracer = options.tracer;
+	const hookEvents = options.hookEvents ?? false;
 	const fromStateName = getStateName(srcState);
 	const toStateName = getStateName(dstState);
 
-	if (style === 'verbose' || style === 'debug') {
-		tracer?.traceTransitionStart(fromStateName, toStateName);
-	}
+	// The structural transition span fires whenever a tracer is attached (the instrumentation seam is
+	// not TraceLevel-gated); the console tracer is only ever supplied off-PRODUCTION, so this is a
+	// no-op there unless an explicit instrumentation tracer is present.
+	tracer?.traceTransitionStart(fromStateName, toStateName);
 
 	for (const state of plan.exit) {
-		await invokeLifecycleHook(hsm, instance, state, 'onExit', fromStateName, toStateName, style, tracer);
+		await invokeLifecycleHook(hsm, instance, state, 'onExit', fromStateName, toStateName, style, tracer, hookEvents);
 	}
 
+	let initializeOpened = false;
 	for (const state of plan.entry) {
-		await invokeLifecycleHook(hsm, instance, state, 'onEntry', fromStateName, toStateName, style, tracer);
+		if (!initializeOpened && state !== dstState) {
+			tracer?.traceInitializeStart?.(toStateName);
+			initializeOpened = true;
+		}
+		await invokeLifecycleHook(hsm, instance, state, 'onEntry', fromStateName, toStateName, style, tracer, hookEvents);
+	}
+	if (initializeOpened) {
+		const finalName = plan.finalState !== undefined ? getStateName(plan.finalState) : toStateName;
+		tracer?.traceInitializeDone?.(finalName);
 	}
 
 	const applyState = (next: StateClass<C>): void => {
@@ -900,6 +1042,8 @@ export async function executeTransitionRoutine<C extends ActorConfig>(hsm: Trans
 
 	if (plan.finalState) {
 		applyState(plan.finalState);
+		// Close the structural transition span on the PRODUCTION path (verbose/debug returned above).
+		tracer?.traceTransitionDone(getStateName(plan.finalState));
 	}
 }
 
@@ -907,6 +1051,12 @@ export function createTransitionTracer(hsm: TransitionTraceHost): TransitionTrac
 	return {
 		traceTransitionStart(fromStateName, toStateName) {
 			hsm._tracePush(`transition from ${fromStateName} to ${toStateName}`, `started transition from ${fromStateName} to ${toStateName} `);
+		},
+		traceInitializeStart(stateName) {
+			hsm._tracePush(`initialize ${stateName}`, `started initialize drill-down from ${stateName}`);
+		},
+		traceInitializeDone(finalStateName) {
+			hsm._tracePopDone(`done initialize drill-down at ${finalStateName}`);
 		},
 		traceHookDone(stateName, hook) {
 			hsm._traceWrite(`${stateName}.${hook}() done`);
@@ -940,9 +1090,15 @@ class RuntimeTransitionRoutine<C extends ActorConfig> implements Transition<C> {
 
 	async execute(hsm: HsmWithTracing<C>, srcState: StateClass<C>, dstState: StateClass<C>): Promise<void> {
 		const style: TransitionRoutineStyle = hsm.traceLevel === TraceLevel.PRODUCTION ? 'production' : hsm.traceLevel === TraceLevel.DEBUG ? 'debug' : 'verbose';
+		const machine = hsm as Machine<C>;
+		const instTracer = machine.instrumentation?.transition;
+		const tracer: TransitionTracer | undefined = instTracer ?? (style !== 'production' ? createTransitionTracer(hsm) : undefined);
 		await executeTransitionRoutine(hsm, hsm._instance, this.plan, srcState, dstState, {
 			style,
-			...(style !== 'production' ? { tracer: createTransitionTracer(hsm) } : {}),
+			...(tracer !== undefined ? { tracer } : {}),
+			// The instrumentation seam's entry/exit spans are structural (not TraceLevel-gated); the
+			// console tracer keeps its verbose-only gating.
+			hookEvents: instTracer !== undefined,
 			setCurrentState: state => {
 				hsm.currentState = state;
 			},
@@ -1541,26 +1697,53 @@ export function createInitTask<C extends ActorConfig>(host: HsmWithTracing<C>, r
 			.then(() => executePendingTransition(host, resolver))
 			.then(() => done())
 			.catch((err: unknown) => {
-				host.dispatchErrorCallback(host, asError(err));
+				host.reportDispatchError(asError(err));
 				done();
 			});
 	};
+}
+
+/**
+ * Run a dispatch body inside the ambient `dispatchContext` token so that any `notify`/`call`/timer
+ * the handler issues can be attributed to the running `(macrostepId, stepSeq)` (CORE-B, §5.6.3).
+ * Falls back to a plain run when no ALS is available (browser) or the host predates the seam.
+ */
+function runWithinDispatch<C extends ActorConfig>(host: HsmWithTracing<C>, run: () => void): void {
+	const machine = host as unknown as { buildDispatchToken?: () => DispatchToken; needsDispatchContext?: () => boolean };
+	const wants: boolean = machine.needsDispatchContext?.() ?? host.traceLevel !== TraceLevel.PRODUCTION;
+	if (!wants) {
+		run();
+		return;
+	}
+	const storage = dispatchContext.get();
+	if (storage === undefined) {
+		run();
+		return;
+	}
+	const token: DispatchToken = machine.buildDispatchToken?.() ?? { machine: host as unknown as DispatchableMachine };
+	storage.run(token, run);
+}
+
+function currentPortCallToken(): PortCallToken | undefined {
+	const storage = portCallContext.get();
+	return storage?.getStore() as PortCallToken | undefined;
 }
 
 /** @internal */
 export function createNotificationTask<C extends ActorConfig>(host: HsmWithTracing<C>, resolver: TransitionResolver<C>, name: string, args: readonly unknown[]): Task {
 	const strategy = dispatchStrategyFor(host.traceLevel);
 	return (done: DoneCallback): void => {
-		strategy
-			.dispatchEvent(host, resolver, name, ...args)
-			.catch((err: unknown) => host.dispatchErrorCallback(host, asError(err)))
-			.finally(() => done());
+		runWithinDispatch(host, () => {
+			void strategy
+				.dispatchEvent(host, resolver, name, ...args)
+				.catch((err: unknown) => host.reportDispatchError(asError(err)))
+				.finally(() => done());
+		});
 	};
 }
 
 /** @internal */
 export function createServiceTask<C extends ActorConfig>(host: HsmWithTracing<C>, resolver: TransitionResolver<C>, name: string, args: readonly unknown[], resolve: (value: unknown) => void, reject: (error: Error) => void): Task {
-	const machine = host as unknown as DispatchableMachine;
 	return (done: DoneCallback): void => {
 		const run = (): Promise<void> =>
 			invokeHandler(host, resolver, name, args)
@@ -1568,18 +1751,11 @@ export function createServiceTask<C extends ActorConfig>(host: HsmWithTracing<C>
 				.catch((err: unknown) => {
 					reject(asError(err));
 				})
-				.catch((err: unknown) => host.dispatchErrorCallback(host, asError(err)))
+				.catch((err: unknown) => host.reportDispatchError(asError(err)))
 				.finally(() => done());
-		if (host.traceLevel === TraceLevel.PRODUCTION) {
+		runWithinDispatch(host, () => {
 			void run();
-			return;
-		}
-		const storage = dispatchContext.get();
-		if (storage === undefined) {
-			void run();
-			return;
-		}
-		void storage.run({ machine }, run);
+		});
 	};
 }
 
@@ -1593,6 +1769,9 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 	public topStateName: string;
 	public readonly ctxTypeName: string;
 	public traceWriter: TraceWriter;
+	public readonly actorUuid: string;
+	public readonly actorName: string;
+	public readonly actorPath: string;
 
 	/** @internal */
 	public _instance: Instance<C>;
@@ -1609,8 +1788,10 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 	public dispatchErrorCallback: DispatchErrorCallback<C>;
 	private _traceLevel: TraceLevel;
 	private _traceDomainStack: string[];
+	protected _instrumentationHost?: InstrumentationHost;
+	private _drainWaiters: Array<() => void> = [];
 
-	constructor(TopState: StateClass<C>, instance: Instance<C>, traceWriter: TraceWriter, traceLevel: TraceLevel, dispatchErrorCallback: DispatchErrorCallback<C>) {
+	constructor(TopState: StateClass<C>, instance: Instance<C>, traceWriter: TraceWriter, traceLevel: TraceLevel, dispatchErrorCallback: DispatchErrorCallback<C>, identity: ActorIdentity) {
 		this._instance = instance;
 		this._transitionState = undefined;
 		this._traceLevel = traceLevel;
@@ -1620,6 +1801,9 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 		this._jobs = [];
 		this._hiPriorityJobs = [];
 		this._isRunning = false;
+		this.actorUuid = identity.uuid;
+		this.actorName = identity.name;
+		this.actorPath = identity.path;
 
 		this.topState = TopState;
 		this.topStateName = getStateName(TopState);
@@ -1638,6 +1822,15 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 
 	get port(): unknown {
 		return this._instance.portRef;
+	}
+
+	/** The bound port when it provides a timer service, so service-call timeouts honour a virtual clock. */
+	get callTimer(): TimerService | undefined {
+		const port = this._instance.portRef as Partial<TimerService> | undefined;
+		if (port !== undefined && typeof port.setTimeout === 'function' && typeof port.clearTimeout === 'function') {
+			return port as TimerService;
+		}
+		return undefined;
 	}
 
 	get eventName(): string {
@@ -1692,13 +1885,36 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 		this._traceLevel = traceLevel;
 	}
 
+	/**
+	 * Resolve when the actor next reaches stability (mailbox fully drained).
+	 *
+	 * The resolver fires at the queue-drain point — *after* {@link InstrumentationHost.onQueuesDrained}
+	 * — so the closing `macrostep.end` and the macrostep-boundary reset are observable before `sync()`
+	 * resolves, and a subsequent external stimulus deterministically starts its own macrostep. The
+	 * pushed task is a no-op (internal) whose only purpose is to guarantee a drain cycle occurs.
+	 */
 	sync(): Promise<void> {
 		return new Promise(resolve => {
-			this.pushTask((doneCallback: () => void): void => {
-				resolve();
+			this._drainWaiters.push(resolve);
+			const task: Task = (doneCallback: DoneCallback): void => {
 				doneCallback();
-			});
+			};
+			setTaskMeta(task, { internal: true });
+			this.pushTask(task);
 		});
+	}
+
+	/** Invoke the user dispatch-error callback, first notifying instrumentation (pure observer). */
+	public reportDispatchError(err: Error): void {
+		this._instrumentationHost?.onDispatchError(err);
+		this.dispatchErrorCallback(this as never, err);
+	}
+
+	private flushDrainWaiters(): void {
+		if (this._drainWaiters.length === 0) return;
+		const waiters: Array<() => void> = this._drainWaiters;
+		this._drainWaiters = [];
+		for (const resolve of waiters) resolve();
 	}
 
 	public pushTask(t: Task): void {
@@ -1731,6 +1947,8 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 	private dequeue(): void {
 		if (this._hiPriorityJobs.length == 0 && this._jobs.length == 0) {
 			this._isRunning = false;
+			this._instrumentationHost?.onQueuesDrained();
+			this.flushDrainWaiters();
 			return;
 		}
 		const task = this._hiPriorityJobs.length > 0 ? this._hiPriorityJobs.shift()! : this._jobs.shift()!;
@@ -1742,10 +1960,31 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 	}
 
 	private runTask(task: Task): Promise<void> {
+		this._instrumentationHost?.onTaskBegin(task);
+		let outcome: 'ok' | 'error' = 'ok';
 		return new Promise<void>(resolve => {
-			task(() => {
-				this.drainHiPriority().then(resolve);
-			});
+			const runBody = (): void => {
+				task(() => {
+					this.drainHiPriority()
+						.then(() => {
+							this._instrumentationHost?.onTaskEnd(task, outcome);
+							resolve();
+						})
+						.catch((_err: unknown) => {
+							outcome = 'error';
+							this._instrumentationHost?.onTaskEnd(task, outcome);
+							resolve();
+						});
+				});
+			};
+			try {
+				runBody();
+			} catch (err: unknown) {
+				outcome = 'error';
+				this._instrumentationHost?.onTaskEnd(task, outcome);
+				resolve();
+				throw asError(err);
+			}
 		});
 	}
 
@@ -1779,21 +2018,59 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 	get traceHeader(): string {
 		return `${this._traceDomainStack.length === 0 ? '' : this._traceDomainStack.join('|') + '|'}`;
 	}
+
+	get traceFrames(): readonly TraceFrame[] {
+		return this._traceDomainStack.map(name => ({ name, kind: classifyFrameKind(name) }));
+	}
+}
+
+/** Best-effort classification of a live trace-domain name into a structured {@link TraceFrame.kind}. */
+function classifyFrameKind(name: string): TraceFrame['kind'] {
+	if (name.startsWith('#')) return 'event';
+	if (name === 'execute') return 'handler';
+	if (name === 'initialize' || name.startsWith('initialize')) return 'initialize';
+	if (name.startsWith('transition')) return 'transition';
+	if (name.includes('onEntry')) return 'onEntry';
+	if (name.includes('onExit')) return 'onExit';
+	return 'handler';
 }
 
 //#region machine
 
-export class Machine<C extends ActorConfig> extends HsmObject<C> {
+export class Machine<C extends ActorConfig> extends HsmObject<C> implements InstrumentationHost {
 	readonly transitionResolver: TransitionResolver<C>;
+	readonly identity: ActorIdentity;
+	readonly instrumentation?: Instrumentation<C>;
 	private _dispatchStrategy: DispatchStrategy<C>;
 	private readonly protocolIndex: ProtocolIndex;
 	private readonly handlerFacade: HandlerHsm<C>;
 	private readonly selfActor: SelfNotifications<C>;
 	private readonly selfImmediate: SelfNotifications<C>;
 	private readonly actorFacades = new Map<EmbodimentKind, ExternalHsm<C> | InboundHsm<C> | ChildHsm<C>>();
+	private _macrostepCounter = 0;
+	private _currentMacrostep?: {
+		id: string;
+		trigger: string;
+		triggerKind: TriggerKind;
+		startState: string;
+		stepSeq: number;
+		transitioned: boolean;
+		outcome: 'ok' | 'error';
+		cause?: CauseRef;
+	};
+	private _microstepFromState?: string;
+	private readonly _childSpawnCounters = new Map<string, number>();
+	private _nextTraceCallId = 0;
+	private _proxiedPort?: ActorPortOf<C>;
 
-	constructor(topState: StateClass<C>, instance: { ctx: ActorContextOf<C>; hsm: HandlerHsm<C>; portRef?: unknown }, protocolIndex: ProtocolIndex, traceWriter: TraceWriter, traceLevel: TraceLevel, dispatchErrorCallback: DispatchErrorCallback<C>, initialize: boolean, transitionResolver?: TransitionResolver<C>) {
-		super(topState, instance as never, traceWriter, traceLevel, dispatchErrorCallback);
+	constructor(topState: StateClass<C>, instance: { ctx: ActorContextOf<C>; hsm: HandlerHsm<C>; portRef?: unknown }, protocolIndex: ProtocolIndex, traceWriter: TraceWriter, traceLevel: TraceLevel, dispatchErrorCallback: DispatchErrorCallback<C>, initialize: boolean, identity: ActorIdentity, instrumentation: Instrumentation<C> | undefined, transitionResolver?: TransitionResolver<C>) {
+		super(topState, instance as never, traceWriter, traceLevel, dispatchErrorCallback, identity);
+		this.identity = identity;
+		this.instrumentation = instrumentation;
+		if (instrumentation !== undefined) {
+			this._instrumentationHost = this;
+			notifyActorCreated(instrumentation, identity);
+		}
 		Object.defineProperty(instance, kHandlerMachine, { value: this, enumerable: false, writable: false, configurable: false });
 		this.protocolIndex = protocolIndex;
 		cacheProtocolIndex(topState, protocolIndex);
@@ -1807,7 +2084,229 @@ export class Machine<C extends ActorConfig> extends HsmObject<C> {
 		Object.defineProperty(instance, 'notifyNow', { value: this.selfImmediate, enumerable: true, configurable: true });
 		this.bindPort(instance.portRef);
 		if (initialize) {
-			this.pushTask(createInitTask(this, this.transitionResolver));
+			const initTask: Task = createInitTask(this, this.transitionResolver);
+			setTaskMeta(initTask, { event: 'initialize', queue: 'default', triggerKind: 'init', internal: false });
+			this.pushTask(initTask);
+		}
+	}
+
+	allocateChildSpawnIndex(childTopName: string): number {
+		const childName: string = actorNameFromTopState(childTopName);
+		const index: number = this._childSpawnCounters.get(childName) ?? 0;
+		this._childSpawnCounters.set(childName, index + 1);
+		return index;
+	}
+
+	needsDispatchContext(): boolean {
+		return this.instrumentation !== undefined || this.traceLevel !== TraceLevel.PRODUCTION;
+	}
+
+	buildDispatchToken(): DispatchToken {
+		return {
+			machine: this,
+			actorUuid: this.actorUuid,
+			macrostepId: this._currentMacrostep?.id,
+			stepSeq: this._currentMacrostep?.stepSeq,
+		};
+	}
+
+	private readDispatchCause(kind: CauseRef['kind']): CauseRef | undefined {
+		const storage = dispatchContext.get();
+		const token: DispatchToken | undefined = storage?.getStore() as DispatchToken | undefined;
+		if (token?.actorUuid === undefined) return undefined;
+		return {
+			actorUuid: token.actorUuid,
+			macrostepId: token.macrostepId,
+			stepSeq: token.stepSeq,
+			kind,
+		};
+	}
+
+	private nextTraceCallId(): number {
+		this._nextTraceCallId += 1;
+		return this._nextTraceCallId;
+	}
+
+	private beginPortCall(method: string): PortCallBegin | undefined {
+		if (this.instrumentation === undefined) return undefined;
+		const cause: CauseRef | undefined = this.readDispatchCause('wire');
+		const info: PortCallBegin = {
+			callId: this.nextTraceCallId(),
+			method,
+			cause,
+		};
+		notifyPortCallBegin(this.instrumentation, info);
+		return info;
+	}
+
+	private endPortCall(begin: PortCallBegin | undefined, outcome: 'ok' | 'error', error?: Error): void {
+		if (this.instrumentation === undefined || begin === undefined) return;
+		const info: PortCallEnd = {
+			callId: begin.callId,
+			method: begin.method,
+			outcome,
+			error,
+		};
+		notifyPortCallEnd(this.instrumentation, info);
+	}
+
+	beginOutboundCall(service: string, targetUuid?: string): OutboundCallBegin | undefined {
+		if (this.instrumentation === undefined) return undefined;
+		const portToken = currentPortCallToken();
+		const cause: CauseRef | undefined = this.readDispatchCause('wire') ?? portToken?.cause;
+		const info: OutboundCallBegin = {
+			callId: this.nextTraceCallId(),
+			service,
+			targetUuid,
+			cause,
+		};
+		notifyOutboundCallBegin(this.instrumentation, info);
+		return info;
+	}
+
+	endOutboundCall(begin: OutboundCallBegin | undefined, outcome: 'ok' | 'error', error?: Error): void {
+		if (this.instrumentation === undefined || begin === undefined) return;
+		const info: OutboundCallEnd = {
+			callId: begin.callId,
+			service: begin.service,
+			outcome,
+			error,
+		};
+		notifyOutboundCallEnd(this.instrumentation, info);
+	}
+
+	private slotBucket(eventName: string): ProtocolBucket {
+		return this.protocolIndex.get(eventName)?.bucket ?? 'notifications';
+	}
+
+	onTaskBegin(task: Task): void {
+		const meta = getTaskMeta(task);
+		if (meta?.internal === true || this.instrumentation === undefined) return;
+		if (this._currentMacrostep === undefined) {
+			const id: string = `${this.actorUuid}:${++this._macrostepCounter}`;
+			const trigger: string = meta?.event ?? 'unknown';
+			const triggerKind: TriggerKind = meta?.triggerKind ?? (this._jobs.length + this._hiPriorityJobs.length > 0 ? 'self' : 'external');
+			this._currentMacrostep = {
+				id,
+				trigger,
+				triggerKind,
+				startState: this.currentStateName,
+				stepSeq: -1,
+				transitioned: false,
+				outcome: 'ok',
+				cause: meta?.cause,
+			};
+			notifyMacrostepBegin(this.instrumentation, {
+				id,
+				actor: this.identity,
+				trigger,
+				triggerKind,
+				startState: this.currentStateName,
+				cause: meta?.cause,
+				delayMs: meta?.delayMs,
+			});
+		}
+		const macrostep = this._currentMacrostep!;
+		macrostep.stepSeq += 1;
+		const seq: number = macrostep.stepSeq;
+		const fromState: string = this.currentStateName;
+		this._microstepFromState = fromState;
+		// Stamp seq + fromState on the task so onTaskEnd pairs correctly even when nested priority
+		// drains mutate the shared macrostep counter between this task's begin and end.
+		if (meta !== undefined) {
+			meta.seq = seq;
+			meta.fromState = fromState;
+		} else {
+			setTaskMeta(task, { seq, fromState });
+		}
+		const eventName: string = meta?.event ?? this.eventName ?? 'unknown';
+		const handlerState: string | undefined = lookupHandlerState(this, eventName);
+		const storage = dispatchContext.get();
+		const runMicrostep = (): void => {
+			notifyMicrostepBegin(this.instrumentation, {
+				macrostepId: macrostep.id,
+				seq,
+				event: eventName,
+				bucket: this.slotBucket(eventName),
+				queue: meta?.queue ?? 'default',
+				fromState: this.currentStateName,
+				handlerState,
+				cause: meta?.cause,
+			});
+		};
+		if (storage !== undefined && this.needsDispatchContext()) {
+			storage.run(this.buildDispatchToken(), runMicrostep);
+		} else {
+			runMicrostep();
+		}
+	}
+
+	onTaskEnd(task: Task, outcome: 'ok' | 'error'): void {
+		const meta = getTaskMeta(task);
+		if (meta?.internal === true || this.instrumentation === undefined || this._currentMacrostep === undefined) return;
+		const macrostep = this._currentMacrostep;
+		const fromState: string = meta?.fromState ?? this._microstepFromState ?? macrostep.startState;
+		const seq: number = meta?.seq ?? macrostep.stepSeq;
+		const transitioned: boolean = this.currentStateName !== fromState;
+		if (transitioned) macrostep.transitioned = true;
+		if (outcome === 'error') macrostep.outcome = 'error';
+		notifyMicrostepEnd(this.instrumentation, {
+			macrostepId: macrostep.id,
+			seq,
+			toState: this.currentStateName,
+			transitioned,
+			async: false,
+			outcome,
+		});
+	}
+
+	onDispatchError(err: Error): void {
+		if (this.instrumentation === undefined) return;
+		notifyError(this.instrumentation, {
+			phase: errorPhaseFromError(err),
+			errorClass: err.name,
+			error: err,
+			recovered: false,
+		});
+	}
+
+	onQueuesDrained(): void {
+		if (this.instrumentation === undefined || this._currentMacrostep === undefined) return;
+		const macrostep = this._currentMacrostep;
+		notifyMacrostepEnd(this.instrumentation, {
+			id: macrostep.id,
+			endState: this.currentStateName,
+			steps: macrostep.stepSeq + 1,
+			transitioned: macrostep.transitioned,
+			outcome: macrostep.outcome,
+		});
+		this._currentMacrostep = undefined;
+	}
+
+	private resolveEnqueueCause(): CauseRef {
+		const inherited: CauseRef | undefined = this.readDispatchCause('message');
+		if (inherited === undefined) {
+			return { actorUuid: this.actorUuid, kind: 'cause' };
+		}
+		if (inherited.actorUuid !== this.actorUuid) {
+			return inherited;
+		}
+		return { ...inherited, kind: 'cause' };
+	}
+
+	private enqueueWithInstrumentation(task: Task, event: string, queue: NotificationQueue, triggerKind: TriggerKind): void {
+		const cause: CauseRef = this.resolveEnqueueCause();
+		setTaskMeta(task, { event, queue, cause, triggerKind });
+		notifyEnqueue(this.instrumentation, {
+			event,
+			queue,
+			cause,
+			targetUuid: this.actorUuid,
+		});
+		if (queue === 'priority') {
+			this.pushHiPriorityTask(task);
+		} else {
+			this.pushTask(task);
 		}
 	}
 
@@ -1830,13 +2329,23 @@ export class Machine<C extends ActorConfig> extends HsmObject<C> {
 		}
 		this.recordObserverEvent(name, args);
 		return new Promise<unknown>((resolve, reject) => {
-			this.pushTask(createServiceTask(this, this.transitionResolver, name, args, resolve, reject));
+			const task: Task = createServiceTask(this, this.transitionResolver, name, args, resolve, reject);
+			if (this.instrumentation !== undefined) {
+				this.enqueueWithInstrumentation(task, name, 'default', 'call');
+				return;
+			}
+			this.pushTask(task);
 		});
 	}
 
 	dispatchNotification(name: string, args: unknown[], queue: NotificationQueue): void {
 		this.recordObserverEvent(name, args);
 		const task = createNotificationTask(this, this.transitionResolver, name, args);
+		if (this.instrumentation !== undefined) {
+			const triggerKind: TriggerKind = this._currentMacrostep === undefined ? 'external' : 'self';
+			this.enqueueWithInstrumentation(task, name, queue, triggerKind);
+			return;
+		}
 		if (queue === 'priority') {
 			this.pushHiPriorityTask(task);
 		} else {
@@ -1854,14 +2363,63 @@ export class Machine<C extends ActorConfig> extends HsmObject<C> {
 	}
 
 	private scheduleNotification(ms: number, name: string, args: unknown[]): void {
-		const enqueue = (): void => {
-			this.dispatchNotification(name, args, 'default');
-		};
 		const port = this._instance.portRef as IPort<C> | undefined;
 		if (port === undefined) {
 			throw new Error('ihsm: deferred notification requires a port');
 		}
-		port.setTimeout(enqueue, ms);
+		if (this.instrumentation === undefined) {
+			port.setTimeout(() => this.dispatchNotification(name, args, 'default'), ms);
+			return;
+		}
+		// Capture the arming step's dispatch token now (the timer fires later while the actor is idle,
+		// so the ambient token is gone by then). The fired macrostep links back to it as `timer` (§5.3.1).
+		const armed: CauseRef | undefined = this.readDispatchCause('timer');
+		const cause: CauseRef = armed ?? { actorUuid: this.actorUuid, kind: 'timer' };
+		port.setTimeout(() => this.enqueueTimerNotification(name, args, cause, ms), ms);
+	}
+
+	private enqueueTimerNotification(name: string, args: unknown[], cause: CauseRef, delayMs: number): void {
+		this.recordObserverEvent(name, args);
+		const task = createNotificationTask(this, this.transitionResolver, name, args);
+		setTaskMeta(task, { event: name, queue: 'default', cause, triggerKind: 'timer', delayMs });
+		notifyEnqueue(this.instrumentation, { event: name, queue: 'default', cause, delayMs, targetUuid: this.actorUuid });
+		this.pushTask(task);
+	}
+
+	private _actorLogger?: ActorLogger;
+
+	/** Severity-typed handler logger surfaced as `this.hsm.log.*` (CORE-F, §4.10.1). */
+	get logger(): ActorLogger {
+		if (this._actorLogger === undefined) {
+			const emit = (severity: LogRecord['severity'], message: string | Error, attributes?: LogAttributes): void => this.emitUserLog(severity, message, attributes);
+			this._actorLogger = {
+				trace: (m, a) => emit('trace', m, a),
+				debug: (m, a) => emit('debug', m, a),
+				info: (m, a) => emit('info', m, a),
+				warn: (m, a) => emit('warn', m, a),
+				error: (m, a) => emit('error', m, a),
+				fatal: (m, a) => emit('fatal', m, a),
+			};
+		}
+		return this._actorLogger;
+	}
+
+	private emitUserLog(severity: LogRecord['severity'], message: string | Error, attributes?: LogAttributes): void {
+		const isError: boolean = message instanceof Error;
+		const text: string = isError ? (message as Error).message : (message as string);
+		const body = `${this.traceHeader}${this.currentStateName}: ${text}`;
+		// User logs fire on intent and are never TraceLevel-gated; mirror to the TraceWriter for console.
+		this.traceWriter.write(this, body);
+		if (this.instrumentation === undefined) return;
+		const record: LogRecord = {
+			severity,
+			body,
+			attributes,
+			frames: this.traceFrames,
+			error: isError ? (message as Error) : undefined,
+			source: 'user',
+		};
+		notifyLog(this.instrumentation, record);
 	}
 
 	/** @internal Binds deferred self-notifications to a port instance. */
@@ -1879,7 +2437,50 @@ export class Machine<C extends ActorConfig> extends HsmObject<C> {
 			},
 			transition: next => machine.transition(next as StateClass<C>),
 			get port(): ActorPortOf<C> {
-				return instance.portRef as ActorPortOf<C>;
+				const rawPort = instance.portRef as ActorPortOf<C>;
+				if (machine.instrumentation === undefined || rawPort === undefined || typeof rawPort !== 'object') {
+					return rawPort;
+				}
+				if (machine._proxiedPort !== undefined) return machine._proxiedPort;
+				const proxy = new Proxy(rawPort as object, {
+					get(target: object, prop: string | symbol, receiver: unknown): unknown {
+						const value = Reflect.get(target, prop, receiver);
+						if (typeof value !== 'function') return value;
+						const method = String(prop);
+						return (...args: unknown[]): unknown => {
+							const begin = machine.beginPortCall(method);
+							if (begin === undefined) {
+								return Reflect.apply(value as Function, target, args);
+							}
+							const call = (): unknown => Reflect.apply(value as Function, target, args);
+							const storage = portCallContext.get();
+							try {
+								const result = storage !== undefined ? storage.run({ machine, callId: begin.callId, method, cause: begin.cause }, call) : call();
+								if (result instanceof Promise) {
+									return result.then(
+										(value: unknown) => {
+											machine.endPortCall(begin, 'ok');
+											return value;
+										},
+										(cause: unknown) => {
+											const err = asError(cause);
+											machine.endPortCall(begin, 'error', err);
+											throw err;
+										}
+									);
+								}
+								machine.endPortCall(begin, 'ok');
+								return result;
+							} catch (cause) {
+								const err = asError(cause);
+								machine.endPortCall(begin, 'error', err);
+								throw err;
+							}
+						};
+					},
+				}) as ActorPortOf<C>;
+				machine._proxiedPort = proxy;
+				return proxy;
 			},
 			unhandled: () => machine.unhandled(),
 			get eventName(): string {
@@ -1902,6 +2503,24 @@ export class Machine<C extends ActorConfig> extends HsmObject<C> {
 			},
 			get traceHeader(): string {
 				return machine.traceHeader;
+			},
+			get traceFrames(): readonly TraceFrame[] {
+				return machine.traceFrames;
+			},
+			get log(): ActorLogger {
+				return machine.logger;
+			},
+			get id(): string {
+				return machine.actorUuid;
+			},
+			get actorUuid(): string {
+				return machine.actorUuid;
+			},
+			get actorName(): string {
+				return machine.actorName;
+			},
+			get actorPath(): string {
+				return machine.actorPath;
 			},
 			get traceLevel(): TraceLevel {
 				return machine.traceLevel;
@@ -1971,6 +2590,18 @@ export class Machine<C extends ActorConfig> extends HsmObject<C> {
 			},
 			get traceHeader(): string {
 				return machine.traceHeader;
+			},
+			get id(): string {
+				return machine.actorUuid;
+			},
+			get actorUuid(): string {
+				return machine.actorUuid;
+			},
+			get actorName(): string {
+				return machine.actorName;
+			},
+			get actorPath(): string {
+				return machine.actorPath;
 			},
 		};
 		if (includeState) {
@@ -2048,11 +2679,22 @@ export function defaultDispatchErrorCallback<C extends ActorConfig>(hsm: Propert
 
 type ActorHandleFor<C extends ActorConfig, K extends EmbodimentKind> = K extends 'root' ? ExternalActor<C> : K extends 'inbound' ? InboundActor<C> : ChildActor<C>;
 
+type SpawnContext<C extends ActorConfig = ActorConfig> = {
+	readonly parentMachine?: Machine<C>;
+};
+
 /** @internal Spawn with embodiment kind — used by factories and `ihsm/testing`. */
-export function spawnActor<C extends ActorConfig, K extends EmbodimentKind>(kind: K, topState: TopStateArg<C>, ctx: ActorContextOf<C>, port: MachinePortInput<C> | undefined, options: ActorOptions<C>): ActorHandleFor<C, K> {
+export function spawnActor<C extends ActorConfig, K extends EmbodimentKind>(kind: K, topState: TopStateArg<C>, ctx: ActorContextOf<C>, port: MachinePortInput<C> | undefined, options: ActorOptions<C>, spawnContext: SpawnContext<C> = {}): ActorHandleFor<C, K> {
 	const { initialize = defaultInitialize, traceLevel = TraceLevel.DEBUG, traceWriter = defaultTraceWriter, dispatchErrorCallback = defaultDispatchErrorCallback as DispatchErrorCallback<C>, transitions } = options;
 
 	const protocolIndex = buildProtocolIndex(topState);
+	const topStateName: string = getStateName(topState as StateClass<C>);
+	const parentMachine: Machine<C> | undefined = spawnContext.parentMachine;
+	// Tracing is a cross-cutting concern: the actor adopts the globally-registered collector(s) at
+	// spawn (no per-actor `instrumentation` option). Snapshotting here keeps "no collector" actors
+	// at zero overhead while still sharing one collector instance across a parent and its children.
+	const resolvedInstrumentation: Instrumentation<C> | undefined = getActiveInstrumentation() as Instrumentation<C> | undefined;
+	const identity: ActorIdentity = parentMachine !== undefined ? mintActorIdentity('child', childActorPath(parentMachine.actorPath, topStateName, parentMachine.allocateChildSpawnIndex(topStateName)), parentMachine.actorUuid) : mintActorIdentity(kind, rootActorPath(topStateName));
 
 	const boundPort = (port ?? new Port<TopStateArg<C>>()) as MachinePortInput<C>;
 	const instance: { ctx: ActorContextOf<C>; hsm: never; portRef?: unknown } = {
@@ -2062,7 +2704,27 @@ export function spawnActor<C extends ActorConfig, K extends EmbodimentKind>(kind
 	};
 	Object.setPrototypeOf(instance, topState.prototype);
 
-	const machine = new Machine(topState as StateClass<C>, instance, protocolIndex, traceWriter, traceLevel, dispatchErrorCallback, initialize, transitions ?? new RuntimeTransitionResolver());
+	const machine = new Machine(topState as StateClass<C>, instance, protocolIndex, traceWriter, traceLevel, dispatchErrorCallback, initialize, identity, resolvedInstrumentation, transitions ?? new RuntimeTransitionResolver());
+	if (resolvedInstrumentation !== undefined) {
+		const token = dispatchContext.get()?.getStore() as DispatchToken | undefined;
+		const parentCause: CauseRef =
+			token?.actorUuid !== undefined
+				? {
+						actorUuid: token.actorUuid,
+						macrostepId: token.macrostepId,
+						stepSeq: token.stepSeq,
+						kind: 'spawn',
+					}
+				: {
+						actorUuid: identity.parentUuid ?? identity.uuid,
+						kind: 'spawn',
+					};
+		const spawnInfo: SpawnInfo = {
+			parent: parentCause,
+			child: identity,
+		};
+		notifyActorSpawned(resolvedInstrumentation, spawnInfo);
+	}
 
 	const portKind: EmbodimentKind = isRequestingPort(boundPort) ? 'child' : kind === 'root' ? 'inbound' : kind;
 	boundPort.actor = createActorHandle(machine, topState, protocolIndex, portKind) as never;
@@ -2090,9 +2752,11 @@ export function asParentActor<T extends TopStateArg<ActorConfig>>(handler: TopSt
 /** Parent composes a child machine — returns full child protocol shell with `parent` set. */
 export function makeChildActor<ParentT extends TopStateArg<ActorConfig>, ChildT extends TopStateArg<ActorConfig>>(parent: ParentActor<ParentT>, childTop: ChildT, childCtx: ActorContextOf<ActorConfigOf<ChildT>>, port?: MachinePortInput<ActorConfigOf<ChildT>>, options: ActorOptions<ActorConfigOf<ChildT>> = {}): ChildActor<ActorConfigOf<ChildT>> & { readonly parent: ParentActor<ParentT> } {
 	type ChildC = ActorConfigOf<ChildT>;
-	const child = spawnActor('child', childTop as TopStateArg<ChildC>, childCtx, port, options);
+	const parentMachine: Machine<ActorConfigOf<ParentT>> | undefined = parent[kParentLink] as Machine<ActorConfigOf<ParentT>> | undefined;
+	const child = spawnActor('child', childTop as TopStateArg<ChildC>, childCtx, port, options, { parentMachine: parentMachine as Machine<ChildC> | undefined });
 	Object.defineProperty(child, 'parent', { value: parent, enumerable: true, writable: false, configurable: true });
 	return child as ChildActor<ChildC> & { readonly parent: ParentActor<ParentT> };
 }
 
 export { kHandlerMachine, kParentLink } from './types';
+export { configureRunSeed, getRunSeed, getRunNamespace, actorNameFromTopState, mintActorIdentity, rootActorPath, childActorPath } from './identity';

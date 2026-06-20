@@ -4,9 +4,8 @@
 
 - [Nix](https://nixos.org/download/) with flakes enabled
 - GitHub repo **`filasieno/ihsm`** push access
-- npm **`ihsm`** publish access
-- **npm CI auth:** [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) (OIDC) only — **no `NPM_TOKEN` GitHub secret**. Configure on [npmjs.com/package/ihsm](https://www.npmjs.com/package/ihsm) → **Trusted publishing** → `filasieno/ihsm`, workflow **`release.yml`**.
-- **Local publishes** (your machine): use WebAuthn/passkey or the npm authenticator app when `npm publish` asks for 2FA — that is separate from CI.
+- npm publish access for **`ihsm`**, **`@ihsm/core`**, and **`@ihsm/otel`**
+- **npm CI auth:** [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) (OIDC) only — **no `NPM_TOKEN` GitHub secret**. Configure on each package → **Trusted publishing** → `filasieno/ihsm`, workflow **`release.yml`**.
 
 ## Pre-release checklist
 
@@ -14,16 +13,23 @@ Run locally on **`dev`**, then merge to **`master`** when green:
 
 ```shell
 nix flake check
-nix build .#docs
+nix build .#release
+```
+
+`nix flake check` builds and tests **`ihsm`**, **`@ihsm/core`**, and **`@ihsm/otel`**, runs lint, and builds docs. `nix build .#release` stages all three publish trees under `result/{ihsm,core,otel}/`.
+
+Optional local sanity (outside Nix):
+
+```shell
 bash packages/ihsm/scripts/verify-docs-site.sh packages/ihsm/docs-build
 ```
 
 `nix flake check` already runs `scripts/verify-no-generated-in-source.sh` (via the
 `lint` and `docs` derivations), so no separate generated-artifact check is needed.
 
-Confirm `packages/ihsm/package.json` and `packages/core/package.json` **`version`** values match the tag you will push (`0.1.0` → tag `0.1.0`, no `v` prefix). `@ihsm/core` depends on the same `ihsm` version.
+Confirm **`packages/ihsm/package.json`**, **`packages/core/package.json`**, and **`packages/otel/package.json`** **`version`** values all match the tag you will push (`0.1.21` → tag `0.1.21`, no `v` prefix). Bump **patch +1** each release (`0.1.21` → `0.1.22`); stay on **`0.1.x`** — do not jump to **`0.2.0`** until a deliberate minor release. `@ihsm/core` depends on the same `ihsm` version; `@ihsm/otel` peer-depends on `ihsm` ≥ that version.
 
-Update **`CHANGELOG.md`** for the new version.
+Update **`CHANGELOG.md`** in each published package for the new version.
 
 **Do not** run `npm run sync:docs` for commit — generated docs are built in CI/Nix only.
 Edit sources: `examples/`, `reference/REFERENCE.md`, `website/docs-src/`.
@@ -41,17 +47,23 @@ Edit sources: `examples/`, `reference/REFERENCE.md`, `website/docs-src/`.
 2. Tag and push the release:
 
    ```shell
-   git tag 0.1.0
-   git push upstream 0.1.0
+   git tag 0.1.21
+   git push upstream 0.1.21
    ```
 
 3. **Release workflow** (`.github/workflows/release.yml`) runs on the tag:
-   - full test suite + lint + docs
-   - `npm publish` **`ihsm`** via Trusted Publishing (OIDC) → [npmjs.com/package/ihsm](https://www.npmjs.com/package/ihsm)
-   - build + `npm publish` **`@ihsm/core`** → [npmjs.com/package/@ihsm/core](https://www.npmjs.com/package/@ihsm/core)
+   - `nix flake check` (build, test, lint, docs for all packages)
+   - `nix build .#release` (deterministic publish artifacts)
+   - `npm publish` in order: **`ihsm`** → **`@ihsm/core`** → **`@ihsm/otel`** (Trusted Publishing / OIDC)
    - GitHub Release with auto-generated notes
 
-Configure **Trusted publishing** on npm for both packages (`ihsm` and `@ihsm/core`), same repo/workflow (`release.yml`).
+Configure **Trusted publishing** on npm for all three packages (`ihsm`, `@ihsm/core`, `@ihsm/otel`), same repo/workflow (`release.yml`).
+
+| Package | npm |
+|---------|-----|
+| `ihsm` | [npmjs.com/package/ihsm](https://www.npmjs.com/package/ihsm) |
+| `@ihsm/core` | [npmjs.com/package/@ihsm/core](https://www.npmjs.com/package/@ihsm/core) |
+| `@ihsm/otel` | [npmjs.com/package/@ihsm/otel](https://www.npmjs.com/package/@ihsm/otel) |
 
 ## Badges (README)
 
@@ -61,7 +73,7 @@ After the first push to `master` post-release:
 |-------|--------|
 | CI | GitHub Actions `ci.yml` on `master` |
 | docs | GitHub Actions `docs.yml` on `master` |
-| Coverage | Coveralls — uploaded from CI (push only) |
+| Coverage | Coveralls — uploaded from CI (push only); `nyc check-coverage` gates ≥94% lines |
 | npm | Updates after `npm publish` |
 | License | GitHub license API |
 
@@ -78,12 +90,12 @@ If Coveralls shows *unknown*, open [coveralls.io/github/filasieno/ihsm](https://
 
 ### Trusted Publishing (recommended)
 
-Configure on the **package**, not only your npm account:
+Configure on **each package**, not only your npm account:
 
-1. Log in at https://www.npmjs.com/package/ihsm (you must be a maintainer).
+1. Log in at the package page (you must be a maintainer).
 2. **Settings** (package settings, top tab) → scroll to **Trusted publishing**.
-3. Click **GitHub Actions** (not “Connect to GitLab” etc.).
-4. Fill in **exactly** (case-sensitive; npm does not validate until publish time):
+3. Click **GitHub Actions**.
+4. Fill in **exactly** (case-sensitive):
 
    | Field | Value |
    |-------|--------|
@@ -92,55 +104,29 @@ Configure on the **package**, not only your npm account:
    | Workflow filename | `release.yml` |
    | Environment | *(leave empty)* unless you use a GitHub Environment |
 
-5. **Allowed actions**: enable **`npm publish`** (required on configs created after 2026-05-20).
-6. Save.
+5. **Allowed actions**: enable **`npm publish`**.
+6. Save — repeat for `ihsm`, `@ihsm/core`, and `@ihsm/otel`.
 
-7. **`package.json`** must already contain:
+7. **`package.json`** must contain a `repository` field pointing at `https://github.com/filasieno/ihsm.git` with the correct `directory` for scoped packages.
 
-   ```json
-   "repository": {
-     "type": "git",
-     "url": "https://github.com/filasieno/ihsm.git"
-   }
-   ```
+8. **GitHub** (`filasieno/ihsm` → Settings → Secrets): **delete `NPM_TOKEN`** (or leave unset).
 
-8. **GitHub** (`filasieno/ihsm` → Settings → Secrets): **delete `NPM_TOKEN`** (or leave unset). A stored publish token makes npm ask for OTP (`EOTP`) even if Trusted Publishing is configured.
+9. Push the current `release.yml` (Node 24 `setup-node`, **no** `NODE_AUTH_TOKEN`).
 
-9. Push the current `release.yml` (Node 24 `setup-node`, **no** `NODE_AUTH_TOKEN`, no `_authToken` in `.npmrc` during publish).
-
-10. Re-run: Actions → **Release** → **Run workflow** with the release tag after bumping `package.json` version.
-
-11. Optional hardening (after first green OIDC publish): package **Settings** → **Publishing access** → *Require two-factor authentication and disallow tokens*.
-
-#### Why you saw `EOTP` with provenance still working
-
-Those log lines are **two different auth paths**:
-
-| Log line | Mechanism |
-|----------|-----------|
-| `Signed provenance statement… from GitHub Actions` | Sigstore OIDC (`id-token: write`) — works without Trusted Publishing |
-| `EOTP` / one-time password | **npm publish** used your **`NPM_TOKEN`** (or `.npmrc` `_authToken`) — token auth + account 2FA |
-
-Trusted Publishing was **not** used for the publish step if `NPM_TOKEN` was set in the workflow or `.npmrc`. The workflow on `master` until updated also used `nix develop` + `NPM_TOKEN` (npm 10.x), which cannot do OIDC publish.
-
-#### If publish still fails after setup
-
-| Error | Check |
-|-------|--------|
-| `EOTP` | Remove GitHub secret `NPM_TOKEN`; ensure workflow has **no** `NODE_AUTH_TOKEN`; re-run **Release** workflow file `release.yml` |
-| `ENEEDAUTH` | Trusted publisher workflow name must be `release.yml`; repo `filasieno/ihsm`; use `ubuntu-latest` (not self-hosted) |
-| Wrong version published | `workflow_dispatch` must checkout the tag (fixed in `release.yml` `ref:` on checkout) |
-
-The release workflow uses `actions/setup-node` with Node 24 so npm ≥ 11.5 can exchange the GitHub OIDC token automatically. **Do not** add `NPM_TOKEN` to GitHub — the workflow will refuse token-based publish paths.
+10. Re-run: Actions → **Release** → **Run workflow** with the release tag after bumping all `package.json` versions.
 
 ## Manual npm publish (fallback)
 
 ```shell
 nix flake check
-nix develop --command npm publish --access public
+nix build .#release -o result
+# publish from packages/* after copying result/*/lib (see release workflow)
+cd packages/ihsm && npm publish --access public --ignore-scripts
+cd packages/core && npm publish --access public --ignore-scripts
+cd packages/otel && npm publish --access public --ignore-scripts
 ```
 
-Use only if the release workflow is unavailable. Interactive 2FA (authenticator) applies on your machine.
+Use only if the release workflow is unavailable. Interactive 2FA applies on your machine. Publish **`ihsm` first**, then **`@ihsm/core`**, then **`@ihsm/otel`**.
 
 ## Maintainer
 

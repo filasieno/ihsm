@@ -1,0 +1,186 @@
+---
+title: Child actors & workflows
+sidebar_label: Child actors & workflows
+slug: /guide/actors
+sidebar_position: 6
+description: Compose actor trees with child actors and sequence multi-step workflows.
+---
+
+# Child actors & workflows
+
+Real systems are **trees of actors**. A parent spawns children with `makeChildActor` and coordinates
+them through their faceted handles. Each actor has its own state, context, mailbox, and port.
+
+## Spawning and driving a child actor
+
+A parent spawns a child in `onEntry`, talks to it with `notify`/`notifyNow`/`call`, and drops it on
+`onExit`. Use `asParentActor(this)` to link the child to the spawning handler.
+
+```typescript
+import { asParentActor, InitialState, makeActor, makeChildActor, Port, registerStateNames, TopState } from 'ihsm';
+import type { ChildActor } from 'ihsm';
+
+interface LinkCtx {
+  host: string;
+  linkUp: boolean;
+  lastPayload: string;
+}
+
+interface LinkConfig {
+  context: LinkCtx;
+  services: { deliver(payload: string): Promise<boolean> };
+  internalNotifications: { open(host: string): void; finishDial(): void };
+}
+
+class LinkTop extends TopState<LinkConfig> {
+  open(host: string): void {
+    this.ctx.host = host;
+    this.hsm.transition(Connecting);
+  }
+  async deliver(payload: string): Promise<boolean> {
+    if (!this.ctx.linkUp) return false;
+    this.ctx.lastPayload = payload;
+    return true;
+  }
+}
+
+@InitialState
+class Down extends LinkTop {}
+
+class Connecting extends LinkTop {
+  onEntry(): void {
+    this.notifyNow.finishDial();
+  }
+  finishDial(): void {
+    this.ctx.linkUp = true;
+    this.hsm.transition(Up);
+  }
+}
+
+class Up extends LinkTop {}
+
+registerStateNames({ LinkTop, Down, Connecting, Up });
+
+interface GatewayCtx {
+  host: string;
+  link?: ChildActor<LinkConfig>;
+}
+
+interface GatewayConfig {
+  context: GatewayCtx;
+  notifications: { activate(host: string): void; deactivate(): void };
+  services: { relay(payload: string): Promise<boolean> };
+}
+
+class GatewayTop extends TopState<GatewayConfig> {
+  activate(host: string): void {
+    this.ctx.host = host;
+    this.hsm.transition(Active);
+  }
+  deactivate(): void {
+    this.hsm.transition(Idle);
+  }
+  async relay(payload: string): Promise<boolean> {
+    if (!this.ctx.link) return false;
+    return this.ctx.link.call.deliver(payload);
+  }
+}
+
+@InitialState
+class Idle extends GatewayTop {}
+
+class Active extends GatewayTop {
+  onEntry(): void {
+    if (!this.ctx.link) {
+      const linkCtx: LinkCtx = { host: this.ctx.host, linkUp: false, lastPayload: '' };
+      this.ctx.link = makeChildActor(asParentActor(this), LinkTop, linkCtx, new Port<typeof LinkTop>());
+    }
+    this.ctx.link.notifyNow.open(this.ctx.host); // parent → child notification
+  }
+  onExit(): void {
+    this.ctx.link = undefined;
+  }
+}
+
+registerStateNames({ GatewayTop, Idle, Active });
+
+const gw = makeActor(GatewayTop, { host: '' }, new Port<typeof GatewayTop>());
+await gw.hsm.sync();
+
+gw.notify.activate('node-1');
+await gw.hsm.sync();
+await gw.ctx.link?.hsm.sync(); // let the child settle
+console.log(await gw.call.relay('hello')); // true
+```
+
+Messaging directions: **parent → child** `child.notify.x()` / `await child.call.x()`;
+**child → parent** post `parent.notify.onX()` through a callback wired at spawn (so the child never
+holds a typed reference to the parent's whole surface).
+
+## A multi-step workflow
+
+Sequence phases inside one actor with transitions and a `notifyNow` decision step. Async handlers
+own the work; an entry-posted priority event acts as a guarded decision pseudo-state.
+
+```typescript
+import { InitialState, makeActor, Port, registerStateNames, TopState } from 'ihsm';
+
+type Phase = 'draft' | 'validating' | 'approved' | 'rejected';
+
+interface OrderCtx {
+  amount: number;
+  limit: number;
+  phase: Phase;
+  notes: string[];
+}
+
+interface OrderConfig {
+  context: OrderCtx;
+  notifications: { submit(): Promise<void>; decide(): void };
+  services: { status(): Promise<Phase> };
+}
+
+class OrderTop extends TopState<OrderConfig> {
+  status(): Phase {
+    return this.ctx.phase;
+  }
+}
+
+@InitialState
+class Draft extends OrderTop {
+  async submit(): Promise<void> {
+    this.ctx.phase = 'validating';
+    await new Promise((r) => this.hsm.port.setTimeout(r, 10)); // simulate a fraud check via the port
+    this.ctx.notes.push('fraud-check-ok');
+    this.hsm.transition(Validating);
+  }
+}
+
+class Validating extends OrderTop {
+  onEntry(): void {
+    this.notifyNow.decide(); // priority guard runs before any normal event
+  }
+  decide(): void {
+    if (this.ctx.amount <= this.ctx.limit) {
+      this.ctx.phase = 'approved';
+      this.hsm.transition(Approved);
+    } else {
+      this.ctx.phase = 'rejected';
+      this.ctx.notes.push('over-limit');
+      this.hsm.transition(Rejected);
+    }
+  }
+}
+
+class Approved extends OrderTop {}
+class Rejected extends OrderTop {}
+
+registerStateNames({ OrderTop, Draft, Validating, Approved, Rejected });
+
+const order = makeActor(OrderTop, { amount: 80, limit: 100, phase: 'draft', notes: [] }, new Port());
+await order.hsm.sync();
+
+order.notify.submit();
+await order.hsm.sync();
+console.log(await order.call.status()); // 'approved'
+```

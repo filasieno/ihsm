@@ -1,0 +1,184 @@
+---
+title: Errors, tracing & persistence
+sidebar_label: Errors, tracing & persistence
+slug: /guide/lifecycle
+sidebar_position: 7
+description: Recover from errors, observe an actor with a trace writer, and resume from a snapshot.
+---
+
+# Errors, tracing & persistence
+
+## Error recovery
+
+A throw inside a handler is offered to an `onError(err)` hook on the active state (or an ancestor).
+An event with no handler anywhere triggers `onUnhandled(err)`. Call `this.hsm.unhandled()` to raise
+an unhandled event deliberately.
+
+```typescript
+import { InitialState, makeActor, Port, registerStateNames, TopState } from 'ihsm';
+import type { EventHandlerError, UnhandledEventError } from 'ihsm';
+
+interface WorkerCtx {
+  failures: number;
+  recovered: number;
+}
+
+interface WorkerConfig {
+  context: WorkerCtx;
+  notifications: { risky(): void; bogus(): void };
+}
+
+class WorkerTop extends TopState<WorkerConfig> {
+  risky(): void {
+    throw new Error('simulated failure');
+  }
+  bogus(): void {
+    this.hsm.unhandled(); // explicitly raise UnhandledEventError
+  }
+}
+
+@InitialState
+class Working extends WorkerTop {
+  onError(_err: EventHandlerError<WorkerConfig>): void {
+    this.ctx.failures += 1;
+    this.ctx.recovered += 1; // handled here — the actor keeps running
+  }
+  onUnhandled(_err: UnhandledEventError<WorkerConfig>): void {
+    this.ctx.failures += 1;
+  }
+}
+
+registerStateNames({ WorkerTop, Working });
+
+const w = makeActor(WorkerTop, { failures: 0, recovered: 0 }, new Port());
+await w.hsm.sync();
+
+w.notify.risky();
+w.notify.bogus();
+await w.hsm.sync();
+console.log(w.ctx.failures, w.ctx.recovered); // 2 1
+```
+
+If no `onError`/`onUnhandled` recovers the throw, it is routed to the actor's
+`dispatchErrorCallback` (see [Configuration](/guide/configuration)).
+
+## Tracing
+
+Provide a `TraceWriter` to capture lifecycle and handler lines. At `VERBOSE_DEBUG` the runtime emits
+detailed entry/exit/handler steps; handlers can also write their own lines.
+
+```typescript
+import { InitialState, makeActor, Port, registerStateNames, TopState, TraceLevel } from 'ihsm';
+import type { TraceWriter } from 'ihsm';
+
+class CollectingTraceWriter implements TraceWriter {
+  readonly lines: string[] = [];
+  write(hsm: { currentStateName: string }, msg: unknown): void {
+    this.lines.push(`${hsm.currentStateName}: ${String(msg)}`);
+  }
+}
+
+interface PingConfig {
+  context: { pings: number };
+  notifications: { ping(): void };
+}
+
+class PingTop extends TopState<PingConfig> {
+  ping(): void {
+    this.ctx.pings += 1;
+    this.hsm.traceWriter.write(this.hsm as never, `ping ${this.ctx.pings}`);
+  }
+}
+
+@InitialState
+class Ready extends PingTop {}
+
+registerStateNames({ PingTop, Ready });
+
+const writer = new CollectingTraceWriter();
+const p = makeActor(PingTop, { pings: 0 }, new Port(), {
+  traceLevel: TraceLevel.VERBOSE_DEBUG,
+  traceWriter: writer,
+});
+await p.hsm.sync();
+
+p.notify.ping();
+await p.hsm.sync();
+console.log(writer.lines.some((l) => l.includes('ping 1'))); // true
+```
+
+## Persistence: snapshot and resume
+
+A snapshot is just the **active state name** plus the **context**. To resume, recreate the actor
+with `initialize: false` and `hsm.restore(State, ctx)` — this places the actor *without* running
+`onEntry`/`onExit`, so it continues exactly where it left off. `restore` is available on actors you
+own: child actors and test actors.
+
+```typescript
+import { asParentActor, InitialState, makeActor, makeChildActor, Port, registerStateNames, TopState } from 'ihsm';
+import type { ChildActor } from 'ihsm';
+
+interface SessionCtx {
+  user: string;
+  page: string;
+}
+
+interface SessionConfig {
+  context: SessionCtx;
+  notifications: { navigate(page: string): void };
+}
+
+class SessionTop extends TopState<SessionConfig> {
+  navigate(page: string): void {
+    this.ctx.page = page;
+  }
+}
+
+@InitialState
+class Anonymous extends SessionTop {
+  onEntry(): void {
+    this.ctx.user = '';
+  }
+}
+
+class Authenticated extends SessionTop {}
+
+registerStateNames({ SessionTop, Anonymous, Authenticated });
+
+// Map persisted names back to classes after JSON.parse.
+const SESSION_STATES = { Anonymous, Authenticated } as const;
+type SessionStateName = keyof typeof SESSION_STATES;
+interface Snapshot {
+  stateName: SessionStateName;
+  ctx: SessionCtx;
+}
+
+interface StoreConfig {
+  context: { session?: ChildActor<SessionConfig> };
+  notifications: { resume(snap: Snapshot): void };
+}
+
+class StoreTop extends TopState<StoreConfig> {
+  resume(snap: Snapshot): void {
+    const session = makeChildActor(asParentActor(this), SessionTop, { ...snap.ctx }, new Port<typeof SessionTop>(), {
+      initialize: false, // do not run the initial-state entry chain
+    });
+    session.hsm.restore(SESSION_STATES[snap.stateName], { ...snap.ctx }); // resume in place, no onEntry
+    this.ctx.session = session;
+  }
+}
+
+@InitialState
+class StoreReady extends StoreTop {}
+
+registerStateNames({ StoreTop, StoreReady });
+
+const store = makeActor(StoreTop, {}, new Port<typeof StoreTop>());
+await store.hsm.sync();
+
+const persisted = JSON.stringify({ stateName: 'Authenticated', ctx: { user: 'ada', page: 'dashboard' } });
+store.notify.resume(JSON.parse(persisted) as Snapshot);
+await store.hsm.sync();
+await store.ctx.session?.hsm.sync();
+console.log(store.ctx.session?.hsm.currentStateName); // 'Authenticated' — restored without entering Anonymous
+```

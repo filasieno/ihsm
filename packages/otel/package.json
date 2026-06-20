@@ -1,0 +1,132 @@
+{
+	"name": "@ihsm/otel",
+	"version": "0.1.21",
+	"description": "OpenTelemetry integration for ihsm — traces and logs via native instrumentation seams",
+	"license": "MIT",
+	"author": "Fabio Nicola Filasieno",
+	"maintainers": [
+		"Fabio Nicola Filasieno <fabio.filasieno@users.noreply.github.com>"
+	],
+	"bugs": {
+		"url": "https://github.com/filasieno/ihsm/issues"
+	},
+	"homepage": "https://github.com/filasieno/ihsm/tree/master/packages/otel",
+	"keywords": [
+		"ihsm",
+		"opentelemetry",
+		"otel",
+		"tracing",
+		"observability",
+		"state machine"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/filasieno/ihsm.git",
+		"directory": "packages/otel"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"sideEffects": false,
+	"peerDependencies": {
+		"ihsm": ">=0.1.21"
+	},
+	"dependencies": {
+		"@opentelemetry/api": "^1.9.1",
+		"@opentelemetry/api-logs": "^0.219.0",
+		"@opentelemetry/context-async-hooks": "^2.8.0",
+		"@opentelemetry/exporter-logs-otlp-http": "^0.219.0",
+		"@opentelemetry/exporter-trace-otlp-http": "^0.219.0",
+		"@opentelemetry/resources": "^2.8.0",
+		"@opentelemetry/sdk-logs": "^0.219.0",
+		"@opentelemetry/sdk-trace-base": "^2.8.0",
+		"@opentelemetry/sdk-trace-node": "^2.8.0",
+		"@opentelemetry/sdk-trace-web": "^2.8.0",
+		"@opentelemetry/semantic-conventions": "^1.41.1"
+	},
+	"devDependencies": {
+		"@eslint/js": "^9.39.1",
+		"@types/chai": "^5.2.3",
+		"@types/mocha": "^10.0.10",
+		"@types/node": "^25.9.1",
+		"chai": "^6.2.2",
+		"eslint": "^9.39.1",
+		"eslint-config-prettier": "^10.1.8",
+		"ihsm": "file:ihsm-dev.tgz",
+		"mocha": "^11.7.6",
+		"ts-node": "^10.9.2",
+		"typescript": "^6.0.3",
+		"typescript-eslint": "^8.46.2"
+	},
+	"overrides": {
+		"diff": "^8.0.3",
+		"glob": "^13.0.6",
+		"serialize-javascript": "^7.0.5",
+		"uuid": "^11.1.0"
+	},
+	"files": [
+		"lib"
+	],
+	"main": "./lib/cjs/index.js",
+	"module": "./lib/esm/index.js",
+	"types": "./lib/cjs/index.d.ts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./lib/esm/index.d.ts",
+				"default": "./lib/esm/index.js"
+			},
+			"require": {
+				"types": "./lib/cjs/index.d.ts",
+				"default": "./lib/cjs/index.js"
+			}
+		},
+		"./node": {
+			"import": {
+				"types": "./lib/esm/env/node.d.ts",
+				"default": "./lib/esm/env/node.js"
+			},
+			"require": {
+				"types": "./lib/cjs/env/node.d.ts",
+				"default": "./lib/cjs/env/node.js"
+			}
+		},
+		"./browser": {
+			"import": {
+				"types": "./lib/esm/env/browser.d.ts",
+				"default": "./lib/esm/env/browser.js"
+			},
+			"require": {
+				"types": "./lib/cjs/env/browser.d.ts",
+				"default": "./lib/cjs/env/browser.js"
+			}
+		},
+		"./testing": {
+			"import": {
+				"types": "./lib/esm/testing/index.d.ts",
+				"default": "./lib/esm/testing/index.js"
+			},
+			"require": {
+				"types": "./lib/cjs/testing/index.d.ts",
+				"default": "./lib/cjs/testing/index.js"
+			}
+		},
+		"./package.json": "./package.json"
+	},
+	"scripts": {
+		"build": "tsc -b tsconfig.lib.json tsconfig.esm.json && node scripts/finalize-build.mjs",
+		"clean": "rm -rf ./lib ./.tsc",
+		"lint": "eslint --max-warnings 0 \"src/spec/**/*.ts\"",
+		"pack:ihsm": "node scripts/ensure-ihsm-dev-pack.mjs",
+		"preinstall": "node scripts/ensure-ihsm-dev-pack.mjs",
+		"prepublishOnly": "npm test && npm run build",
+		"test": "TS_NODE_PROJECT=tsconfig.lib.json mocha",
+		"test:collector": "TS_NODE_PROJECT=tsconfig.lib.json mocha --no-config --require ts-node/register/transpile-only --node-option no-experimental-strip-types --ui bdd --timeout 30000 src/spec/collector.node.spec.ts",
+		"test:marker": "TS_NODE_PROJECT=tsconfig.lib.json node --no-experimental-strip-types --require ts-node/register/transpile-only src/spec/marker.ts",
+		"typecheck": "tsc -b",
+		"verify:prod": "npm audit --omit=dev",
+		"sync:docs": "node scripts/prepare-website-docs.mjs",
+		"doc": "npm run sync:docs && cd website && npm ci && npm run start",
+		"doc:build": "npm run sync:docs && cd website && npm ci && npm run build"
+	}
+}

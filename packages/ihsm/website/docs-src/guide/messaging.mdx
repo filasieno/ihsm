@@ -1,0 +1,203 @@
+---
+title: Messaging
+sidebar_label: Messaging
+slug: /guide/messaging
+sidebar_position: 4
+description: Notifications, run-to-completion posting, priority events, services, and call timeouts.
+---
+
+# Messaging
+
+Clients reach an actor through three faceted handles:
+
+| Facet | Shape | Delivery |
+|-------|-------|----------|
+| `actor.notify.x()` | `notifications` (void) | default queue (FIFO) |
+| `actor.notifyNow.x()` | `notifications` (void) | priority queue (drains first) |
+| `await actor.call.x()` | `services` (`Promise<T>`) | awaited service |
+
+Inside a handler, the same facets are available as `this.notify`, `this.notifyNow`, and the result
+of a `call` is awaited directly. Each event runs to completion before the next one starts.
+
+## Post and sync (run-to-completion)
+
+Events posted from a handler are **queued**, not run inline. They execute after the current handler
+returns, in order. One `sync()` drains the whole cascade.
+
+```typescript
+import { InitialState, makeActor, Port, registerStateNames, TopState } from 'ihsm';
+
+interface QueueCtx {
+  events: string[];
+}
+
+interface QueueConfig {
+  context: QueueCtx;
+  notifications: { start(): void; tick(): void; done(): void };
+}
+
+class QueueTop extends TopState<QueueConfig> {
+  start(): void {
+    this.ctx.events.push('start');
+    this.notify.tick(); // queued — runs after start() returns
+    this.notify.tick();
+    this.notify.done();
+  }
+  tick(): void {
+    this.ctx.events.push('tick');
+  }
+  done(): void {
+    this.ctx.events.push('done');
+  }
+}
+
+@InitialState
+class Idle extends QueueTop {}
+
+registerStateNames({ QueueTop, Idle });
+
+const m = makeActor(QueueTop, { events: [] }, new Port());
+await m.hsm.sync();
+
+m.notify.start();
+await m.hsm.sync();
+console.log(m.ctx.events); // ['start', 'tick', 'tick', 'done']
+```
+
+## Priority events with `notifyNow`
+
+`notifyNow` posts to a priority queue that drains **before** the default queue — even when a normal
+event was posted first in the same handler.
+
+```typescript
+import { InitialState, makeActor, Port, registerStateNames, TopState } from 'ihsm';
+
+interface CheckoutCtx {
+  steps: string[];
+}
+
+interface CheckoutConfig {
+  context: CheckoutCtx;
+  notifications: { confirm(): void; cancel(): void; lock(): void; capture(): void };
+}
+
+class CheckoutTop extends TopState<CheckoutConfig> {
+  confirm(): void {
+    this.notify.cancel(); // default queue
+    this.notifyNow.lock(); // priority — runs before cancel
+    this.notifyNow.capture();
+  }
+  lock(): void {
+    this.ctx.steps.push('lock');
+  }
+  capture(): void {
+    this.ctx.steps.push('capture');
+  }
+  cancel(): void {
+    this.ctx.steps.push('cancel');
+  }
+}
+
+@InitialState
+class Draft extends CheckoutTop {}
+
+registerStateNames({ CheckoutTop, Draft });
+
+const c = makeActor(CheckoutTop, { steps: [] }, new Port());
+await c.hsm.sync();
+
+c.notify.confirm();
+await c.hsm.sync();
+console.log(c.ctx.steps); // ['lock', 'capture', 'cancel']
+```
+
+## Services: `call` for request/response
+
+A `services` handler returns a value or a `Promise`; clients `await actor.call.x()`. Sync and async
+handlers share one signature — no `resolve`/`reject` plumbing.
+
+```typescript
+import { InitialState, makeActor, Port, registerStateNames, TopState } from 'ihsm';
+
+interface WalletCtx {
+  balance: number;
+}
+
+interface WalletConfig {
+  context: WalletCtx;
+  notifications: { deposit(amount: number): void };
+  services: {
+    getBalance(): Promise<number>;
+    withdraw(amount: number): Promise<number>;
+  };
+}
+
+class WalletTop extends TopState<WalletConfig> {
+  deposit(amount: number): void {
+    this.ctx.balance += amount;
+  }
+  getBalance(): number {
+    return this.ctx.balance; // sync return is fine
+  }
+  withdraw(amount: number): number {
+    if (amount > this.ctx.balance) {
+      throw new Error('insufficient funds'); // surfaces as a rejected promise
+    }
+    this.ctx.balance -= amount;
+    return this.ctx.balance;
+  }
+}
+
+@InitialState
+class OpenAccount extends WalletTop {}
+
+registerStateNames({ WalletTop, OpenAccount });
+
+const wallet = makeActor(WalletTop, { balance: 100 }, new Port());
+await wallet.hsm.sync();
+
+wallet.notify.deposit(50);
+console.log(await wallet.call.getBalance()); // 150
+console.log(await wallet.call.withdraw(30)); // 120
+await wallet.call.withdraw(1000).catch((e) => console.log(e.message)); // 'insufficient funds'
+```
+
+## Call timeouts
+
+Pass a `{ timeoutMs }` option as the final `call` argument. If the service does not settle in time,
+the promise rejects with `CallTimeoutError`. The deadline is armed on the actor's **port timer**, so
+under a `TestPort` it is driven by the virtual clock and stays fully deterministic.
+
+```typescript
+import { CallTimeoutError, InitialState, makeActor, Port, registerStateNames, TopState } from 'ihsm';
+
+interface RpcConfig {
+  context: Record<string, never>;
+  services: { slow(): Promise<string> };
+}
+
+class RpcTop extends TopState<RpcConfig> {
+  async slow(): Promise<string> {
+    await new Promise((r) => this.hsm.port.setTimeout(r, 10_000)); // long-running
+    return 'done';
+  }
+}
+
+@InitialState
+class Ready extends RpcTop {}
+
+registerStateNames({ RpcTop, Ready });
+
+const rpc = makeActor(RpcTop, {}, new Port());
+await rpc.hsm.sync();
+
+try {
+  await rpc.call.slow({ timeoutMs: 50 });
+} catch (err) {
+  if (err instanceof CallTimeoutError) {
+    console.log(`timed out: ${err.method}`); // 'timed out: slow'
+  }
+}
+```
+
+A `timeoutMs` of `0` rejects immediately.

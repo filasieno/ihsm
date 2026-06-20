@@ -1,0 +1,64 @@
+---
+title: Status & roadmap
+sidebar_label: Status
+slug: /reference/status
+sidebar_position: 4
+description: What ships today versus what is planned.
+---
+
+# Status & roadmap
+
+`@ihsm/otel` is at **`0.0.1`** and is developed in phases. This page is the honest source of truth
+about what you can rely on today.
+
+## Available now
+
+- **`@ihsm/otel/node` — the production exporter bridge.** A single call wires real OTEL traces and
+  logs to any OTLP collector:
+  - `startOtelNode({ serviceName })` builds a `TracerProvider` + `LoggerProvider` with OTLP/HTTP
+    exporters, an `AsyncLocalStorage` context manager, `ParentBased(AlwaysOn)` default sampling, and
+    server resource attributes — then **registers the collector globally** (tracing is a cross-cutting
+    concern; no per-actor wiring) and returns it plus an `unregister()` handle.
+  - macrostep → root span named `<ActorName>.<handler>`, microstep → `ihsm.step` span, transitions → `ihsm.transition` span,
+    errors → span status `ERROR` + `recordException`, and trace-correlated OTLP logs.
+  - verified end-to-end against the Grafana **Tempo** (traces) and **Loki** (logs) stack.
+- **`@ihsm/otel`** — the isomorphic core `createOtelInstrumentation({ tracer, logger })` (depends only
+  on `@opentelemetry/api` + `@opentelemetry/api-logs`), plus the frozen `ATTR` / `SPAN` / `EVENT`
+  semantic-convention constants and `IHSM_OTEL_VERSION`.
+- **`@ihsm/otel/testing`** — the deterministic telemetry toolkit, fully usable:
+  - `createIhsmSignalCollector()` / `settle()` — capture signals from any actor.
+  - `processSignals()` — fold signals into `ProcessedTrace[]` + `ProcessedLog[]`.
+  - conformance assertions (`assertMacrostepShape`, `assertTier1OnEverySpan`,
+    `assertOneTracePerExternalStimulus`, `assertStepsOrderedByStartTime`, …).
+  - the full `OtelSignal` / `Processed*` type surface.
+- The **instrumentation seam** in `ihsm` core (the vendor-neutral `Instrumentation` callbacks) and
+  the built-in `createConsoleInstrumentation()` for OTEL-free output.
+
+The model and schema documented in [Reference → Model](/reference/model) and
+[Attributes](/reference/attributes) are **authoritative** — both the test harness and the live
+bridge are validated against them.
+
+## In progress
+
+- **Cross-actor bidirectional links** — the caller-minted callee `SpanContext` and W3C context
+  propagation for cross-process stitching. (Intra-macrostep cause links are already drawn; root
+  spans start as new traces with `ihsm.peer.uuid` set for the parent.)
+- **Browser entry point** (`@ihsm/otel/browser`) — OTLP/fetch + `sendBeacon` flush + optional
+  console exporter, `StackContextManager`. The isomorphic core already runs in the browser; only the
+  SDK edges remain.
+- An **OTel collector container** (file exporter → disk) for CI, where the on-disk trace log is the
+  authoritative command sequence the conformance tests assert against.
+
+## Design references (in-repo)
+
+The narrative specifications that back this site live alongside the package source:
+
+| Doc | Topic |
+|-----|-------|
+| `spec/01-AS-IS.md` | ihsm seams and the prototype |
+| `spec/02-REQUIREMENTS.md` | goals (R0–R10) |
+| `spec/03-PROPOSED-ARCHITECTURE.md` | package layout & boundaries |
+| `spec/04-TRACE-AND-LOG-DESIGN.md` | the authoritative trace/log design |
+| `spec/05-IMPLEMENTATION-STRATEGY.md` | the runtime callback redesign |
+| `spec/06-TEST-ARTIFACTS.md` | canonical trace/log shape & signal list |
+| `spec/07-CONFORMANCE-MATRIX.md` | every interaction case a trace must cover |

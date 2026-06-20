@@ -3,7 +3,7 @@ import 'mocha';
 
 import { CallTimeoutError, InitialState, Port, SelfCallDeadlockError, TopState, TraceLevel } from '../';
 import type { TestActor } from '../testing';
-import { makeTestActor } from '../testing';
+import { TestPort, makeTestActor } from '../testing';
 import * as self from './deadlock-guard.spec';
 import { registerSpecStateNames } from './spec.utils';
 
@@ -90,6 +90,24 @@ describe('deadlock-guard', function (): void {
 			expect((err as CallTimeoutError).method).equals('slow');
 		}
 		await actor.hsm.sync();
+	});
+
+	it('drives the service-call timeout from the TestPort virtual clock (no real waiting)', async () => {
+		const port = new TestPort<typeof DeadlockTop>();
+		const actor = makeTestActor(DeadlockTop, {}, port, { traceLevel: TraceLevel.DEBUG });
+		await actor.hsm.sync();
+
+		const pending = actor.call.slow({ timeoutMs: 10 });
+		// The deadline is armed on the port's virtual clock — nothing fires until we advance it.
+		port.advance(9);
+		port.advance(1);
+		try {
+			await pending;
+			expect.fail('expected CallTimeoutError');
+		} catch (err) {
+			expect(err).instanceOf(CallTimeoutError);
+			expect((err as CallTimeoutError).method).equals('slow');
+		}
 	});
 
 	it('rejects immediately when timeoutMs is zero', async () => {

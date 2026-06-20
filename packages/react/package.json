@@ -1,0 +1,88 @@
+{
+	"name": "@ihsm/react",
+	"version": "0.0.1",
+	"description": "React bindings and direct-manipulation UI primitives for ihsm InteractionActors — immutable ViewModel projection, optimistic reconciliation, undo/redo, and deterministic UI testing",
+	"license": "MIT",
+	"private": true,
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/filasieno/ihsm.git",
+		"directory": "packages/react"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"sideEffects": false,
+	"peerDependencies": {
+		"ihsm": ">=0.1.1",
+		"react": ">=18"
+	},
+	"devDependencies": {
+		"@testing-library/react": "^16.1.0",
+		"@types/chai": "^5.2.3",
+		"@types/mocha": "^10.0.10",
+		"@types/node": "^25.9.1",
+		"@types/react": "^19.0.0",
+		"chai": "^6.2.2",
+		"ihsm": "file:../ihsm",
+		"mocha": "^11.7.6",
+		"react": "^19.0.0",
+		"ts-node": "^10.9.2",
+		"typescript": "^6.0.3"
+	},
+	"files": [
+		"lib"
+	],
+	"main": "./lib/cjs/index.js",
+	"module": "./lib/esm/index.js",
+	"types": "./lib/cjs/index.d.ts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./lib/esm/index.d.ts",
+				"default": "./lib/esm/index.js"
+			},
+			"require": {
+				"types": "./lib/cjs/index.d.ts",
+				"default": "./lib/cjs/index.js"
+			}
+		},
+		"./surface": {
+			"import": {
+				"types": "./lib/esm/surface/index.d.ts",
+				"default": "./lib/esm/surface/index.js"
+			},
+			"require": {
+				"types": "./lib/cjs/surface/index.d.ts",
+				"default": "./lib/cjs/surface/index.js"
+			}
+		},
+		"./testing": {
+			"import": {
+				"types": "./lib/esm/testing/index.d.ts",
+				"default": "./lib/esm/testing/index.js"
+			},
+			"require": {
+				"types": "./lib/cjs/testing/index.d.ts",
+				"default": "./lib/cjs/testing/index.js"
+			}
+		},
+		"./devtools": {
+			"import": {
+				"types": "./lib/esm/devtools/index.d.ts",
+				"default": "./lib/esm/devtools/index.js"
+			},
+			"require": {
+				"types": "./lib/cjs/devtools/index.d.ts",
+				"default": "./lib/cjs/devtools/index.js"
+			}
+		},
+		"./package.json": "./package.json"
+	},
+	"scripts": {
+		"build": "tsc -b tsconfig.lib.json tsconfig.esm.json",
+		"clean": "rm -rf ./lib ./.tsc",
+		"test": "TS_NODE_PROJECT=tsconfig.lib.json mocha",
+		"typecheck": "tsc -b"
+	}
+}

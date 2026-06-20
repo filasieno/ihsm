@@ -116,6 +116,9 @@ export interface Properties<C extends ActorConfig = ActorConfig> {
 	traceLevel: TraceLevel;
 	traceWriter: TraceWriter;
 	dispatchErrorCallback: DispatchErrorCallback<C>;
+	readonly actorUuid: string;
+	readonly actorName: string;
+	readonly actorPath: string;
 }
 
 export type StateClass<C extends ActorConfig = ActorConfig> = StateClassOf<C>;
@@ -206,6 +209,10 @@ export type ActorHsm<_C extends ActorConfig = ActorConfig> = {
 	traceLevel: TraceLevel;
 	traceWriter: TraceWriter;
 	traceHeader: string;
+	readonly id: string;
+	readonly actorUuid: string;
+	readonly actorName: string;
+	readonly actorPath: string;
 };
 
 export type TestActorHsm<C extends ActorConfig = ActorConfig> = ActorHsm<C> & {
@@ -219,6 +226,7 @@ export type OwnerActorHsm<C extends ActorConfig = ActorConfig> = TestActorHsm<C>
 };
 
 export type ExternalActor<C extends ActorConfig = ActorConfig> = ActorParentField & {
+	readonly id: string;
 	readonly notify: NotifyFacet<ActorNotificationsOf<C>>;
 	readonly notifyNow: NotifyFacet<ActorNotificationsOf<C>>;
 	readonly call: CallFacet<ActorServicesOf<C>>;
@@ -228,6 +236,7 @@ export type ExternalActor<C extends ActorConfig = ActorConfig> = ActorParentFiel
 export type ExternalHsm<C extends ActorConfig = ActorConfig> = ExternalActor<C>['hsm'];
 
 export type InboundActor<C extends ActorConfig = ActorConfig> = ActorParentField & {
+	readonly id: string;
 	readonly notify: NotifyFacet<ActorNotificationsOf<C> & ActorInternalNotificationsOf<C>>;
 	readonly notifyNow: NotifyFacet<ActorNotificationsOf<C> & ActorInternalNotificationsOf<C>>;
 	readonly call: CallFacet<ActorServicesOf<C>>;
@@ -273,9 +282,17 @@ export type HandlerHsm<C extends ActorConfig = ActorConfig> = {
 	topState: StateClassOf<C>;
 	topStateName: string;
 	traceHeader: string;
+	/** Structured live domain stack (`ihsm.domain.path`) — derived from the trace header (§4.10.3). */
+	readonly traceFrames: readonly TraceFrame[];
+	/** Severity-typed handler logger — emits trace-correlated OTEL logs (§4.10.1). */
+	readonly log: ActorLogger;
 	traceLevel: TraceLevel;
 	traceWriter: TraceWriter;
 	dispatchErrorCallback: DispatchErrorCallback<C>;
+	readonly id: string;
+	readonly actorUuid: string;
+	readonly actorName: string;
+	readonly actorPath: string;
 };
 
 /** Structural root state instance — merged with the runtime {@link TopState} class. */
@@ -335,6 +352,162 @@ export type DoneCallback = () => void;
 /** @internal Run-to-completion work unit queued on the machine. */
 export type Task = (done: DoneCallback) => void;
 
+export interface ActorIdentity {
+	readonly uuid: string;
+	readonly name: string;
+	readonly path: string;
+	readonly kind: EmbodimentKind;
+	readonly parentUuid?: string;
+}
+
+export type TriggerKind = 'external' | 'call' | 'self' | 'actor' | 'timer' | 'init';
+export type DispatchPhase = 'lookup' | 'handler' | 'transition' | 'onEntry' | 'onExit' | 'unhandled' | 'initialize';
+
+export interface MacrostepBegin {
+	readonly id: string;
+	readonly actor: ActorIdentity;
+	readonly trigger: string;
+	readonly triggerKind: TriggerKind;
+	readonly startState: string;
+	readonly cause?: CauseRef;
+	/** For `timer` triggers — the scheduled delay, surfaced on the `ihsm.link.kind=timer` link (§4.7.5). */
+	readonly delayMs?: number;
+}
+
+export interface MacrostepEnd {
+	readonly id: string;
+	readonly endState: string;
+	readonly steps: number;
+	readonly transitioned: boolean;
+	readonly outcome: 'ok' | 'error';
+}
+
+export interface MicrostepBegin {
+	readonly macrostepId: string;
+	readonly seq: number;
+	readonly event: string;
+	readonly bucket: ProtocolBucket;
+	readonly queue: NotificationQueue;
+	readonly fromState: string;
+	readonly handlerState?: string;
+	readonly cause?: CauseRef;
+}
+
+export interface MicrostepEnd {
+	readonly macrostepId: string;
+	readonly seq: number;
+	readonly toState: string;
+	readonly transitioned: boolean;
+	readonly async: boolean;
+	readonly outcome: 'ok' | 'error';
+}
+
+export interface CauseRef {
+	readonly actorUuid: string;
+	readonly macrostepId?: string;
+	readonly stepSeq?: number;
+	readonly kind: 'cause' | 'timer' | 'message' | 'spawn' | 'wire';
+	carrier?: Record<string, string>;
+}
+
+export interface SpawnInfo {
+	readonly parent: CauseRef;
+	readonly child: ActorIdentity;
+}
+
+export interface PortCallBegin {
+	readonly callId: number;
+	readonly method: string;
+	readonly cause?: CauseRef;
+}
+
+export interface PortCallEnd {
+	readonly callId: number;
+	readonly method: string;
+	readonly outcome: 'ok' | 'error';
+	readonly error?: Error;
+}
+
+export interface OutboundCallBegin {
+	readonly callId: number;
+	readonly service: string;
+	readonly targetUuid?: string;
+	readonly cause?: CauseRef;
+}
+
+export interface OutboundCallEnd {
+	readonly callId: number;
+	readonly service: string;
+	readonly outcome: 'ok' | 'error';
+	readonly error?: Error;
+}
+
+export interface EnqueueInfo {
+	readonly event: string;
+	readonly queue: NotificationQueue;
+	readonly delayMs?: number;
+	readonly targetUuid?: string;
+	cause: CauseRef;
+}
+
+export interface DispatchError {
+	readonly phase: DispatchPhase;
+	readonly errorClass: string;
+	readonly error: Error;
+	readonly recovered: boolean;
+}
+
+export interface TraceFrame {
+	readonly name: string;
+	readonly kind: 'event' | 'handler' | 'transition' | 'onEntry' | 'onExit' | 'port' | 'service' | 'initialize';
+}
+
+export type LogAttributes = Record<string, string | number | boolean>;
+
+export interface LogRecord {
+	readonly severity: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+	readonly body: string;
+	readonly attributes?: LogAttributes;
+	readonly frames: readonly TraceFrame[];
+	readonly error?: Error;
+	readonly source: 'user' | 'runtime';
+}
+
+export interface ActorLogger {
+	trace(message: string, attributes?: LogAttributes): void;
+	debug(message: string, attributes?: LogAttributes): void;
+	info(message: string, attributes?: LogAttributes): void;
+	warn(message: string, attributes?: LogAttributes): void;
+	error(message: string | Error, attributes?: LogAttributes): void;
+	fatal(message: string | Error, attributes?: LogAttributes): void;
+}
+
+export interface Instrumentation<_C extends ActorConfig = ActorConfig> {
+	onActorCreated?(id: ActorIdentity): void;
+	onActorSpawned?(info: SpawnInfo): void;
+	onActorDisposed?(id: ActorIdentity): void;
+	onMacrostepBegin?(info: MacrostepBegin): void;
+	onMacrostepEnd?(info: MacrostepEnd): void;
+	onMicrostepBegin?(info: MicrostepBegin): void;
+	onMicrostepEnd?(info: MicrostepEnd): void;
+	onPortCallBegin?(info: PortCallBegin): void;
+	onPortCallEnd?(info: PortCallEnd): void;
+	onOutboundCallBegin?(info: OutboundCallBegin): void;
+	onOutboundCallEnd?(info: OutboundCallEnd): void;
+	onEnqueue?(info: EnqueueInfo): void;
+	onError?(info: DispatchError): void;
+	onLog?(record: LogRecord): void;
+	transition?: TransitionTracer;
+}
+
+export interface ActorOptions<C extends ActorConfig = ActorConfig> {
+	initialize?: boolean;
+	traceLevel?: TraceLevel;
+	traceWriter?: TraceWriter;
+	dispatchErrorCallback?: DispatchErrorCallback<C>;
+	transitions?: TransitionResolver<C>;
+}
+
 /** Machine host passed to {@link executeTransitionRoutine}. */
 export interface TransitionHost<C extends ActorConfig = ActorConfig> {
 	readonly ctx: ActorContextOf<C>;
@@ -350,9 +523,13 @@ export interface TransitionHost<C extends ActorConfig = ActorConfig> {
 
 /** @internal Runtime host passed to transition execution and dispatch tasks. */
 export interface HsmWithTracing<C extends ActorConfig = ActorConfig> extends TransitionHost<C> {
+	readonly actorUuid: string;
+	readonly actorName: string;
+	readonly actorPath: string;
 	traceLevel: TraceLevel;
 	traceWriter: TraceWriter;
 	dispatchErrorCallback: DispatchErrorCallback<C>;
+	reportDispatchError(err: Error): void;
 	sync(): Promise<void>;
 	restore(state: StateClassOf<C>, ctx: ActorContextOf<C>): void;
 	transition(nextState: StateClassOf<C>): void;
@@ -387,7 +564,14 @@ export interface DispatchableMachine {
 	dispatchNotification(name: string, args: unknown[], queue: NotificationQueue): void;
 	unshiftHiPriorityTask(t: (done: () => void) => void): void;
 	readonly ctx: unknown;
+	readonly actorUuid: string;
 	actorHsmFor(kind: EmbodimentKind): unknown;
+	/**
+	 * Timer service used to arm service-call timeouts. The actor's bound port when it provides a
+	 * timer service (so a virtual clock governs `timeoutMs` deterministically), otherwise
+	 * `undefined` (the runtime falls back to the host timer).
+	 */
+	readonly callTimer?: TimerService;
 }
 
 export type NotificationQueue = 'default' | 'priority' | 'timer';
@@ -409,6 +593,10 @@ export interface TransitionRoutinePlan<C extends ActorConfig = ActorConfig> exte
 
 export interface TransitionTracer {
 	traceTransitionStart(fromStateName: string, toStateName: string): void;
+	traceInitializeStart?(stateName: string): void;
+	traceInitializeDone?(finalStateName: string): void;
+	/** Optional: fired just before a real (non-default) `onExit`/`onEntry` runs — lets a structural tracer bracket the hook as a child span. */
+	traceHookStart?(stateName: string, hook: 'onExit' | 'onEntry'): void;
 	traceHookDone(stateName: string, hook: 'onExit' | 'onEntry'): void;
 	traceHookSkipped(stateName: string, hook: 'onExit' | 'onEntry'): void;
 	traceHookError(stateName: string, hook: 'onExit' | 'onEntry', cause: unknown): void;
@@ -421,6 +609,12 @@ export interface TransitionRoutineExecuteOptions<C extends ActorConfig = ActorCo
 	readonly style?: TransitionRoutineStyle;
 	readonly tracer?: TransitionTracer;
 	readonly setCurrentState?: (state: StateClassOf<C>) => void;
+	/**
+	 * Emit hook (`onExit`/`onEntry`) tracer callbacks regardless of `style`. Set when the tracer is a
+	 * structural instrumentation seam (not the console tracer), whose entry/exit spans are not
+	 * `TraceLevel`-gated (spec §4.8). Default `false` — console tracer keeps its verbose-only gating.
+	 */
+	readonly hookEvents?: boolean;
 }
 
 export type TransitionTraceHost = {
@@ -429,13 +623,5 @@ export type TransitionTraceHost = {
 	_tracePopDone(msg: string): void;
 	_tracePopError(msg: string): void;
 };
-
-export interface ActorOptions<C extends ActorConfig = ActorConfig> {
-	initialize?: boolean;
-	traceLevel?: TraceLevel;
-	traceWriter?: TraceWriter;
-	dispatchErrorCallback?: DispatchErrorCallback<C>;
-	transitions?: TransitionResolver<C>;
-}
 
 //#endregion

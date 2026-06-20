@@ -1,0 +1,114 @@
+---
+title: Signals & testing API
+sidebar_label: Signals & testing API
+slug: /reference/signals
+sidebar_position: 2
+description: The OtelSignal union, processed telemetry types, and conformance assertions.
+---
+
+# Signals & testing API
+
+These types and functions are exported from `@ihsm/otel/testing`.
+
+## `OtelSignal`
+
+The append-only record the collector captures. Each variant is discriminated by `kind` and carries
+a wall/virtual `at` timestamp.
+
+```typescript
+type OtelSignal =
+  | { kind: 'actor.created'; at: number; actor: ActorIdentity }
+  | { kind: 'actor.disposed'; at: number; actor: ActorIdentity }
+  | { kind: 'macrostep.begin'; at: number } & MacrostepBegin
+  | { kind: 'macrostep.end'; at: number } & MacrostepEnd
+  | { kind: 'microstep.begin'; at: number } & MicrostepBegin
+  | { kind: 'microstep.end'; at: number } & MicrostepEnd
+  | { kind: 'enqueue'; at: number } & EnqueueInfo
+  | { kind: 'dispatch.error'; at: number; actorUuid: string } & DispatchError
+  | { kind: 'log'; at: number; actorUuid: string; macrostepId?: string; record: LogRecord }
+  | { kind: 'span.start'; /* traceId, spanId, parentSpanId?, name, otelKind?, attributes */ }
+  | { kind: 'span.end'; /* traceId, spanId, status, attributes? */ }
+  | { kind: 'span.event'; /* traceId, spanId, name, attributes? */ }
+  | { kind: 'span.link'; /* traceId, spanId, linkedTraceId, linkedSpanId, attributes? */ };
+
+type AttributeValue = string | number | boolean | string[];
+```
+
+The `Macrostep*`, `Microstep*`, `EnqueueInfo`, `DispatchError`, `LogRecord`, and `ActorIdentity`
+shapes come from `ihsm/types` — the vendor-neutral seam.
+
+## Processed telemetry
+
+`processSignals` folds the raw signals into the canonical shape:
+
+```typescript
+function processSignals(signals: readonly OtelSignal[]): ProcessedTelemetry;
+
+interface ProcessedTelemetry {
+  readonly traces: ProcessedTrace[];
+  readonly logs: ProcessedLog[];
+}
+
+interface ProcessedTrace {
+  readonly traceId: string;
+  readonly rootSpanName: string;            // '<ActorName>.<handler>', e.g. 'Order.submit'
+  readonly rootAttributes: Record<string, AttributeValue>;
+  readonly durationMs?: number;
+  readonly spans: ProcessedSpan[];
+}
+
+interface ProcessedSpan {
+  readonly spanId: string;
+  readonly parentSpanId?: string;
+  readonly name: string;
+  readonly otelKind?: string;
+  readonly status: 'ok' | 'error' | 'unset';
+  readonly startAt: number;
+  readonly endAt?: number;
+  readonly attributes: Record<string, AttributeValue>;
+  readonly events: ProcessedSpanEvent[];
+  readonly links: ProcessedSpanLink[];
+}
+
+interface ProcessedLog {
+  readonly at: number;
+  readonly severity: 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL';
+  readonly body: string;
+  readonly traceId?: string;
+  readonly spanId?: string;
+  readonly labels: Record<string, string | undefined>;
+  readonly attributes: Record<string, AttributeValue>;
+}
+```
+
+`ProcessedSpanEvent` is `{ name, at, attributes }`; `ProcessedSpanLink` is
+`{ traceId, spanId, attributes }`.
+
+## Collector
+
+```typescript
+function createIhsmSignalCollector(): SignalCollector;
+
+interface SignalCollector {
+  readonly signals: OtelSignal[];     // append-only capture
+  readonly instrumentation: Instrumentation; // register globally via registerCollector()
+  reset(): void;                       // clear signals between scenarios
+}
+
+// Wait until the actor produces no further signals across a full tick.
+function settle(collector: SignalCollector, maxTicks?: number): Promise<void>;
+```
+
+## Conformance assertions
+
+All assertions throw a descriptive `Error` (prefixed `[ihsm-otel conformance]`) on failure, so they
+are runner-agnostic.
+
+| Function | Checks |
+|----------|--------|
+| `assertTier1OnSpan(span)` | the span carries `ihsm.actor.uuid`, `ihsm.actor.name`, `ihsm.state` |
+| `assertTier1OnEverySpan(trace)` | every span in the trace passes the Tier-1 check |
+| `assertMacrostepShape(trace, { steps, trigger?, outcome? })` | macrostep root span exists (named `<ActorName>.<handler>`, identified by `ihsm.trigger`); step-span count, `ihsm.trigger`, `ihsm.outcome`, and `ihsm.steps` match |
+| `assertStepsOrderedByStartTime(trace)` | `ihsm.step` spans are non-decreasing in `startAt` |
+| `assertOneTracePerExternalStimulus(traces, n)` | exactly `n` traces were produced |
+| `findTracesByTrigger(traces, trigger)` | returns traces whose root `ihsm.trigger` equals `trigger` |

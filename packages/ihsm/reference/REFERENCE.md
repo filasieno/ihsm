@@ -15,7 +15,7 @@ typed **promise services** on generated actor handles.
 | Attribute | Value |
 | --------- | ----- |
 | Production dependencies | **0** |
-| Runtime test coverage | **100%** (statements, branches, functions, lines) |
+| Runtime test coverage | **≥94%** lines (CI gate); target **100%** |
 | Node.js | **22+** |
 
 Documentation: [Reference](https://filasieno.github.io/ihsm/reference) · [Testing](https://filasieno.github.io/ihsm/testing)
@@ -1189,18 +1189,19 @@ Implications:
 
 ## 12. Code coverage
 
-The runtime under `src/` (excluding `src/spec/`) maintains **100%** coverage:
+The runtime under `src/` (excluding `src/spec/`) maintains **≥94%** line coverage (CI enforces via `nyc check-coverage`; target is 100% on statements/branches/functions/lines):
 
 ```shell
-npm test
+npm run test:node
+npx nyc check-coverage
 ```
 
-| Metric | Target |
-| ------ | ------ |
-| Statements | 100% |
-| Branches | 100% |
-| Functions | 100% |
-| Lines | 100% |
+| Metric | CI floor | Target |
+| ------ | -------- | ------ |
+| Statements | 94% | 100% |
+| Branches | 85% | 100% |
+| Functions | 88% | 100% |
+| Lines | 94% | 100% |
 
 All three dispatch implementations (production, debug, verbose) are exercised.
 

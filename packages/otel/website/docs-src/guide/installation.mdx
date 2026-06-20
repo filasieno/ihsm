@@ -1,0 +1,52 @@
+---
+title: Installation
+sidebar_label: Installation
+slug: /guide/installation
+sidebar_position: 2
+description: Install @ihsm/otel and confirm the version.
+---
+
+# Installation
+
+`@ihsm/otel` is a peer of `ihsm` (it requires `ihsm >= 0.1.1`).
+
+```bash
+npm install ihsm @ihsm/otel
+```
+
+The package exposes four entry points:
+
+| Import | Purpose |
+|--------|---------|
+| `@ihsm/otel/node` | **one-call production setup** — `startOtelNode()` wires OTLP exporters + `AsyncLocalStorage` and registers the collector globally (no per-actor wiring) |
+| `@ihsm/otel/browser` | **one-call dev/debug setup** — `startOtelBrowser()` wires OTLP/JSON over `fetch` + a `StackContextManager`, exports to DevTools, and flushes on page hide |
+| `@ihsm/otel` | isomorphic core — `createOtelInstrumentation({ tracer, logger })` + `ATTR`/`SPAN`/`EVENT` constants |
+| `@ihsm/otel/testing` | deterministic signal collector, processor, and conformance assertions |
+
+```typescript
+import { startOtelNode } from '@ihsm/otel/node';
+import { startOtelBrowser } from '@ihsm/otel/browser';
+import { ATTR, createOtelInstrumentation, IHSM_OTEL_VERSION } from '@ihsm/otel';
+import { createIhsmSignalCollector, processSignals, settle } from '@ihsm/otel/testing';
+
+console.log(IHSM_OTEL_VERSION);
+```
+
+The node entry point pulls in the OpenTelemetry SDK (`@opentelemetry/sdk-trace-node`, `sdk-logs`, the
+OTLP/HTTP exporters, `resources`, `semantic-conventions`); the browser entry point swaps
+`sdk-trace-node` for `@opentelemetry/sdk-trace-web` (`WebTracerProvider` + `StackContextManager`) and
+keeps everything else. Both produce the **identical** span/log schema — same `ihsm.*` attributes, same
+deterministic actor UUIDs, same macrostep→trace topology (only `telemetry.sdk.language` and
+`ihsm.host.kind` differ). The core and testing entry points depend only on `@opentelemetry/api` +
+`@opentelemetry/api-logs`, so they stay light and isomorphic.
+
+## Requirements
+
+- Node.js **22+** (or any modern browser for development/debugging).
+- `ihsm` **0.1.1+** as a peer dependency.
+- TypeScript with `experimentalDecorators` enabled (same as ihsm).
+
+:::tip No OpenTelemetry? No problem.
+If you only want lightweight, dependency-free visibility, you do **not** need this package at all:
+ihsm ships `createConsoleInstrumentation()` in its core. See [Console output](/guide/console).
+:::

@@ -1,0 +1,110 @@
+---
+title: Wiring instrumentation
+sidebar_label: Wiring instrumentation
+slug: /guide/instrumentation
+sidebar_position: 3
+description: Attach the signal collector to an actor and capture its telemetry signals.
+---
+
+# Wiring instrumentation
+
+:::tip Looking to ship telemetry to a collector?
+This page covers the **testing** collector that captures raw signals for assertions. To export real
+traces and logs to an OTLP backend in production, see [Quick start](/guide/quickstart) and
+`@ihsm/otel/node`.
+:::
+
+`@ihsm/otel/testing` ships a ready-made `Instrumentation` implementation — a **signal collector** —
+that you attach to any actor. It records every signal the runtime emits into an append-only list you
+can process into traces and logs or assert against.
+
+## Register the collector
+
+Tracing is a **cross-cutting concern**: register `collector.instrumentation` globally with
+`registerCollector()` **before** you create the actor. Every actor spawned while it is registered is
+observed automatically — there is no per-actor `instrumentation` option.
+
+```typescript
+import { clearCollectors, InitialState, Port, registerCollector, registerStateNames, TopState } from 'ihsm';
+import { makeTestActor } from 'ihsm/testing';
+import { createIhsmSignalCollector, settle } from '@ihsm/otel/testing';
+
+interface CounterConfig {
+  context: { value: number };
+  notifications: { increment(): void };
+}
+
+class CounterTop extends TopState<CounterConfig> {
+  increment(): void {
+    this.ctx.value += 1;
+  }
+}
+
+@InitialState
+class Running extends CounterTop {}
+
+registerStateNames({ CounterTop, Running });
+
+const collector = createIhsmSignalCollector();
+registerCollector(collector.instrumentation); // register before spawning
+
+const actor = makeTestActor(CounterTop, { value: 0 }, new Port(), {});
+
+await settle(collector); // wait for actor creation + initialization to be observed
+
+actor.notify.increment();
+await settle(collector); // wait for the macrostep to fully close
+
+console.log(collector.signals.map((s) => s.kind));
+// ['actor.created', 'macrostep.begin', 'microstep.begin', 'microstep.end', 'macrostep.end', ...]
+```
+
+## Why `settle()` and not `sync()`
+
+`hsm.sync()` resolves at the actor's stability point, but the closing `macrostep.end` signal is
+emitted one microtask later. `settle(collector)` waits until **no further signals are produced**
+across a full tick, which is the deterministic proxy for "the macrostep is fully closed and
+observed". Always `await settle(collector)` before reading or processing signals.
+
+```typescript
+import { settle } from '@ihsm/otel/testing';
+
+await settle(collector);            // default budget
+await settle(collector, 50);        // custom max ticks
+```
+
+## In production code
+
+Registration is identical outside tests — `registerCollector()` enforces tracing globally, and
+`makeActor` / `makeChildActor` take no tracing argument:
+
+```typescript
+import { makeActor, Port, registerCollector } from 'ihsm';
+import { createIhsmSignalCollector } from '@ihsm/otel/testing';
+
+const collector = createIhsmSignalCollector();
+registerCollector(collector.instrumentation);
+const actor = makeActor(AppTop, ctx, new Port(), { initialize: true });
+```
+
+Because the active collector is snapshotted at spawn, every actor — and every child it spawns — is
+covered by registering once. Children share the parent's collector instance, which is what makes
+cross-actor span links work.
+
+## Reset between scenarios
+
+`collector.reset()` clears the signal list (and the internal current-actor cursor) so one collector
+can be reused across multiple scenarios in a suite. In a test suite, also call `clearCollectors()`
+(e.g. in `afterEach`) to unregister all collectors so they don't leak across tests:
+
+```typescript
+collector.reset();
+clearCollectors(); // unregister every globally-registered collector
+```
+
+:::note Snapshot at spawn
+Registering or unregistering a collector affects only actors spawned **afterwards** — an
+already-running actor keeps the collector it adopted at spawn. This is what lets a test run one
+actor with tracing and another without, in the same process: register, spawn the observed actor,
+`clearCollectors()`, then spawn the plain one.
+:::

@@ -1,0 +1,152 @@
+---
+title: Setup
+sidebar_label: Setup
+slug: /guide/setup
+sidebar_position: 1
+description: Install ihsm and run an actor on the server (Node) and in the browser.
+---
+
+# Setup
+
+`ihsm` is isomorphic: the **same** package runs on the server (Node) and in the browser. There is
+one runtime import for application code and one for tests.
+
+```bash
+npm install ihsm
+```
+
+```typescript
+import * as ihsm from 'ihsm';          // application code
+import * as ihsm from 'ihsm/testing';  // tests only (TestPort, makeTestActor, @mock)
+```
+
+`ihsm` has **zero production dependencies** and ships dual CommonJS + ESM builds with type
+declarations. It requires a runtime with `globalThis.crypto` (Node 22+, and every modern browser).
+
+## Server (Node)
+
+Create a state machine, instantiate it with `makeActor`, and drive it through its faceted handles.
+
+```typescript
+import { InitialState, makeActor, Port, registerStateNames, TopState } from 'ihsm';
+
+interface CounterCtx {
+  value: number;
+}
+
+interface CounterConfig {
+  context: CounterCtx;
+  notifications: { increment(): void; reset(): void };
+  services: { read(): Promise<number> };
+}
+
+class CounterTop extends TopState<CounterConfig> {
+  increment(): void {
+    this.ctx.value += 1;
+  }
+  reset(): void {
+    this.ctx.value = 0;
+  }
+  async read(): Promise<number> {
+    return this.ctx.value;
+  }
+}
+
+@InitialState
+class Running extends CounterTop {}
+
+// Register class names so traces and persistence survive minification.
+registerStateNames({ CounterTop, Running });
+
+async function main(): Promise<void> {
+  // The production Port supplies real timers and randomness from the host.
+  const counter = makeActor(CounterTop, { value: 0 }, new Port());
+  await counter.hsm.sync(); // wait for initialization to settle
+
+  counter.notify.increment();
+  counter.notify.increment();
+  await counter.hsm.sync(); // wait for the mailbox to drain
+
+  console.log(await counter.call.read()); // 2
+}
+
+void main();
+```
+
+Run it with any TypeScript toolchain. Enable decorators in `tsconfig.json` so `@InitialState`
+compiles:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "experimentalDecorators": true,
+    "strict": true
+  }
+}
+```
+
+## Browser
+
+The browser build is intended for **development, debugging, and demonstration** — interactive
+playgrounds, visualizers, and in-page simulations. The API and behaviour are identical to the
+server; you simply import the same package and bundle it.
+
+```typescript
+import { InitialState, makeActor, Port, registerStateNames, TopState } from 'ihsm';
+
+interface ToggleCtx {
+  on: boolean;
+}
+
+interface ToggleConfig {
+  context: ToggleCtx;
+  notifications: { flip(): void };
+}
+
+class ToggleTop extends TopState<ToggleConfig> {
+  flip(): void {
+    this.ctx.on = !this.ctx.on;
+    document.body.dataset.state = this.ctx.on ? 'on' : 'off';
+  }
+}
+
+@InitialState
+class Ready extends ToggleTop {}
+
+registerStateNames({ ToggleTop, Ready });
+
+const toggle = makeActor(ToggleTop, { on: false }, new Port());
+await toggle.hsm.sync();
+
+document.querySelector('#flip')?.addEventListener('click', () => toggle.notify.flip());
+```
+
+### Bundler note
+
+`ihsm` uses Node's `async_hooks` for **one** non-production feature — self-call deadlock detection
+under elevated trace levels. It is loaded through a guarded dynamic import, so in the browser the
+feature is simply disabled and everything else runs unchanged. If your bundler tries to resolve
+`node:async_hooks`, mark it empty:
+
+```typescript
+// vite.config.ts
+export default {
+  resolve: { alias: { 'node:async_hooks': new URL('./empty.js', import.meta.url).pathname } },
+};
+```
+
+```javascript
+// webpack.config.js
+module.exports = {
+  resolve: { fallback: { 'node:async_hooks': false } },
+};
+```
+
+:::note Server is the production posture
+Run actors in the browser for development and debugging. For production telemetry and workloads,
+the server build is the supported deployment target.
+:::
+

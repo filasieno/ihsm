@@ -57,12 +57,16 @@ function ihsmSourcesPlugin(_context: LoadContext): Plugin {
 				webpackConfig.resolve.fallback = {
 					'node:async_hooks': false,
 					async_hooks: false,
+					// identity.ts uses node:crypto only on Node (guarded by process.versions.node);
+					// the browser falls back to a pure-JS SHA-1, so the Node module is never reached.
+					'node:crypto': false,
+					crypto: false,
 				};
 				return {
 					...webpackConfig,
 					plugins: [
 						new webpack.IgnorePlugin({
-							resourceRegExp: /^node:async_hooks$/,
+							resourceRegExp: /^node:(async_hooks|crypto)$/,
 						}),
 					],
 				};
@@ -149,7 +153,9 @@ const config: Config = {
 			title: 'ihsm',
 			items: [
 				{ to: '/', label: 'Home', position: 'left' },
+				{ to: '/guide/setup', label: 'Guide', position: 'left' },
 				{ to: '/reference', label: 'Reference', position: 'left' },
+				{ to: '/specification', label: 'Specification', position: 'left' },
 				{ to: '/testing', label: 'Testing', position: 'left' },
 				{
 					href: 'https://github.com/filasieno/ihsm',

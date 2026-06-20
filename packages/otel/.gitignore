@@ -1,0 +1,8 @@
+node_modules/
+lib/
+.tsc/
+docs-build/
+ihsm-dev.tgz
+website/node_modules/
+website/.docusaurus/
+website/docs/

@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing tag to publish (e.g. 0.0.19)'
+        description: 'Existing tag to publish (e.g. 0.1.21)'
         required: true
 
 permissions:
@@ -41,30 +41,35 @@ jobs:
       - name: Setup Nix
         uses: ./.github/actions/nix
 
-      - name: Verify version matches tag
+      - name: Verify package versions match tag
         run: |
           TAG="${{ steps.tag.outputs.ref }}"
-          PKG="$(jq -r .version packages/ihsm/package.json)"
           case "${TAG}" in
             v*) echo "Tags must not use a v prefix (expected ${TAG#v}, got ${TAG})"; exit 1 ;;
           esac
-          test "${PKG}" = "${TAG}" || {
-            echo "package.json version ${PKG} does not match tag ${TAG}"
-            exit 1
-          }
+          for pkg in packages/ihsm packages/core packages/otel; do
+            VER="$(jq -r .version "${pkg}/package.json")"
+            test "${VER}" = "${TAG}" || {
+              echo "${pkg}/package.json version ${VER} does not match tag ${TAG}"
+              exit 1
+            }
+          done
 
       - name: Run Nix checks (build, test, lint, docs)
         run: nix flake check --print-build-logs
 
-      - name: Stage built package for npm
+      - name: Build release artifacts (Nix)
         run: |
-          nix build .#ihsm --print-build-logs -o result
-          rm -rf packages/ihsm/lib
-          cp -r result/lib ./packages/ihsm/lib
+          set -euo pipefail
+          nix build .#release --print-build-logs -o result
+          rm -rf packages/ihsm/lib packages/core/lib packages/otel/lib
+          cp -r result/ihsm/lib packages/ihsm/lib
+          cp -r result/core/lib packages/core/lib
+          cp -r result/otel/lib packages/otel/lib
 
       # npm Trusted Publishing (OIDC) — no NPM_TOKEN / NODE_AUTH_TOKEN anywhere.
-      # Package settings: npmjs.com/package/ihsm → Trusted publishing →
-      # filasieno/ihsm, workflow release.yml, action npm publish.
+      # Configure Trusted publishing on npm for: ihsm, @ihsm/core, @ihsm/otel
+      # Repository filasieno/ihsm, workflow release.yml, action npm publish.
       - name: Setup Node for npm publish (OIDC)
         uses: actions/setup-node@v4
         with:
@@ -87,20 +92,28 @@ jobs:
           npm config delete //registry.npmjs.org/:_authToken --location=project 2>/dev/null || true
           unset NODE_AUTH_TOKEN NPM_TOKEN
 
-      - name: Publish ihsm to npm
+      - name: Publish packages to npm
         run: |
           set -euo pipefail
-          VERSION="$(jq -r .version packages/ihsm/package.json)"
-          if npm view "ihsm@${VERSION}" version >/dev/null 2>&1; then
-            echo "ihsm@${VERSION} is already published — skipping."
-          else
-            cd packages/ihsm
+          VERSION="${{ steps.tag.outputs.ref }}"
+          publish_pkg() {
+            local dir="$1"
+            local name="$2"
+            if npm view "${name}@${VERSION}" version >/dev/null 2>&1; then
+              echo "${name}@${VERSION} is already published — skipping."
+              return 0
+            fi
+            cd "${dir}"
             if grep -q '_authToken' .npmrc 2>/dev/null; then
-              echo "Refusing to publish: packages/ihsm/.npmrc still contains _authToken" >&2
+              echo "Refusing to publish: ${dir}/.npmrc still contains _authToken" >&2
               exit 1
             fi
             npm publish --access public --ignore-scripts
-          fi
+            cd - >/dev/null
+          }
+          publish_pkg packages/ihsm ihsm
+          publish_pkg packages/core @ihsm/core
+          publish_pkg packages/otel @ihsm/otel
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3

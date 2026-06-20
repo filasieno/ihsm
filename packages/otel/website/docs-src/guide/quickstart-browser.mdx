@@ -1,0 +1,78 @@
+---
+title: Quick start (browser)
+sidebar_label: Quick start (browser)
+slug: /guide/quickstart-browser
+sidebar_position: 3
+description: Watch an ihsm actor think in the browser — OTEL traces and logs in DevTools and a local collector.
+---
+
+# Quick start (browser)
+
+`@ihsm/otel/browser` is the **development/debug** counterpart of `@ihsm/otel/node`. It produces the
+**exact same** traces and logs — same `ihsm.*` attributes, same deterministic actor UUIDs, same
+macrostep→trace topology — but wires the browser SDK edges (`WebTracerProvider`, `StackContextManager`,
+OTLP/HTTP-JSON over `fetch`, optional console exporter) and a page-scoped lifecycle. Integration is the
+**same one call**.
+
+```typescript
+import { makeActor, Port } from 'ihsm';
+import { startOtelBrowser } from '@ihsm/otel/browser';
+
+// 1. Start the SDK — OTLP/JSON exporters + console (DevTools), AlwaysOn sampling, browser resource.
+//    This also registers the collector globally: tracing is a cross-cutting concern.
+const otel = startOtelBrowser({
+  serviceName: 'cb-web',
+  endpoint: 'http://localhost:4318', // a CORS-enabled OTLP/HTTP collector
+  console: true,                     // also print spans/logs to DevTools (default on)
+});
+
+// 2. Create actors as usual — no tracing argument. Every actor (and its children) spawned while
+//    the collector is registered is observed automatically.
+const actor = makeActor(AppTop, ctx, new Port(), { initialize: true });
+
+// 3. Drive your app. Each macrostep is a trace; the bridge resolves spans from its own per-actor
+//    record, so async suspensions never detach a child span — no AsyncLocalStorage needed.
+
+// 4. Flushing happens automatically on page hide; call shutdown() to tear down explicitly
+//    (which also unregisters the collector).
+await otel.shutdown();
+```
+
+Leave the browser provider out of shipped/production bundles: if you never call `startOtelBrowser`
+(and register no collector), the instrumentation seam is a no-op and tree-shakes away.
+
+## Server vs browser — same schema, different posture
+
+| | `@ihsm/otel/node` | `@ihsm/otel/browser` |
+|--|-------------------|----------------------|
+| Provider | `NodeTracerProvider` | `WebTracerProvider` |
+| Context manager | `AsyncLocalStorage` (async) | `StackContextManager` (sync) |
+| Transport | OTLP/HTTP, batched | OTLP/HTTP-JSON via `fetch`; optional console |
+| Resource | `service.*`, `telemetry.sdk.language="nodejs"`, `ihsm.host.kind="server"` | `service.*`, `telemetry.sdk.language="webjs"`, `ihsm.host.kind="browser"`, `user_agent.original`, `browser.*` |
+| Flush | `SIGTERM`/`SIGINT`/`beforeExit` | `visibilitychange→hidden` / `pagehide` |
+| Default `console` | `false` | `true` (visible in DevTools without any backend) |
+
+Because the bridge resolves the root/current span from a per-actor macrostep record (not ambient
+context), the synchronous `StackContextManager` costs **nothing** in trace fidelity — the browser build
+loses only async-context interop for third-party instrumentation, never ihsm trace shape.
+
+## Configuration
+
+`startOtelBrowser(config)` mirrors `startOtelNode`, plus:
+
+| Option | Default | Meaning |
+|--------|---------|---------|
+| `serviceName` | *(required)* | `service.name` resource attribute |
+| `endpoint` | `http://localhost:4318` | OTLP/HTTP base (no path); the collector must be CORS-enabled |
+| `console` | `true` | also export spans/logs to the console (DevTools) |
+| `flushOnPageHide` | `true` | flush the last batch on `pagehide` / `visibilitychange→hidden` |
+| `useSimpleProcessors` | `false` | synchronous processors (handy for tests) |
+| `sampler` | `ParentBased(AlwaysOn)` | trace sampler (100% by default) |
+| `lifecycleLogs` | `true` | emit a derived INFO/error log per macrostep |
+| `clock` | `'wall'` | set `'virtual'` under deterministic simulation |
+| `registerGlobal` | `true` | install the `StackContextManager` + W3C propagator globally |
+| `serviceVersion` / `tracesUrl` / `logsUrl` / `headers` / `resourceAttributes` | – | as in `startOtelNode` |
+
+The returned bundle exposes `instrumentation`, `tracer`, `logger`, `tracerProvider`, `loggerProvider`,
+`forceFlush()`, `unregister()`, and `shutdown()` — identical to the node bundle. `shutdown()`
+unregisters the collector automatically.

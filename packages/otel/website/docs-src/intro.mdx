@@ -1,0 +1,43 @@
+---
+slug: /
+sidebar_position: 1
+title: Home
+description: OpenTelemetry traces and logs for ihsm hierarchical state machines.
+---
+
+# @ihsm/otel
+
+**OpenTelemetry integration for [ihsm](https://github.com/filasieno/ihsm)** — turn an actor's
+dispatch into traces and logs, built on ihsm's native, vendor-neutral instrumentation seam.
+
+<div className="badge-row">
+  <span className="badge">Optional add-on</span>
+  <span className="badge">Callback-driven</span>
+  <span className="badge">Zero core coupling</span>
+  <span className="badge">Deterministic & replayable</span>
+</div>
+
+## The model in one line
+
+> **One macrostep = one trace.** Every external stimulus that drives an actor to stability produces
+> exactly one trace; each microstep (event dispatch) is a span; `hsm.log.*` records become
+> trace-correlated logs.
+
+`ihsm` emits neutral signals — `onMacrostepBegin`, `onMicrostepBegin`, `onError`, `onLog`, … — and
+`@ihsm/otel` maps them to OpenTelemetry. Nothing about OTEL lives in the `ihsm` core: the
+integration is **opt-in** and driven entirely by the `Instrumentation` callback interface. If you
+never install this package, ihsm has no OpenTelemetry footprint.
+
+## Where to go next
+
+- **[Guide → Overview](/guide/overview)** — how the integration works and how to wire it in.
+- **[Guide → Testing](/guide/testing)** — the deterministic conformance harness (available today).
+- **[Reference → Model](/reference/model)** — the trace/log mapping and schema.
+- **[Reference → Status](/reference/status)** — what ships now vs. what is planned.
+
+:::info Relationship to ihsm
+This site documents only the OpenTelemetry add-on. For the state-machine library itself — states,
+transitions, ports, deterministic testing — see the main **ihsm** documentation. If you want basic
+observability without OpenTelemetry, ihsm ships `createConsoleInstrumentation()` out of the box (see
+[Console output](/guide/console)).
+:::

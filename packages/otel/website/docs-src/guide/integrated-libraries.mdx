@@ -1,0 +1,134 @@
+---
+title: Building Integrated Libraries and Apps
+slug: /guide/integrated-libraries
+sidebar_position: 7
+description: Use standard OpenTelemetry APIs with ihsm/otel and attach user spans to the current ihsm trace.
+---
+
+# Building integrated libraries and apps
+
+`@ihsm/otel` is compatible with the standard OpenTelemetry API. You can:
+
+- keep using `@opentelemetry/api` tracers in your app/libraries;
+- open user spans that nest under the current ihsm `execute ...` span;
+- read the current ihsm trace context to correlate logs, metrics, and outbound calls.
+
+## 1) Use standard OTEL as usual
+
+You can still create spans with a regular tracer:
+
+```ts
+import { trace } from "@opentelemetry/api";
+
+const tracer = trace.getTracer("my-lib");
+const span = tracer.startSpan("my-lib.decode");
+try {
+  // ...
+} finally {
+  span.end();
+}
+```
+
+When a parent context is active, this nests as normal.
+
+## 2) Nest under the current ihsm span explicitly
+
+Use the helper APIs exported by `@ihsm/otel`:
+
+```ts
+import { traceSpan, traceSpanAsync } from "@ihsm/otel";
+
+traceSpan("lib.parse", () => {
+  // sync work
+});
+
+await traceSpanAsync("lib.fetchProfile", async () => {
+  // async work
+});
+```
+
+Inside an ihsm handler turn, these helpers attach to the current `execute ...` span.
+Outside a handler, they behave like normal root/ambient spans.
+
+### Example: anchor links at `notify` / `call` site
+
+When you emit cross-actor messages inside a user span, that span becomes the forward-link anchor.
+`@ihsm/otel` captures the active source span at enqueue time and still mints target context for the
+callee root, so causality remains stable even if the source span closes before the callee drains.
+
+```ts
+import { traceSpanAsync } from "@ihsm/otel";
+
+class ParentTop extends TopState<ParentConfig> {
+  async boot(): Promise<void> {
+    await traceSpanAsync("user.parent.boot-segment", async () => {
+      // Forward span link anchors here (this user span), not only on execute step.
+      this.ctx.child.notify.onReady();
+      await this.ctx.child.call.initialize(42);
+    });
+  }
+}
+```
+
+Expected trace shape:
+
+- parent trace contains:
+  - `execute boot service`
+  - `user.parent.boot-segment`
+- `user.parent.boot-segment` carries forward `causes` links to child trace(s)
+- child macrostep root carries reciprocal `caused_by` link(s)
+
+## 3) Decorate methods/classes
+
+```ts
+import { traced, tracedAsync, tracedClass } from "@ihsm/otel";
+
+class Repo {
+  @traced("repo.normalize")
+  normalize(input: string): string {
+    return input.trim();
+  }
+
+  @tracedAsync("repo.load")
+  async load(id: string): Promise<void> {
+    // ...
+  }
+}
+
+@tracedClass()
+class Service {
+  run(): void {}
+}
+```
+
+## 4) Read the current ihsm trace context
+
+Use these helpers when you need explicit correlation IDs:
+
+```ts
+import {
+  getActiveSpanContext,
+  getActiveTraceId,
+  getActiveSpanId,
+} from "@ihsm/otel";
+
+const ctx = getActiveSpanContext(); // SpanContext | undefined
+const traceId = getActiveTraceId(); // string | undefined
+const spanId = getActiveSpanId();   // string | undefined
+```
+
+Typical use cases:
+
+- add `trace_id` / `span_id` fields to logs;
+- propagate W3C `traceparent` on outbound HTTP/gRPC requests;
+- tag metrics with low-cardinality operation labels and correlate via exemplars.
+
+## 5) Best practices
+
+- Prefer low-cardinality span names (`lib.operation`) and put high-cardinality data in attributes.
+- Record exceptions on failures (`span.recordException(err)`), then set error status.
+- Use span events for small milestones; use child spans for meaningful timed sub-operations.
+- Keep port spans/call spans in the caller trace; cross-actor relations are represented with links.
+- If you need precise cross-actor causality from library code, wrap `notify` / `call` emission in
+  `traceSpan` / `traceSpanAsync` so the forward link is anchored on your library span.
+

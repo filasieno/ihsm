@@ -1,0 +1,134 @@
+---
+title: Testing
+sidebar_label: Testing
+slug: /guide/testing
+sidebar_position: 8
+description: A deterministic-testing quickstart with TestPort, mock ports, virtual time, and injected events.
+---
+
+# Testing
+
+Because every side effect goes through a port, you test an actor by swapping the production `Port`
+for a `TestPort`: a virtual clock, scripted randomness, and mockable domain I/O. No real timers, no
+network, no flakiness. The full technique lives in [Deterministic testing](/testing); here is the
+quickstart.
+
+```typescript
+import { makeTestActor, makeTestPort, mock, TestPort } from 'ihsm/testing';
+```
+
+## Virtual time
+
+A `TestPort` gives you a controllable clock. `advance(ms)` fires due timers instantly; `sync()`
+drains the mailbox.
+
+```typescript
+import { InitialState, registerStateNames, TopState } from 'ihsm';
+import { makeTestActor, TestPort } from 'ihsm/testing';
+
+const HOUR = 3_600_000;
+
+interface BeatConfig {
+  context: { ticks: number };
+  notifications: { start(): void };
+  internalNotifications: { onTick(): void };
+}
+
+class BeatTop extends TopState<BeatConfig> {
+  start(): void {}
+  onTick(): void {}
+}
+
+@InitialState
+class Stopped extends BeatTop {
+  start(): void {
+    this.hsm.transition(Running);
+  }
+}
+
+class Running extends BeatTop {
+  onEntry(): void {
+    this.hsm.port.defer(HOUR).onTick();
+  }
+  onTick(): void {
+    this.ctx.ticks += 1;
+    this.hsm.port.defer(HOUR).onTick();
+  }
+}
+
+registerStateNames({ BeatTop, Stopped, Running });
+
+const port = new TestPort<typeof BeatTop>();
+const beat = makeTestActor(BeatTop, { ticks: 0 }, port);
+await beat.hsm.sync();
+
+beat.notify.start();
+await beat.hsm.sync();
+
+port.advance(HOUR * 3); // three hours pass in microseconds
+await beat.hsm.sync();
+console.log(beat.ctx.ticks); // 3
+```
+
+## Mock ports and injected events
+
+Declare a mock with `@mock`, script its methods, and inject inbound environment events with
+`port.send(...)` exactly when the test is ready — so "in flight" and "settled" are both reachable
+without timers.
+
+```typescript
+import { InitialState, registerStateNames, TopState } from 'ihsm';
+import type { ResultWithSubscription } from 'ihsm';
+import { makeTestActor, makeTestPort, mock, TestPort } from 'ihsm/testing';
+
+interface FetchConfig {
+  context: { status: number; body: string };
+  notifications: { get(url: string): void };
+  internalNotifications: { onResponse(status: number, body: string): void };
+  port: { request(url: string): ResultWithSubscription<number> };
+}
+
+class FetchTop extends TopState<FetchConfig> {
+  get(url: string): void {
+    this.hsm.port.request(url);
+    this.hsm.transition(Fetching);
+  }
+  onResponse(_s: number, _b: string): void {}
+}
+
+@InitialState
+class Idle extends FetchTop {}
+
+class Fetching extends FetchTop {
+  onResponse(status: number, body: string): void {
+    this.ctx.status = status;
+    this.ctx.body = body;
+    this.hsm.transition(Idle);
+  }
+}
+
+registerStateNames({ FetchTop, Idle, Fetching });
+
+@mock('request')
+abstract class MockFetchPort extends TestPort<typeof FetchTop> {
+  abstract request(url: string): ResultWithSubscription<number>;
+}
+
+const port = makeTestPort(MockFetchPort);
+port.request.default(() => ({ value: 1, subscription: { dispose() {} } }));
+
+const sm = makeTestActor(FetchTop, { status: 0, body: '' }, port);
+await sm.hsm.sync();
+
+sm.notify.get('https://example.com');
+await sm.hsm.sync();
+console.log(port.calls.length); // request was invoked
+
+// Decide when the response lands — deterministically.
+port.send('onResponse', 200, 'ok');
+await sm.hsm.sync();
+console.log(sm.ctx.status, sm.ctx.body); // 200 'ok'
+```
+
+For seeded fault injection, subscriptions, golden traces, and the full BFS-over-the-state-matrix
+method, continue to [Deterministic testing](/testing).
