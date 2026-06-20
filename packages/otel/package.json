@@ -128,5 +128,8 @@
 		"sync:docs": "node scripts/prepare-website-docs.mjs",
 		"doc": "npm run sync:docs && cd website && npm ci && npm run start",
 		"doc:build": "npm run sync:docs && cd website && npm ci && npm run build"
+	},
+	"publishConfig": {
+		"access": "public"
 	}
 }

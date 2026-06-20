@@ -1,5 +1,8 @@
 # @ihsm/otel
 
+[![npm version](https://img.shields.io/npm/v/@ihsm/otel)](https://www.npmjs.com/package/@ihsm/otel)
+[![ihsm peer](https://img.shields.io/npm/v/ihsm?label=ihsm)](https://www.npmjs.com/package/ihsm)
+
 OpenTelemetry bridge for [ihsm](https://www.npmjs.com/package/ihsm) — traces and structured logs via the native `Instrumentation` seam (`registerCollector` / `createConsoleInstrumentation`).
 
 Peer-depends on **`ihsm`** (≥ 0.1.22). No tracing code in actor handlers; register a provider once, then every spawned actor reports automatically.

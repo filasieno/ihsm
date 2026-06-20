@@ -115,6 +115,8 @@ Configure on **each package**, not only your npm account:
 
 10. Re-run: Actions → **Release** → **Run workflow** with the release tag after bumping all `package.json` versions.
 
+**Scoped packages (`@ihsm/core`, `@ihsm/otel`):** if `ihsm` publishes but scoped packages fail with `ENEEDAUTH`, Trusted Publishing is missing on that scoped package — configure it on **each** package page (not only `ihsm`). Until then, publish interactively with 2FA: `npm publish --access public --ignore-scripts` from `packages/core` and `packages/otel` after `nix build .#release`.
+
 ## Manual npm publish (fallback)
 
 ```shell

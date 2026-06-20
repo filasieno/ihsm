@@ -48,7 +48,7 @@ jobs:
           cd packages/ihsm
           rm -rf lib
           cp -r ../../ihsm-result/lib lib
-          nix develop ../.. --command bash -c 'npm run test:node && npm run coverage && npx nyc check-coverage'
+          nix develop ../.. --command bash -c 'npm ci && npm run test:node && npx nyc check-coverage'
 
       - name: Upload coverage to Coveralls
         uses: coverallsapp/github-action@v2

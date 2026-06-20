@@ -2,6 +2,8 @@
 [![Documentation](https://img.shields.io/github/actions/workflow/status/filasieno/ihsm/docs.yml?label=docs)](https://github.com/filasieno/ihsm/actions/workflows/docs.yml)
 [![License: MIT](https://img.shields.io/github/license/filasieno/ihsm)](https://github.com/filasieno/ihsm/blob/HEAD/LICENSE)
 [![npm version](https://img.shields.io/npm/v/ihsm)](https://www.npmjs.com/package/ihsm)
+[![npm @ihsm/core](https://img.shields.io/npm/v/@ihsm/core?label=%40ihsm%2Fcore)](https://www.npmjs.com/package/@ihsm/core)
+[![npm @ihsm/otel](https://img.shields.io/npm/v/@ihsm/otel?label=%40ihsm%2Fotel)](https://www.npmjs.com/package/@ihsm/otel)
 [![Node](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js)](https://github.com/filasieno/ihsm/blob/HEAD/package.json)
 
 # ihsm
