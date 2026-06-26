@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import 'mocha';
 
-import { Fulfilled, Fulfilling, Open, PaymentDone, PaymentPending, ShippingDone, ShippingWaiting, createOrder, syncOrderRegions } from './machine';
+import { Fulfilled, Open, PaymentDone, PaymentPending, ShippingDone, ShippingWaiting, createOrder, syncOrderRegions } from './machine';
 
 describe('Tutorial 14: nested machines', () => {
 	it('coordinates payment and shipping child actors via parent events only', async () => {
@@ -27,9 +27,6 @@ describe('Tutorial 14: nested machines', () => {
 		await syncOrderRegions(order);
 
 		order.notify.fulfill();
-		await order.hsm.sync();
-		expect(order.hsm.currentState).equals(Fulfilling);
-
 		await order.ctx.payment!.hsm.sync();
 		await order.hsm.sync();
 		expect(order.ctx.payment!.hsm.currentState).equals(PaymentDone);
@@ -37,5 +34,6 @@ describe('Tutorial 14: nested machines', () => {
 		await order.ctx.shipping!.hsm.sync();
 		await order.hsm.sync();
 		expect(order.hsm.currentState).equals(Fulfilled);
+		expect(order.ctx.shipping!.hsm.currentState).equals(ShippingDone);
 	});
 });

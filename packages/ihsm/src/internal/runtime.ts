@@ -1793,6 +1793,8 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 	private _drainWaiters: Array<() => void> = [];
 	private _tasksSinceYield = 0;
 	private _sliceStart = 0;
+	/** @internal Pending actor initialization — always runs before hi-priority work. */
+	public _initTask?: Task;
 
 	constructor(TopState: StateClass<C>, instance: Instance<C>, traceWriter: TraceWriter, traceLevel: TraceLevel, dispatchErrorCallback: DispatchErrorCallback<C>, identity: ActorIdentity) {
 		this._instance = instance;
@@ -1920,6 +1922,13 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 		for (const resolve of waiters) resolve();
 	}
 
+	protected enqueueInitTask(task: Task): void {
+		this._initTask = task;
+		if (this._isRunning) return;
+		this._isRunning = true;
+		this.scheduleKickoff();
+	}
+
 	public pushTask(t: Task): void {
 		this.enqueueTask(t, this._jobs);
 	}
@@ -1952,10 +1961,16 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 	}
 
 	private dequeue(): void {
-		if (this._hiPriorityJobs.length == 0 && this._jobs.length == 0) {
+		if (this._initTask === undefined && this._hiPriorityJobs.length == 0 && this._jobs.length == 0) {
 			this._isRunning = false;
 			this._instrumentationHost?.onQueuesDrained();
 			this.flushDrainWaiters();
+			return;
+		}
+		if (this._initTask !== undefined) {
+			const task = this._initTask;
+			this._initTask = undefined;
+			this.exec(task);
 			return;
 		}
 		const task = this._hiPriorityJobs.length > 0 ? this._hiPriorityJobs.shift()! : this._jobs.shift()!;
@@ -2105,7 +2120,7 @@ export class Machine<C extends ActorConfig> extends HsmObject<C> implements Inst
 		if (initialize) {
 			const initTask: Task = createInitTask(this, this.transitionResolver);
 			setTaskMeta(initTask, { event: 'initialize', queue: 'default', triggerKind: 'init', internal: false });
-			this.pushTask(initTask);
+			this.enqueueInitTask(initTask);
 		}
 	}
 
