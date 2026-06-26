@@ -1,5 +1,6 @@
 /** @internal Consolidated ihsm runtime (no pure types — see ./types.ts). */
 /// <reference types="node" />
+import { nowMs, YIELD_TASK_BUDGET, YIELD_TIME_BUDGET_MS, yieldToMacrotask } from './scheduler';
 import type {
 	ActorConfig,
 	ActorContextOf,
@@ -1790,6 +1791,8 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 	private _traceDomainStack: string[];
 	protected _instrumentationHost?: InstrumentationHost;
 	private _drainWaiters: Array<() => void> = [];
+	private _tasksSinceYield = 0;
+	private _sliceStart = 0;
 
 	constructor(TopState: StateClass<C>, instance: Instance<C>, traceWriter: TraceWriter, traceLevel: TraceLevel, dispatchErrorCallback: DispatchErrorCallback<C>, identity: ActorIdentity) {
 		this._instance = instance;
@@ -1929,14 +1932,18 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 		this._hiPriorityJobs.unshift(t);
 		if (this._isRunning) return;
 		this._isRunning = true;
-		this.dequeue();
+		this.scheduleKickoff();
 	}
 
 	private enqueueTask(t: Task, queue: Task[]): void {
 		queue.push(t);
 		if (this._isRunning) return;
 		this._isRunning = true;
-		this.dequeue();
+		this.scheduleKickoff();
+	}
+
+	private scheduleKickoff(): void {
+		queueMicrotask(() => this.dequeue());
 	}
 
 	public restore(state: StateClass<C>, ctx: ActorContextOf<C>): void {
@@ -1956,7 +1963,19 @@ export class HsmObject<C extends ActorConfig> implements HsmWithTracing<C> {
 	}
 
 	private exec(task: Task): void {
-		setTimeout(() => this.runTask(task).then(() => this.dequeue()), 0);
+		if (this._tasksSinceYield === 0) {
+			this._sliceStart = nowMs();
+		}
+		void this.runTask(task).then(() => {
+			this._tasksSinceYield++;
+			const overBudget = this._tasksSinceYield >= YIELD_TASK_BUDGET || nowMs() - this._sliceStart >= YIELD_TIME_BUDGET_MS;
+			if (overBudget) {
+				this._tasksSinceYield = 0;
+				yieldToMacrotask(() => this.dequeue());
+			} else {
+				this.dequeue();
+			}
+		});
 	}
 
 	private runTask(task: Task): Promise<void> {

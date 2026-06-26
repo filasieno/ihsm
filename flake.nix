@@ -20,7 +20,7 @@
       #   otel: build once with lib.fakeHash, or prefetch from otel-src-npm-deps output
       #         (file:ihsm-dev.tgz is stripped — see nix/common.nix otelSrcForNpmDeps)
       npmDepsHash = {
-        ihsm = "sha256-u2ra/DJ0yTM+Xcemb9JuuwJuzoqn0Rc/wcA+oxDOlTE=";
+        ihsm = "sha256-nIVPjQDF2ybLPpb7P6pB+24tj6P/2hutMH+xivkMEq0=";
         otel = "sha256-ughi096KHViVyrUyfIlygvyaRAylgFHytDm6B8P2KCM=";
       };
 

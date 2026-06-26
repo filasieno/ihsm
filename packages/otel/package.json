@@ -1,6 +1,6 @@
 {
 	"name": "@ihsm/otel",
-	"version": "0.1.24",
+	"version": "0.1.25",
 	"description": "OpenTelemetry integration for ihsm — traces and logs via native instrumentation seams",
 	"license": "MIT",
 	"author": "Fabio Nicola Filasieno",
@@ -29,7 +29,7 @@
 	},
 	"sideEffects": false,
 	"peerDependencies": {
-		"ihsm": ">=0.1.24"
+		"ihsm": ">=0.1.25"
 	},
 	"dependencies": {
 		"@opentelemetry/api": "^1.9.1",

@@ -137,7 +137,7 @@
 		"prettier": "prettier --write 'src/**/*.ts' 'examples/**/*.ts' 'website/**/*.{ts,tsx}'",
 		"release:check": "npm run test:all && npm run lint && npm run build && npm run doc && npm run verify:doc",
 		"prepublishOnly": "npm run test:all && npm run build",
-		"test:node": "TS_NODE_PROJECT=tsconfig.lib.json nyc mocha",
+		"test:node": "TS_NODE_PROJECT=tsconfig.lib.json nyc mocha --no-watch",
 		"test:browser": "node scripts/run-browser-tests.mjs",
 		"test:browser:unit": "node scripts/run-browser-tests.mjs --suite unit",
 		"test:browser:examples": "node scripts/run-browser-tests.mjs --suite examples",
@@ -152,5 +152,5 @@
 		"pretypecheck": "npm run prepare:ide"
 	},
 	"types": "./lib/cjs/index.d.ts",
-	"version": "0.1.24"
+	"version": "0.1.25"
 }
