@@ -17,6 +17,12 @@ function createMacrotaskYielder(): (callback: () => void) => void {
 			g.scheduler!.postTask(callback, { priority: 'user-blocking' });
 		};
 	}
+	// Node / Electron main — MessageChannel ports keep the process alive (breaks mocha/nyc exit).
+	if (typeof g.setImmediate === 'function') {
+		return callback => {
+			g.setImmediate(callback);
+		};
+	}
 	if (typeof MessageChannel !== 'undefined') {
 		const channel = new MessageChannel();
 		let pending: Array<() => void> = [];
@@ -30,11 +36,6 @@ function createMacrotaskYielder(): (callback: () => void) => void {
 		return callback => {
 			pending.push(callback);
 			channel.port2.postMessage(null);
-		};
-	}
-	if (typeof g.setImmediate === 'function') {
-		return callback => {
-			g.setImmediate(callback);
 		};
 	}
 	return callback => {
